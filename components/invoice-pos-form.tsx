@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   CirclePlus,
+  Download,
   FileCheck2,
   Minus,
   Plus,
@@ -15,9 +16,16 @@ import {
   generatePayoutsForInvoice,
   nextInvoiceNumber
 } from "@/lib/calculations";
-import { createInvoiceAction } from "@/lib/actions";
 import { money, todayISO } from "@/lib/format";
-import { paymentMethods, type Doctor, type Invoice, type InvoiceItem, type Service, type DoctorPaymentRule } from "@/lib/types";
+import {
+  paymentMethods,
+  type Doctor,
+  type DoctorPaymentRule,
+  type DoctorPayout,
+  type Invoice,
+  type InvoiceItem,
+  type Service
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type DraftLine = {
@@ -50,6 +58,11 @@ export function InvoicePosForm({
   createdBy
 }: InvoicePosFormProps) {
   const [invoices, setInvoices] = useState(initialInvoices);
+  const [payoutQueue, setPayoutQueue] = useState<DoctorPayout[]>(() =>
+    initialInvoices
+      .flatMap((invoice) => generatePayoutsForInvoice(invoice, services, paymentRules))
+      .slice(0, 8)
+  );
   const [patientName, setPatientName] = useState("");
   const [passport, setPassport] = useState("");
   const [phone, setPhone] = useState("");
@@ -62,8 +75,7 @@ export function InvoicePosForm({
     { id: crypto.randomUUID(), serviceId: services[0]?.id ?? "", quantity: 1 }
   ]);
   const [savedInvoiceNo, setSavedInvoiceNo] = useState("");
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
+  const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
 
   const activeServices = services.filter((service) => service.active);
   const activeDoctors = doctors.filter((doctor) => doctor.active);
@@ -131,48 +143,81 @@ export function InvoicePosForm({
     setLines((current) => (current.length === 1 ? current : current.filter((line) => line.id !== id)));
   }
 
-  async function saveInvoice() {
+  function downloadInvoice(targetInvoice: Invoice) {
+    const doctor = doctors.find((candidate) => candidate.id === targetInvoice.doctorId);
+    const rows = targetInvoice.items
+      .map(
+        (item) => `
+          <tr>
+            <td>${item.serviceName}</td>
+            <td>${item.quantity}</td>
+            <td>${money(item.unitPrice)}</td>
+            <td>${money(item.lineTotal)}</td>
+          </tr>`
+      )
+      .join("");
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${targetInvoice.invoiceNo}</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #0b1726; margin: 32px; }
+      h1 { margin-bottom: 4px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 24px; }
+      th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; }
+      th { background: #f1f5f9; }
+      .totals { margin-top: 24px; margin-left: auto; width: 280px; }
+      .totals div { display: flex; justify-content: space-between; padding: 6px 0; }
+      .grand { font-weight: 700; font-size: 18px; border-top: 1px solid #dbe3ea; }
+    </style>
+  </head>
+  <body>
+    <h1>Health Aid Arugambay</h1>
+    <p>Invoice ${targetInvoice.invoiceNo} - ${targetInvoice.date}</p>
+    <p><strong>Patient:</strong> ${targetInvoice.patientName}</p>
+    <p><strong>Doctor:</strong> ${doctor?.name ?? "Unassigned"}</p>
+    <table>
+      <thead>
+        <tr><th>Service</th><th>Qty</th><th>Unit price</th><th>Subtotal</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="totals">
+      <div><span>Subtotal</span><span>${money(targetInvoice.subtotal)}</span></div>
+      <div><span>Discount</span><span>${money(targetInvoice.discount)}</span></div>
+      <div class="grand"><span>Grand total</span><span>${money(targetInvoice.totalAmount)}</span></div>
+    </div>
+  </body>
+</html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${targetInvoice.invoiceNo}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function saveInvoice() {
     if (!patientName.trim() || !doctorId || items.length === 0) {
       return;
     }
 
-    setError("");
-    setPending(true);
-
-    const result = await createInvoiceAction({
-      patientName,
-      passport,
-      phone,
-      nationality,
-      doctorId,
-      discount,
-      paymentMethod,
-      notes,
-      items: lines.map((line) => ({
-        serviceId: line.serviceId,
-        quantity: line.quantity
-      }))
-    });
-
-    setPending(false);
-
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-
-    const persistedInvoiceNo = result.demo ? draftInvoice.invoiceNo : result.data.invoiceNo;
+    const invoiceId = crypto.randomUUID();
+    const invoiceItems = items.map((item) => ({ ...item, id: crypto.randomUUID() }));
     const createdInvoice: Invoice = {
       ...draftInvoice,
-      id: result.demo ? crypto.randomUUID() : result.data.invoiceId,
-      invoiceNo: persistedInvoiceNo,
-      date: result.demo ? draftInvoice.date : result.data.date,
+      id: invoiceId,
       patientName: patientName.trim(),
-      items: items.map((item) => ({ ...item, id: crypto.randomUUID() }))
+      items: invoiceItems
     };
+    const createdPayouts = generatePayoutsForInvoice(createdInvoice, services, paymentRules);
 
     setInvoices((current) => [createdInvoice, ...current]);
-    setSavedInvoiceNo(persistedInvoiceNo);
+    setPayoutQueue((current) => [...createdPayouts, ...current].slice(0, 8));
+    setSavedInvoiceNo(createdInvoice.invoiceNo);
+    setLastSavedInvoice(createdInvoice);
     setPatientName("");
     setPassport("");
     setPhone("");
@@ -192,25 +237,35 @@ export function InvoicePosForm({
             <h2 className="mt-2 text-xl font-bold text-ink">{invoiceNo}</h2>
             <p className="mt-1 text-sm text-slate-500">Date: {todayISO()}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-          >
-            <Printer className="h-4 w-4" aria-hidden="true" />
-            Print
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
+              disabled={!patientName.trim() && !lastSavedInvoice}
+              className={cn(
+                "focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition",
+                patientName.trim() || lastSavedInvoice
+                  ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  : "border-slate-200 bg-slate-100 text-slate-400"
+              )}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Download
+            </button>
+          </div>
         </div>
 
         {savedInvoiceNo ? (
           <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             Saved {savedInvoiceNo}. Doctor payout records were generated from the selected doctor and invoice items.
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
           </div>
         ) : null}
 
@@ -319,55 +374,70 @@ export function InvoicePosForm({
               return (
                 <div
                   key={line.id}
-                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_44px]"
+                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_120px_44px]"
                 >
-                  <select
-                    value={line.serviceId}
-                    onChange={(event) => updateLine(line.id, { serviceId: event.target.value })}
-                    className="field"
-                    aria-label="Service"
-                  >
-                    {activeServices.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.name} - {candidate.category}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    <button
-                      type="button"
-                      className="focus-ring p-2 text-slate-500"
-                      onClick={() => updateLine(line.id, { quantity: Math.max(1, line.quantity - 1) })}
-                      aria-label="Decrease quantity"
+                  <div>
+                    <p className="label mb-2">Service</p>
+                    <select
+                      value={line.serviceId}
+                      onChange={(event) => updateLine(line.id, { serviceId: event.target.value })}
+                      className="field"
+                      aria-label="Service"
                     >
-                      <Minus className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <input
-                      value={line.quantity}
-                      min={1}
-                      type="number"
-                      onChange={(event) =>
-                        updateLine(line.id, { quantity: Math.max(1, Number(event.target.value)) })
-                      }
-                      className="w-full border-0 bg-white px-2 py-2 text-center text-sm font-semibold outline-none"
-                      aria-label="Quantity"
-                    />
-                    <button
-                      type="button"
-                      className="focus-ring p-2 text-slate-500"
-                      onClick={() => updateLine(line.id, { quantity: line.quantity + 1 })}
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                      {activeServices.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name} - {candidate.category}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="flex items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
-                    {money((service?.sellingPrice ?? 0) * line.quantity)}
+                  <div>
+                    <p className="label mb-2">Quantity</p>
+                    <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      <button
+                        type="button"
+                        className="focus-ring p-2 text-slate-500"
+                        onClick={() => updateLine(line.id, { quantity: Math.max(1, line.quantity - 1) })}
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <input
+                        value={line.quantity}
+                        min={1}
+                        type="number"
+                        onChange={(event) =>
+                          updateLine(line.id, { quantity: Math.max(1, Number(event.target.value)) })
+                        }
+                        className="w-full border-0 bg-white px-2 py-2 text-center text-sm font-semibold outline-none"
+                        aria-label="Quantity"
+                      />
+                      <button
+                        type="button"
+                        className="focus-ring p-2 text-slate-500"
+                        onClick={() => updateLine(line.id, { quantity: line.quantity + 1 })}
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="label mb-2">Unit price</p>
+                    <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
+                      {money(service?.sellingPrice ?? 0)}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="label mb-2">Subtotal</p>
+                    <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
+                      {money((service?.sellingPrice ?? 0) * line.quantity)}
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeLine(line.id)}
-                    className="focus-ring flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-rose-600"
+                    className="focus-ring mt-6 flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-rose-600 md:mt-6"
                     aria-label="Remove line"
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -411,23 +481,23 @@ export function InvoicePosForm({
                 />
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-3 text-base">
-                <span className="font-semibold text-ink">Total</span>
+                <span className="font-semibold text-ink">Grand total</span>
                 <span className="font-bold text-lagoon-700">{money(totals.totalAmount)}</span>
               </div>
             </div>
             <button
               type="button"
               onClick={saveInvoice}
-              disabled={pending || !patientName.trim() || !doctorId || items.length === 0}
+              disabled={!patientName.trim() || !doctorId || items.length === 0}
               className={cn(
                 "focus-ring mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
-                !pending && patientName.trim() && doctorId && items.length > 0
+                patientName.trim() && doctorId && items.length > 0
                   ? "bg-lagoon-600 hover:bg-lagoon-700"
                   : "bg-slate-300"
               )}
             >
               <FileCheck2 className="h-4 w-4" aria-hidden="true" />
-              {pending ? "Saving..." : "Save invoice"}
+              Save invoice
             </button>
           </div>
         </div>
@@ -441,7 +511,7 @@ export function InvoicePosForm({
             </div>
             <div>
               <h3 className="font-semibold text-ink">Doctor payout preview</h3>
-              <p className="text-sm text-slate-500">Created as unpaid on save</p>
+              <p className="text-sm text-slate-500">Calculated before saving</p>
             </div>
           </div>
           <div className="mt-4 space-y-3">
@@ -477,6 +547,31 @@ export function InvoicePosForm({
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="panel p-5">
+          <h3 className="font-semibold text-ink">Payout queue</h3>
+          <p className="mt-1 text-sm text-slate-500">Mock unpaid payouts created from saved invoices</p>
+          <div className="mt-4 space-y-3">
+            {payoutQueue.map((payout) => {
+              const doctor = doctors.find((candidate) => candidate.id === payout.doctorId);
+
+              return (
+                <div key={payout.id} className="rounded-lg border border-slate-100 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{payout.serviceName}</p>
+                      <p className="text-xs text-slate-500">
+                        {payout.invoiceNo} - {doctor?.name ?? "Unassigned"}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-care-700">{money(payout.payoutAmount)}</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{payout.paymentReason}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
       </aside>
