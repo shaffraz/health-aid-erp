@@ -17,6 +17,10 @@ import type {
 const today = todayISO();
 const monthStart = `${today.slice(0, 7)}-01`;
 
+export const demoSettings = {
+  exchangeRateLkrPerUsd: 300
+};
+
 export const demoDoctors: Doctor[] = [
   {
     id: "doc-ameer",
@@ -126,6 +130,36 @@ export const demoServices: Service[] = [
     defaultPayoutType: "percentage",
     defaultPayoutValue: 20,
     defaultPayoutReason: "Day care admission clinical oversight",
+    active: true
+  },
+  {
+    id: "svc-med-paracetamol",
+    name: "Paracetamol 500mg tablets",
+    category: "Consumables",
+    sellingPrice: 300,
+    defaultPayoutType: "none",
+    defaultPayoutValue: 0,
+    defaultPayoutReason: "Medication charges do not generate doctor payout",
+    active: true
+  },
+  {
+    id: "svc-med-ors",
+    name: "Oral rehydration salts",
+    category: "Consumables",
+    sellingPrice: 450,
+    defaultPayoutType: "none",
+    defaultPayoutValue: 0,
+    defaultPayoutReason: "Medication charges do not generate doctor payout",
+    active: true
+  },
+  {
+    id: "svc-med-antibiotic",
+    name: "Antibiotic course",
+    category: "Consumables",
+    sellingPrice: 3600,
+    defaultPayoutType: "none",
+    defaultPayoutValue: 0,
+    defaultPayoutReason: "Medication charges do not generate doctor payout",
     active: true
   }
 ];

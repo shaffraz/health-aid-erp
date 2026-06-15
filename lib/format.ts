@@ -4,8 +4,19 @@ export const currencyFormatter = new Intl.NumberFormat("en-LK", {
   maximumFractionDigits: 0
 });
 
+export const usdCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
 export function money(value: number) {
   return currencyFormatter.format(value);
+}
+
+export function usd(value: number) {
+  return usdCurrencyFormatter.format(value);
 }
 
 export function shortDate(value: string | Date) {
