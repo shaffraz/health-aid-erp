@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { BarChart3, CalendarDays, Download, ReceiptText, Stethoscope } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
-import { money, monthKey, shortDate, todayISO } from "@/lib/format";
+import { demoSettings } from "@/lib/demo-data";
+import { convertLkrToUsd, money, monthKey, shortDate, todayISO, usd } from "@/lib/format";
 import type { Doctor, DoctorPayout, Invoice, ServiceCategory } from "@/lib/types";
 
 type ReportsDashboardProps = {
@@ -31,6 +32,8 @@ function downloadCsv(fileName: string, rows: string[][]) {
 export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboardProps) {
   const [date, setDate] = useState(todayISO());
   const [month, setMonth] = useState(todayISO().slice(0, 7));
+  const invoiceUsd = (value: number) =>
+    usd(convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd));
 
   const dailyInvoices = invoices.filter((invoice) => invoice.date === date);
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === month);
@@ -139,14 +142,14 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Daily sales"
-          value={money(dailySales)}
+          value={invoiceUsd(dailySales)}
           helper={`${dailyInvoices.length} invoices on ${shortDate(date)}`}
           icon={CalendarDays}
           tone="lagoon"
         />
         <MetricCard
           label="Monthly sales"
-          value={money(monthlySales)}
+          value={invoiceUsd(monthlySales)}
           helper={`${monthlyInvoices.length} invoices in selected month`}
           icon={ReceiptText}
           tone="care"
@@ -176,7 +179,7 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
               <div key={item.category}>
                 <div className="mb-2 flex items-center justify-between gap-3 text-sm">
                   <span className="font-medium text-ink">{item.category}</span>
-                  <span className="font-semibold text-lagoon-700">{money(item.total)}</span>
+                  <span className="font-semibold text-lagoon-700">{invoiceUsd(item.total)}</span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100">
                   <div
@@ -213,7 +216,7 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
                       <StatusPill tone="cyan">{invoice.paymentMethod.replace("_", " ")}</StatusPill>
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
-                      {money(invoice.totalAmount)}
+                      {invoiceUsd(invoice.totalAmount)}
                     </td>
                   </tr>
                 ))}

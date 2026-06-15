@@ -3,11 +3,14 @@ import { SectionHeader } from "@/components/section-header";
 import { StatusPill } from "@/components/status-pill";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkspaceData } from "@/lib/data";
-import { money, shortDate } from "@/lib/format";
+import { demoSettings } from "@/lib/demo-data";
+import { convertLkrToUsd, shortDate, usd } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 
 export default async function InvoicesPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
+  const invoiceUsd = (value: number) =>
+    usd(convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd));
 
   if (!hasPermission(user.role, "viewInvoices")) {
     return <AccessDenied />;
@@ -53,7 +56,7 @@ export default async function InvoicesPage() {
                       <StatusPill tone="cyan">{invoice.paymentMethod.replace("_", " ")}</StatusPill>
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
-                      {money(invoice.totalAmount)}
+                      {invoiceUsd(invoice.totalAmount)}
                     </td>
                   </tr>
                 );

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { CirclePlus, Save, ShieldCheck } from "lucide-react";
 import { createServiceAction } from "@/lib/actions";
-import { money } from "@/lib/format";
+import { demoSettings } from "@/lib/demo-data";
+import { convertLkrToUsd, money, usd } from "@/lib/format";
 import {
   serviceCategories,
   type RuleType,
@@ -33,6 +34,8 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
   const [payoutReason, setPayoutReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const serviceUsd = (value: number) =>
+    usd(convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd));
 
   async function addService() {
     if (!canEdit || !name.trim()) {
@@ -237,7 +240,7 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
                   </td>
                   <td className="px-5 py-4 text-slate-600">{service.category}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
-                    {money(service.sellingPrice)}
+                    {serviceUsd(service.sellingPrice)}
                   </td>
                   <td className="px-5 py-4 text-slate-600">
                     <p className="font-medium text-ink">

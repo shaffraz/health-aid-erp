@@ -12,7 +12,8 @@ import { SectionHeader } from "@/components/section-header";
 import { StatusPill } from "@/components/status-pill";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkspaceData } from "@/lib/data";
-import { money, todayISO } from "@/lib/format";
+import { demoSettings } from "@/lib/demo-data";
+import { convertLkrToUsd, money, todayISO, usd } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 
 export default async function DashboardPage() {
@@ -36,6 +37,8 @@ export default async function DashboardPage() {
 
   const recentInvoices = user.role === "doctor" ? [] : data.invoices.slice(0, 5);
   const recentPayouts = visiblePayouts.slice(0, 5);
+  const invoiceUsd = (value: number) =>
+    usd(convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd));
 
   return (
     <div className="space-y-6">
@@ -58,7 +61,7 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label={user.role === "doctor" ? "Today's earnings" : "Today's sales"}
-          value={money(user.role === "doctor" ? todayDoctorEarnings : todaySales)}
+          value={user.role === "doctor" ? money(todayDoctorEarnings) : invoiceUsd(todaySales)}
           helper={
             user.role === "doctor"
               ? "Private earning records generated from invoices"
@@ -122,7 +125,7 @@ export default async function DashboardPage() {
                       <td className="px-5 py-4 text-slate-600">{invoice.patientName}</td>
                       <td className="px-5 py-4 text-slate-600">{doctor?.name ?? "Unassigned"}</td>
                       <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
-                        {money(invoice.totalAmount)}
+                        {invoiceUsd(invoice.totalAmount)}
                       </td>
                     </tr>
                   );

@@ -17,7 +17,7 @@ import {
   nextInvoiceNumber
 } from "@/lib/calculations";
 import { demoSettings } from "@/lib/demo-data";
-import { money, todayISO, usd } from "@/lib/format";
+import { convertLkrToUsd, money, todayISO, usd } from "@/lib/format";
 import {
   paymentMethods,
   type Doctor,
@@ -69,7 +69,7 @@ function escapeHtml(value: string | number | undefined) {
 }
 
 function lkrToUsd(value: number) {
-  return Number((value / demoSettings.exchangeRateLkrPerUsd).toFixed(2));
+  return convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd);
 }
 
 export function InvoicePosForm({
@@ -434,7 +434,7 @@ export function InvoicePosForm({
             <h2 className="mt-2 text-xl font-bold text-ink">{invoiceNo}</h2>
             <p className="mt-1 text-sm text-slate-500">Date: {todayISO()}</p>
             <p className="mt-1 text-sm font-semibold text-lagoon-700">
-              Current exchange rate: 1 USD = {money(exchangeRate)}
+              Current exchange rate: 1 USD = {exchangeRate.toLocaleString("en-US")} LKR
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

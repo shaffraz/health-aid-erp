@@ -19,6 +19,10 @@ export function usd(value: number) {
   return usdCurrencyFormatter.format(value);
 }
 
+export function convertLkrToUsd(value: number, exchangeRate: number) {
+  return Number((value / exchangeRate).toFixed(2));
+}
+
 export function shortDate(value: string | Date) {
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
