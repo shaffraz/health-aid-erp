@@ -3,6 +3,7 @@ export type Role = (typeof roles)[number];
 
 export const serviceCategories = [
   "Consultation",
+  "Consumables",
   "Hospital charges",
   "Lab services",
   "Procedures",

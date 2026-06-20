@@ -36,10 +36,10 @@ type DraftLine = {
   quantity: number;
 };
 
-type ManualChargeKey = "medication" | "hospital" | "other";
+type AdditionalChargeKey = "medication" | "consumables";
 
-type ManualChargeDefinition = {
-  key: ManualChargeKey;
+type AdditionalChargeDefinition = {
+  key: AdditionalChargeKey;
   serviceId: string;
   serviceName: string;
   category: ServiceCategory;
@@ -79,11 +79,13 @@ function lkrToUsd(value: number) {
 }
 
 function normalizeCategory(category: string): ServiceCategory {
-  return (category === "Consumables" ? "Medication" : category) as ServiceCategory;
+  return category as ServiceCategory;
 }
 
-function isManualChargeCategory(category: string) {
-  return ["Medication", "Hospital charges", "Other"].includes(normalizeCategory(category));
+function isInvoiceOnlyChargeCategory(category: string) {
+  return ["Medication", "Consumables", "Hospital charges", "Other"].includes(
+    normalizeCategory(category)
+  );
 }
 
 function normalizeInvoiceToUsd(invoice: Invoice): Invoice {
@@ -112,31 +114,24 @@ function normalizeServiceToUsd(service: Service): Service {
   };
 }
 
-const manualChargeDefinitions: ManualChargeDefinition[] = [
+const additionalChargeDefinitions: AdditionalChargeDefinition[] = [
   {
     key: "medication",
-    serviceId: "manual-medication-charges",
+    serviceId: "additional-medication-charges",
     serviceName: "Medication Charges",
     category: "Medication"
   },
   {
-    key: "hospital",
-    serviceId: "manual-hospital-charges",
-    serviceName: "Hospital Charges",
-    category: "Hospital charges"
-  },
-  {
-    key: "other",
-    serviceId: "manual-other-charges",
-    serviceName: "Other Charges",
-    category: "Other"
+    key: "consumables",
+    serviceId: "additional-consumables",
+    serviceName: "Consumables",
+    category: "Consumables"
   }
 ];
 
-const emptyManualCharges: Record<ManualChargeKey, number> = {
+const emptyAdditionalCharges: Record<AdditionalChargeKey, number> = {
   medication: 0,
-  hospital: 0,
-  other: 0
+  consumables: 0
 };
 
 export function InvoicePosForm({
@@ -153,7 +148,7 @@ export function InvoicePosForm({
     [services]
   );
   const serviceOptions = invoiceServices.filter(
-    (service) => service.active && !isManualChargeCategory(service.category)
+    (service) => service.active && !isInvoiceOnlyChargeCategory(service.category)
   );
 
   const [invoices, setInvoices] = useState<Invoice[]>(() =>
@@ -175,8 +170,8 @@ export function InvoicePosForm({
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([
     { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1 }
   ]);
-  const [manualChargesUsd, setManualChargesUsd] =
-    useState<Record<ManualChargeKey, number>>(emptyManualCharges);
+  const [additionalChargesUsd, setAdditionalChargesUsd] =
+    useState<Record<AdditionalChargeKey, number>>(emptyAdditionalCharges);
   const [savedInvoiceNo, setSavedInvoiceNo] = useState("");
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
 
@@ -216,7 +211,7 @@ export function InvoicePosForm({
         .map((line) => {
           const service = services.find((candidate) => candidate.id === line.serviceId);
 
-          if (!service || isManualChargeCategory(service.category)) {
+          if (!service || isInvoiceOnlyChargeCategory(service.category)) {
             return null;
           }
 
@@ -233,11 +228,11 @@ export function InvoicePosForm({
         .filter((item): item is InvoiceItem => Boolean(item)),
     [serviceLines, services]
   );
-  const manualChargeItems = useMemo<InvoiceItem[]>(
+  const additionalChargeItems = useMemo<InvoiceItem[]>(
     () =>
-      manualChargeDefinitions
+      additionalChargeDefinitions
         .map((charge) => {
-          const amount = manualChargesUsd[charge.key];
+          const amount = additionalChargesUsd[charge.key];
 
           if (amount <= 0) {
             return null;
@@ -254,11 +249,11 @@ export function InvoicePosForm({
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
-    [manualChargesUsd]
+    [additionalChargesUsd]
   );
   const invoiceItems = useMemo(
-    () => [...serviceItemsUsd, ...manualChargeItems],
-    [manualChargeItems, serviceItemsUsd]
+    () => [...serviceItemsUsd, ...additionalChargeItems],
+    [additionalChargeItems, serviceItemsUsd]
   );
   const totals = calculateInvoiceTotals(invoiceItems, discount);
   const draftInvoice = {
@@ -316,7 +311,7 @@ export function InvoicePosForm({
     const itemRows = targetInvoice.items
       .map(
         (item) =>
-          isManualChargeCategory(item.category)
+          isInvoiceOnlyChargeCategory(item.category)
             ? `
           <tr>
             <td colspan="4">${escapeHtml(item.serviceName)} - USD</td>
@@ -430,7 +425,7 @@ export function InvoicePosForm({
     setServiceLines([
       { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1 }
     ]);
-    setManualChargesUsd(emptyManualCharges);
+    setAdditionalChargesUsd(emptyAdditionalCharges);
   }
 
   return (
@@ -638,13 +633,13 @@ export function InvoicePosForm({
 
         <div className="mt-6">
           <div>
-            <h3 className="font-semibold text-ink">Manual invoice charges</h3>
+            <h3 className="font-semibold text-ink">Additional Charges</h3>
             <p className="mt-1 text-sm text-slate-500">
               Stored as invoice charges only. These amounts are included in the USD invoice total and excluded from doctor payout.
             </p>
           </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            {manualChargeDefinitions.map((charge) => (
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {additionalChargeDefinitions.map((charge) => (
               <div
                 key={charge.key}
                 className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
@@ -657,9 +652,9 @@ export function InvoicePosForm({
                   type="number"
                   min={0}
                   step="0.01"
-                  value={manualChargesUsd[charge.key]}
+                  value={additionalChargesUsd[charge.key]}
                   onChange={(event) =>
-                    setManualChargesUsd((current) => ({
+                    setAdditionalChargesUsd((current) => ({
                       ...current,
                       [charge.key]: Math.max(0, Number(event.target.value))
                     }))
@@ -883,7 +878,7 @@ function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] })
           {items.map((item) => (
             <div key={item.id} className="flex items-start justify-between gap-3 text-xs text-slate-500">
               <span>
-                {isManualChargeCategory(item.category)
+                {isInvoiceOnlyChargeCategory(item.category)
                   ? `${item.serviceName} - USD`
                   : `${item.serviceName} - ${item.category} x ${item.quantity}`}
               </span>
