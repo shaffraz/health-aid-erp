@@ -72,6 +72,30 @@ function lkrToUsd(value: number) {
   return convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd);
 }
 
+function normalizeInvoiceToUsd(invoice: Invoice): Invoice {
+  const items = invoice.items.map((item) => ({
+    ...item,
+    unitPrice: lkrToUsd(item.unitPrice),
+    lineTotal: lkrToUsd(item.lineTotal)
+  }));
+  const totals = calculateInvoiceTotals(items, lkrToUsd(invoice.discount));
+
+  return {
+    ...invoice,
+    items,
+    subtotal: totals.subtotal,
+    discount: totals.discount,
+    totalAmount: totals.totalAmount
+  };
+}
+
+function normalizeServiceToUsd(service: Service): Service {
+  return {
+    ...service,
+    sellingPrice: lkrToUsd(service.sellingPrice)
+  };
+}
+
 export function InvoicePosForm({
   doctors,
   services,
@@ -81,32 +105,19 @@ export function InvoicePosForm({
 }: InvoicePosFormProps) {
   const exchangeRate = demoSettings.exchangeRateLkrPerUsd;
   const activeDoctors = doctors.filter((doctor) => doctor.active);
-  const serviceOptions = services.filter(
+  const invoiceServices = useMemo(
+    () => services.map((service) => normalizeServiceToUsd(service)),
+    [services]
+  );
+  const serviceOptions = invoiceServices.filter(
     (service) => service.active && service.category !== "Consumables"
   );
-  const medicationOptions = services.filter(
+  const medicationOptions = invoiceServices.filter(
     (service) => service.active && service.category === "Consumables"
   );
 
-  function invoiceInUsd(invoice: Invoice): Invoice {
-    const items = invoice.items.map((item) => ({
-      ...item,
-      unitPrice: lkrToUsd(item.unitPrice),
-      lineTotal: lkrToUsd(item.lineTotal)
-    }));
-    const totals = calculateInvoiceTotals(items, lkrToUsd(invoice.discount));
-
-    return {
-      ...invoice,
-      items,
-      subtotal: totals.subtotal,
-      discount: totals.discount,
-      totalAmount: totals.totalAmount
-    };
-  }
-
   const [invoices, setInvoices] = useState<Invoice[]>(() =>
-    initialInvoices.map((invoice) => invoiceInUsd(invoice))
+    initialInvoices.map((invoice) => normalizeInvoiceToUsd(invoice))
   );
   const [payoutQueue, setPayoutQueue] = useState<DoctorPayout[]>(() =>
     initialInvoices
@@ -136,13 +147,13 @@ export function InvoicePosForm({
     () =>
       serviceLines
         .map((line) => {
-          const service = services.find((candidate) => candidate.id === line.serviceId);
+          const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
 
           if (!service) {
             return null;
           }
 
-          const unitPrice = lkrToUsd(service.sellingPrice);
+          const unitPrice = service.sellingPrice;
 
           return {
             id: line.id,
@@ -155,7 +166,7 @@ export function InvoicePosForm({
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
-    [serviceLines, services]
+    [invoiceServices, serviceLines]
   );
 
   const serviceItemsLkr = useMemo<InvoiceItem[]>(
@@ -186,7 +197,7 @@ export function InvoicePosForm({
     () =>
       medicationLines
         .map((line) => {
-          const medication = services.find((candidate) => candidate.id === line.serviceId);
+          const medication = invoiceServices.find((candidate) => candidate.id === line.serviceId);
 
           if (!medication) {
             return null;
@@ -203,7 +214,7 @@ export function InvoicePosForm({
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
-    [medicationLines, services]
+    [invoiceServices, medicationLines]
   );
 
   const invoiceItems = useMemo(
@@ -236,8 +247,8 @@ export function InvoicePosForm({
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
   function suggestedMedicationUsd(serviceId: string) {
-    const service = services.find((candidate) => candidate.id === serviceId);
-    return service ? lkrToUsd(service.sellingPrice) : 0;
+    const service = invoiceServices.find((candidate) => candidate.id === serviceId);
+    return service ? service.sellingPrice : 0;
   }
 
   function addServiceLine() {
@@ -433,9 +444,6 @@ export function InvoicePosForm({
             <p className="label">Invoice POS</p>
             <h2 className="mt-2 text-xl font-bold text-ink">{invoiceNo}</h2>
             <p className="mt-1 text-sm text-slate-500">Date: {todayISO()}</p>
-            <p className="mt-1 text-sm font-semibold text-lagoon-700">
-              Current exchange rate: 1 USD = {exchangeRate.toLocaleString("en-US")} LKR
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -559,7 +567,7 @@ export function InvoicePosForm({
             <div>
               <h3 className="font-semibold text-ink">Services</h3>
               <p className="mt-1 text-sm text-slate-500">
-                Patient invoice prices are shown in USD. Doctor payout rules use the LKR base internally.
+                Patient invoice prices are shown in USD.
               </p>
             </div>
             <button
@@ -574,13 +582,13 @@ export function InvoicePosForm({
 
           <div className="mt-3 space-y-3">
             {serviceLines.map((line) => {
-              const service = services.find((candidate) => candidate.id === line.serviceId);
-              const unitPriceUsd = lkrToUsd(service?.sellingPrice ?? 0);
+              const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
+              const unitPriceUsd = service?.sellingPrice ?? 0;
 
               return (
                 <div
                   key={line.id}
-                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_120px_44px]"
+                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px]"
                 >
                   <div>
                     <p className="label mb-2">Service</p>
@@ -605,13 +613,13 @@ export function InvoicePosForm({
                     />
                   </div>
                   <div>
-                    <p className="label mb-2">Unit price</p>
+                    <p className="label mb-2">Unit price USD</p>
                     <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
                       {usd(unitPriceUsd)}
                     </div>
                   </div>
                   <div>
-                    <p className="label mb-2">Subtotal</p>
+                    <p className="label mb-2">Subtotal USD</p>
                     <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
                       {usd(unitPriceUsd * line.quantity)}
                     </div>
@@ -659,7 +667,7 @@ export function InvoicePosForm({
               medicationLines.map((line) => (
                 <div
                   key={line.id}
-                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_120px_140px_120px_44px]"
+                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 2xl:grid-cols-[minmax(180px,1fr)_120px_140px_120px_44px]"
                 >
                   <div>
                     <p className="label mb-2">Medication</p>
@@ -702,7 +710,7 @@ export function InvoicePosForm({
                     />
                   </div>
                   <div>
-                    <p className="label mb-2">Subtotal</p>
+                    <p className="label mb-2">Subtotal USD</p>
                     <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
                       {usd(line.unitPriceUsd * line.quantity)}
                     </div>
@@ -741,7 +749,7 @@ export function InvoicePosForm({
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">Subtotal</span>
+                <span className="text-slate-500">Subtotal USD</span>
                 <span className="font-semibold text-ink">{usd(totals.subtotal)}</span>
               </div>
               <div>
@@ -759,7 +767,7 @@ export function InvoicePosForm({
                 />
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-3 text-base">
-                <span className="font-semibold text-ink">Grand total</span>
+                <span className="font-semibold text-ink">Grand total USD</span>
                 <span className="font-bold text-lagoon-700">{usd(totals.totalAmount)}</span>
               </div>
             </div>
@@ -790,11 +798,11 @@ export function InvoicePosForm({
             <PreviewGroup title="Medication charges" items={medicationItemsUsd} />
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">Discount</span>
+                <span className="text-slate-500">Discount USD</span>
                 <span className="font-semibold text-ink">{usd(totals.discount)}</span>
               </div>
               <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 text-base">
-                <span className="font-semibold text-ink">Grand total</span>
+                <span className="font-semibold text-ink">Grand total USD</span>
                 <span className="font-bold text-lagoon-700">{usd(totals.totalAmount)}</span>
               </div>
             </div>
@@ -809,6 +817,9 @@ export function InvoicePosForm({
             <div>
               <h3 className="font-semibold text-ink">Doctor payout preview</h3>
               <p className="text-sm text-slate-500">Internal payout in LKR</p>
+              <p className="text-xs text-slate-500">
+                Payout exchange rate: 1 USD = {exchangeRate.toLocaleString("en-US")} LKR
+              </p>
             </div>
           </div>
           <div className="mt-4 space-y-3">
