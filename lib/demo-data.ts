@@ -85,7 +85,7 @@ export const demoServices: Service[] = [
   {
     id: "svc-iv",
     name: "IV rehydration therapy",
-    category: "Hospital charges",
+    category: "Procedures",
     sellingPrice: 9500,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 2200,
@@ -144,7 +144,7 @@ export const demoServices: Service[] = [
   },
   {
     id: "svc-medication-charges",
-    name: "Medication charges",
+    name: "Medication Charges",
     category: "Medication",
     sellingPrice: 0,
     defaultPayoutType: "none",
