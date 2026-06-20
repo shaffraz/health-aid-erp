@@ -141,16 +141,6 @@ export const demoServices: Service[] = [
     defaultPayoutValue: 0,
     defaultPayoutReason: "No doctor payout for other charge",
     active: true
-  },
-  {
-    id: "svc-medication-charges",
-    name: "Medication Charges",
-    category: "Medication",
-    sellingPrice: 0,
-    defaultPayoutType: "none",
-    defaultPayoutValue: 0,
-    defaultPayoutReason: "Medication charges do not generate doctor payout",
-    active: true
   }
 ];
 

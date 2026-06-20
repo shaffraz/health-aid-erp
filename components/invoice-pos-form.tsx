@@ -650,7 +650,7 @@ export function InvoicePosForm({
                 className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
               >
                 <label className="label mb-2 block" htmlFor={`charge-${charge.key}`}>
-                  {charge.serviceName}
+                  {charge.serviceName} USD
                 </label>
                 <input
                   id={`charge-${charge.key}`}
@@ -665,15 +665,9 @@ export function InvoicePosForm({
                     }))
                   }
                   className="field text-right font-semibold"
-                  aria-label={`${charge.serviceName} amount USD`}
-                  placeholder="Amount USD"
+                  aria-label={`${charge.serviceName} USD`}
+                  placeholder="0.00"
                 />
-                <div className="mt-3 flex justify-between text-sm">
-                  <span className="text-slate-500">Amount USD</span>
-                  <span className="font-semibold text-ink">
-                    {usd(manualChargesUsd[charge.key])}
-                  </span>
-                </div>
               </div>
             ))}
           </div>
