@@ -85,7 +85,7 @@ export const demoServices: Service[] = [
   {
     id: "svc-iv",
     name: "IV rehydration therapy",
-    category: "IV therapy",
+    category: "Hospital charges",
     sellingPrice: 9500,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 2200,
@@ -95,7 +95,7 @@ export const demoServices: Service[] = [
   {
     id: "svc-wound",
     name: "Wound cleaning and dressing",
-    category: "Wound care",
+    category: "Procedures",
     sellingPrice: 5200,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 1600,
@@ -105,7 +105,7 @@ export const demoServices: Service[] = [
   {
     id: "svc-rabies",
     name: "Rabies vaccine dose",
-    category: "ARV / vaccines",
+    category: "Procedures",
     sellingPrice: 7200,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 900,
@@ -115,7 +115,7 @@ export const demoServices: Service[] = [
   {
     id: "svc-injection",
     name: "Injection administration",
-    category: "Injections",
+    category: "Procedures",
     sellingPrice: 1800,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 600,
@@ -125,7 +125,7 @@ export const demoServices: Service[] = [
   {
     id: "svc-daycare",
     name: "Day care admission package",
-    category: "Day care admissions",
+    category: "Hospital charges",
     sellingPrice: 18500,
     defaultPayoutType: "percentage",
     defaultPayoutValue: 20,
@@ -133,30 +133,20 @@ export const demoServices: Service[] = [
     active: true
   },
   {
-    id: "svc-med-paracetamol",
-    name: "Paracetamol 500mg tablets",
-    category: "Consumables",
-    sellingPrice: 300,
+    id: "svc-other",
+    name: "Other medical charge",
+    category: "Other",
+    sellingPrice: 1500,
     defaultPayoutType: "none",
     defaultPayoutValue: 0,
-    defaultPayoutReason: "Medication charges do not generate doctor payout",
+    defaultPayoutReason: "No doctor payout for other charge",
     active: true
   },
   {
-    id: "svc-med-ors",
-    name: "Oral rehydration salts",
-    category: "Consumables",
-    sellingPrice: 450,
-    defaultPayoutType: "none",
-    defaultPayoutValue: 0,
-    defaultPayoutReason: "Medication charges do not generate doctor payout",
-    active: true
-  },
-  {
-    id: "svc-med-antibiotic",
-    name: "Antibiotic course",
-    category: "Consumables",
-    sellingPrice: 3600,
+    id: "svc-medication-charges",
+    name: "Medication charges",
+    category: "Medication",
+    sellingPrice: 0,
     defaultPayoutType: "none",
     defaultPayoutValue: 0,
     defaultPayoutReason: "Medication charges do not generate doctor payout",
@@ -186,7 +176,7 @@ export const demoPaymentRules: DoctorPaymentRule[] = [
   {
     id: "rule-samara-wound",
     doctorId: "doc-samara",
-    category: "Wound care",
+    category: "Procedures",
     type: "percentage",
     value: 45,
     reason: "Procedure percentage for wound care",

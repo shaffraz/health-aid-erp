@@ -25,7 +25,8 @@ import {
   type DoctorPayout,
   type Invoice,
   type InvoiceItem,
-  type Service
+  type Service,
+  type ServiceCategory
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -33,9 +34,6 @@ type DraftLine = {
   id: string;
   serviceId: string;
   quantity: number;
-};
-
-type MedicationLine = DraftLine & {
   unitPriceUsd: number;
 };
 
@@ -72,9 +70,18 @@ function lkrToUsd(value: number) {
   return convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd);
 }
 
+function normalizeCategory(category: string): ServiceCategory {
+  return (category === "Consumables" ? "Medication" : category) as ServiceCategory;
+}
+
+function isMedicationCategory(category: string) {
+  return normalizeCategory(category) === "Medication";
+}
+
 function normalizeInvoiceToUsd(invoice: Invoice): Invoice {
   const items = invoice.items.map((item) => ({
     ...item,
+    category: normalizeCategory(item.category),
     unitPrice: lkrToUsd(item.unitPrice),
     lineTotal: lkrToUsd(item.lineTotal)
   }));
@@ -92,7 +99,21 @@ function normalizeInvoiceToUsd(invoice: Invoice): Invoice {
 function normalizeServiceToUsd(service: Service): Service {
   return {
     ...service,
+    category: normalizeCategory(service.category),
     sellingPrice: lkrToUsd(service.sellingPrice)
+  };
+}
+
+function medicationChargesService(source?: Service): Service {
+  return {
+    id: source?.id ?? "svc-medication-charges",
+    name: "Medication charges",
+    category: "Medication",
+    sellingPrice: 0,
+    defaultPayoutType: "none",
+    defaultPayoutValue: 0,
+    defaultPayoutReason: "Medication charges do not generate doctor payout",
+    active: true
   };
 }
 
@@ -105,16 +126,16 @@ export function InvoicePosForm({
 }: InvoicePosFormProps) {
   const exchangeRate = demoSettings.exchangeRateLkrPerUsd;
   const activeDoctors = doctors.filter((doctor) => doctor.active);
-  const invoiceServices = useMemo(
-    () => services.map((service) => normalizeServiceToUsd(service)),
-    [services]
-  );
-  const serviceOptions = invoiceServices.filter(
-    (service) => service.active && service.category !== "Consumables"
-  );
-  const medicationOptions = invoiceServices.filter(
-    (service) => service.active && service.category === "Consumables"
-  );
+  const invoiceServices = useMemo(() => {
+    const normalized = services.map((service) => normalizeServiceToUsd(service));
+    const medicationService = normalized.find((service) => isMedicationCategory(service.category));
+    const nonMedicationServices = normalized.filter(
+      (service) => !isMedicationCategory(service.category)
+    );
+
+    return [...nonMedicationServices, medicationChargesService(medicationService)];
+  }, [services]);
+  const serviceOptions = invoiceServices.filter((service) => service.active);
 
   const [invoices, setInvoices] = useState<Invoice[]>(() =>
     initialInvoices.map((invoice) => normalizeInvoiceToUsd(invoice))
@@ -133,9 +154,8 @@ export function InvoicePosForm({
   const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethods)[number]>("cash");
   const [notes, setNotes] = useState("");
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([
-    { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1 }
+    { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1, unitPriceUsd: 0 }
   ]);
-  const [medicationLines, setMedicationLines] = useState<MedicationLine[]>([]);
   const [savedInvoiceNo, setSavedInvoiceNo] = useState("");
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
 
@@ -153,16 +173,18 @@ export function InvoicePosForm({
             return null;
           }
 
-          const unitPrice = service.sellingPrice;
+          const isMedication = isMedicationCategory(service.category);
+          const quantity = isMedication ? 1 : line.quantity;
+          const unitPrice = isMedication ? line.unitPriceUsd : service.sellingPrice;
 
           return {
             id: line.id,
             serviceId: service.id,
             serviceName: service.name,
             category: service.category,
-            quantity: line.quantity,
+            quantity,
             unitPrice,
-            lineTotal: Number((unitPrice * line.quantity).toFixed(2))
+            lineTotal: Number((unitPrice * quantity).toFixed(2))
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
@@ -175,7 +197,7 @@ export function InvoicePosForm({
         .map((line) => {
           const service = services.find((candidate) => candidate.id === line.serviceId);
 
-          if (!service) {
+          if (!service || isMedicationCategory(service.category)) {
             return null;
           }
 
@@ -192,35 +214,7 @@ export function InvoicePosForm({
         .filter((item): item is InvoiceItem => Boolean(item)),
     [serviceLines, services]
   );
-
-  const medicationItemsUsd = useMemo<InvoiceItem[]>(
-    () =>
-      medicationLines
-        .map((line) => {
-          const medication = invoiceServices.find((candidate) => candidate.id === line.serviceId);
-
-          if (!medication) {
-            return null;
-          }
-
-          return {
-            id: line.id,
-            serviceId: medication.id,
-            serviceName: medication.name,
-            category: medication.category,
-            quantity: line.quantity,
-            unitPrice: line.unitPriceUsd,
-            lineTotal: Number((line.unitPriceUsd * line.quantity).toFixed(2))
-          } satisfies InvoiceItem;
-        })
-        .filter((item): item is InvoiceItem => Boolean(item)),
-    [invoiceServices, medicationLines]
-  );
-
-  const invoiceItems = useMemo(
-    () => [...serviceItemsUsd, ...medicationItemsUsd],
-    [medicationItemsUsd, serviceItemsUsd]
-  );
+  const invoiceItems = serviceItemsUsd;
   const totals = calculateInvoiceTotals(invoiceItems, discount);
   const draftInvoice = {
     id: "draft",
@@ -246,16 +240,24 @@ export function InvoicePosForm({
   const payoutPreview = generatePayoutsForInvoice(payoutInvoice, services, paymentRules);
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
-  function suggestedMedicationUsd(serviceId: string) {
-    const service = invoiceServices.find((candidate) => candidate.id === serviceId);
-    return service ? service.sellingPrice : 0;
-  }
-
   function addServiceLine() {
     setServiceLines((current) => [
       ...current,
-      { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1 }
+      { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1, unitPriceUsd: 0 }
     ]);
+  }
+
+  function updateServiceSelection(id: string, serviceId: string) {
+    const selectedService = invoiceServices.find((service) => service.id === serviceId);
+    const isMedication = selectedService ? isMedicationCategory(selectedService.category) : false;
+
+    setServiceLines((current) =>
+      current.map((line) =>
+        line.id === id
+          ? { ...line, serviceId, quantity: isMedication ? 1 : line.quantity, unitPriceUsd: 0 }
+          : line
+      )
+    );
   }
 
   function updateServiceLine(id: string, patch: Partial<DraftLine>) {
@@ -270,60 +272,20 @@ export function InvoicePosForm({
     );
   }
 
-  function addMedicationLine() {
-    const serviceId = medicationOptions[0]?.id ?? "";
-
-    if (!serviceId) {
-      return;
-    }
-
-    setMedicationLines((current) => [
-      ...current,
-      {
-        id: makeId(),
-        serviceId,
-        quantity: 1,
-        unitPriceUsd: suggestedMedicationUsd(serviceId)
-      }
-    ]);
-  }
-
-  function updateMedicationLine(id: string, patch: Partial<MedicationLine>) {
-    setMedicationLines((current) =>
-      current.map((line) => (line.id === id ? { ...line, ...patch } : line))
-    );
-  }
-
-  function updateMedicationService(id: string, serviceId: string) {
-    updateMedicationLine(id, {
-      serviceId,
-      unitPriceUsd: suggestedMedicationUsd(serviceId)
-    });
-  }
-
-  function removeMedicationLine(id: string) {
-    setMedicationLines((current) => current.filter((line) => line.id !== id));
-  }
-
   function buildInvoiceHtml(targetInvoice: Invoice) {
-    const serviceRows = targetInvoice.items
-      .filter((item) => item.category !== "Consumables")
+    const itemRows = targetInvoice.items
       .map(
-        (item) => `
+        (item) =>
+          isMedicationCategory(item.category)
+            ? `
           <tr>
-            <td>${escapeHtml(item.serviceName)}</td>
-            <td>${item.quantity}</td>
-            <td>${usd(item.unitPrice)}</td>
+            <td colspan="4">${escapeHtml(item.serviceName)} - USD</td>
             <td>${usd(item.lineTotal)}</td>
           </tr>`
-      )
-      .join("");
-    const medicationRows = targetInvoice.items
-      .filter((item) => item.category === "Consumables")
-      .map(
-        (item) => `
+            : `
           <tr>
             <td>${escapeHtml(item.serviceName)}</td>
+            <td>${escapeHtml(item.category)}</td>
             <td>${item.quantity}</td>
             <td>${usd(item.unitPrice)}</td>
             <td>${usd(item.lineTotal)}</td>
@@ -353,19 +315,12 @@ export function InvoicePosForm({
     <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)}</p>
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
     <p><strong>Doctor:</strong> ${escapeHtml(selectedDoctor?.name ?? "Unassigned")}</p>
-    <h2>Services</h2>
+    <h2>Invoice items</h2>
     <table>
       <thead>
-        <tr><th>Service</th><th>Qty</th><th>Unit price (USD)</th><th>Subtotal (USD)</th></tr>
+        <tr><th>Item</th><th>Category</th><th>Qty</th><th>Unit price (USD)</th><th>Subtotal (USD)</th></tr>
       </thead>
-      <tbody>${serviceRows || '<tr><td colspan="4">No service charges</td></tr>'}</tbody>
-    </table>
-    <h2>Medication charges</h2>
-    <table>
-      <thead>
-        <tr><th>Medication</th><th>Qty</th><th>Unit price (USD)</th><th>Subtotal (USD)</th></tr>
-      </thead>
-      <tbody>${medicationRows || '<tr><td colspan="4">No medication charges</td></tr>'}</tbody>
+      <tbody>${itemRows || '<tr><td colspan="5">No invoice items</td></tr>'}</tbody>
     </table>
     <div class="totals">
       <div><span>Subtotal</span><span>${usd(targetInvoice.subtotal)}</span></div>
@@ -432,8 +387,9 @@ export function InvoicePosForm({
     setDiscount(0);
     setPaymentMethod("cash");
     setNotes("");
-    setServiceLines([{ id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1 }]);
-    setMedicationLines([]);
+    setServiceLines([
+      { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1, unitPriceUsd: 0 }
+    ]);
   }
 
   return (
@@ -565,9 +521,9 @@ export function InvoicePosForm({
         <div className="mt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold text-ink">Services</h3>
+              <h3 className="font-semibold text-ink">Invoice items</h3>
               <p className="mt-1 text-sm text-slate-500">
-                Patient invoice prices are shown in USD.
+                Select services, procedures, lab items, hospital charges, medication, or other billable items. Medication prices are entered manually in USD and do not create doctor payout.
               </p>
             </div>
             <button
@@ -576,27 +532,34 @@ export function InvoicePosForm({
               className="focus-ring inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               <CirclePlus className="h-4 w-4" aria-hidden="true" />
-              Add service
+              Add item
             </button>
           </div>
 
           <div className="mt-3 space-y-3">
             {serviceLines.map((line) => {
               const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
-              const unitPriceUsd = service?.sellingPrice ?? 0;
+              const isMedication = service ? isMedicationCategory(service.category) : false;
+              const unitPriceUsd = isMedication ? line.unitPriceUsd : service?.sellingPrice ?? 0;
+              const lineTotalUsd = isMedication ? unitPriceUsd : unitPriceUsd * line.quantity;
 
               return (
                 <div
                   key={line.id}
-                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px]"
+                  className={cn(
+                    "grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3",
+                    isMedication
+                      ? "2xl:grid-cols-[minmax(180px,1fr)_150px_120px_44px]"
+                      : "2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px]"
+                  )}
                 >
                   <div>
-                    <p className="label mb-2">Service</p>
+                    <p className="label mb-2">Item</p>
                     <select
                       value={line.serviceId}
-                      onChange={(event) => updateServiceLine(line.id, { serviceId: event.target.value })}
+                      onChange={(event) => updateServiceSelection(line.id, event.target.value)}
                       className="field"
-                      aria-label="Service"
+                      aria-label="Invoice item"
                     >
                       {serviceOptions.map((candidate) => (
                         <option key={candidate.id} value={candidate.id}>
@@ -605,131 +568,54 @@ export function InvoicePosForm({
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <p className="label mb-2">Quantity</p>
-                    <QuantityControl
-                      value={line.quantity}
-                      onChange={(quantity) => updateServiceLine(line.id, { quantity })}
-                    />
-                  </div>
-                  <div>
-                    <p className="label mb-2">Unit price USD</p>
-                    <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
-                      {usd(unitPriceUsd)}
+                  {!isMedication ? (
+                    <div>
+                      <p className="label mb-2">Quantity</p>
+                      <QuantityControl
+                        value={line.quantity}
+                        onChange={(quantity) => updateServiceLine(line.id, { quantity })}
+                      />
                     </div>
+                  ) : null}
+                  <div>
+                    <p className="label mb-2">{isMedication ? "Amount USD" : "Unit price USD"}</p>
+                    {isMedication ? (
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={line.unitPriceUsd}
+                        onChange={(event) =>
+                          updateServiceLine(line.id, {
+                            unitPriceUsd: Math.max(0, Number(event.target.value))
+                          })
+                        }
+                        className="field text-right font-semibold"
+                        aria-label="Medication amount USD"
+                      />
+                    ) : (
+                      <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
+                        {usd(unitPriceUsd)}
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <p className="label mb-2">Subtotal USD</p>
+                    <p className="label mb-2">{isMedication ? "Line total USD" : "Subtotal USD"}</p>
                     <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
-                      {usd(unitPriceUsd * line.quantity)}
+                      {usd(lineTotalUsd)}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeServiceLine(line.id)}
                     className="focus-ring mt-6 flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-rose-600"
-                    aria-label="Remove service line"
+                    aria-label="Remove invoice item"
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-ink">Medication charges</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Select medication from the service list and enter the unit price manually in USD. Medication does not create doctor payout by default.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={addMedicationLine}
-              disabled={!medicationOptions.length}
-              className={cn(
-                "focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
-                medicationOptions.length
-                  ? "bg-ink text-white hover:bg-slate-800"
-                  : "bg-slate-200 text-slate-500"
-              )}
-            >
-              <CirclePlus className="h-4 w-4" aria-hidden="true" />
-              Add medication
-            </button>
-          </div>
-
-          <div className="mt-3 space-y-3">
-            {medicationLines.length ? (
-              medicationLines.map((line) => (
-                <div
-                  key={line.id}
-                  className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 2xl:grid-cols-[minmax(180px,1fr)_120px_140px_120px_44px]"
-                >
-                  <div>
-                    <p className="label mb-2">Medication</p>
-                    <select
-                      value={line.serviceId}
-                      onChange={(event) => updateMedicationService(line.id, event.target.value)}
-                      className="field"
-                      aria-label="Medication"
-                    >
-                      {medicationOptions.map((candidate) => (
-                        <option key={candidate.id} value={candidate.id}>
-                          {candidate.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <p className="label mb-2">Quantity</p>
-                    <QuantityControl
-                      value={line.quantity}
-                      onChange={(quantity) => updateMedicationLine(line.id, { quantity })}
-                    />
-                  </div>
-                  <div>
-                    <label className="label mb-2 block" htmlFor={`med-price-${line.id}`}>
-                      Unit price USD
-                    </label>
-                    <input
-                      id={`med-price-${line.id}`}
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.unitPriceUsd}
-                      onChange={(event) =>
-                        updateMedicationLine(line.id, {
-                          unitPriceUsd: Math.max(0, Number(event.target.value))
-                        })
-                      }
-                      className="field"
-                    />
-                  </div>
-                  <div>
-                    <p className="label mb-2">Subtotal USD</p>
-                    <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
-                      {usd(line.unitPriceUsd * line.quantity)}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeMedicationLine(line.id)}
-                    className="focus-ring mt-6 flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-rose-600"
-                    aria-label="Remove medication line"
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-              ))
-            ) : (
-              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
-                No medication charges added.
-              </p>
-            )}
           </div>
         </div>
 
@@ -794,8 +680,7 @@ export function InvoicePosForm({
           <h3 className="font-semibold text-ink">Invoice preview</h3>
           <p className="mt-1 text-sm text-slate-500">Patient invoice remains USD only.</p>
           <div className="mt-4 space-y-4">
-            <PreviewGroup title="Services" items={serviceItemsUsd} />
-            <PreviewGroup title="Medication charges" items={medicationItemsUsd} />
+            <PreviewGroup title="Invoice items" items={invoiceItems} />
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Discount USD</span>
@@ -944,7 +829,9 @@ function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] })
           {items.map((item) => (
             <div key={item.id} className="flex items-start justify-between gap-3 text-xs text-slate-500">
               <span>
-                {item.serviceName} x {item.quantity}
+                {isMedicationCategory(item.category)
+                  ? `${item.serviceName} - USD`
+                  : `${item.serviceName} - ${item.category} x ${item.quantity}`}
               </span>
               <span className="font-semibold text-slate-700">{usd(item.lineTotal)}</span>
             </div>
