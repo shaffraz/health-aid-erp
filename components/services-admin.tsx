@@ -7,7 +7,6 @@ import {
   isPayoutEligibleCategory,
   serviceCategories,
   serviceStorageKey,
-  type Invoice,
   type Service,
   type ServiceCategory
 } from "@/lib/types";
@@ -15,7 +14,6 @@ import { cn } from "@/lib/utils";
 
 type ServicesAdminProps = {
   initialServices: Service[];
-  initialInvoices: Invoice[];
   canEdit: boolean;
 };
 
@@ -25,15 +23,13 @@ type ServiceForm = {
   category: ServiceCategory;
   sellingPrice: string;
   payoutAmount: string;
-  active: boolean;
 };
 
 const emptyForm: ServiceForm = {
   name: "",
   category: "Consultation",
   sellingPrice: "0",
-  payoutAmount: "0",
-  active: true
+  payoutAmount: "0"
 };
 
 function serviceToForm(service: Service): ServiceForm {
@@ -42,8 +38,7 @@ function serviceToForm(service: Service): ServiceForm {
     name: service.name,
     category: service.category,
     sellingPrice: String(service.sellingPrice),
-    payoutAmount: String(service.defaultPayoutValue),
-    active: service.active
+    payoutAmount: String(service.defaultPayoutValue)
   };
 }
 
@@ -51,7 +46,7 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
-export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: ServicesAdminProps) {
+export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) {
   const [services, setServices] = useState(initialServices);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
@@ -60,21 +55,13 @@ export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: Ser
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
-  const usedServiceIds = useMemo(
-    () =>
-      new Set(
-        initialInvoices.flatMap((invoice) => invoice.items.map((item) => item.serviceId))
-      ),
-    [initialInvoices]
-  );
-
   useEffect(() => {
     try {
       const storedServices = window.localStorage.getItem(serviceStorageKey);
       if (storedServices) {
         const parsed = JSON.parse(storedServices);
         if (Array.isArray(parsed)) {
-          setServices(parsed as Service[]);
+          setServices((parsed as Service[]).map((service) => ({ ...service, active: true })));
         }
       }
     } finally {
@@ -94,7 +81,7 @@ export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: Ser
     return services.filter((service) =>
       (categoryFilter === "all" || service.category === categoryFilter) &&
       (!search ||
-        [service.name, service.category, service.active ? "active" : "inactive"]
+        [service.name, service.category]
           .join(" ")
           .toLowerCase()
           .includes(search))
@@ -149,7 +136,7 @@ export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: Ser
       defaultPayoutReason: payoutEnabled
         ? `${name} doctor payout`
         : "No doctor payout configured",
-      active: form.active
+      active: true
     };
 
     setServices((current) =>
@@ -166,16 +153,12 @@ export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: Ser
     setFormOpen(true);
   }
 
-  function deleteService(service: Service) {
+  function deleteService(serviceId: string) {
     if (!canEdit) {
       return;
     }
 
-    if (usedServiceIds.has(service.id)) {
-      return;
-    }
-
-    setServices((current) => current.filter((candidate) => candidate.id !== service.id));
+    setServices((current) => current.filter((candidate) => candidate.id !== serviceId));
   }
 
   function formatPayout(service: Service) {
@@ -237,13 +220,7 @@ export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: Ser
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredServices.map((service) => (
-                <tr
-                  key={service.id}
-                  className={cn(
-                    "border-l-4",
-                    service.active ? "border-l-emerald-500" : "border-l-rose-500"
-                  )}
-                >
+                <tr key={service.id}>
                   <td className="px-5 py-4">
                     <p className="font-semibold text-ink">{service.name}</p>
                   </td>
@@ -269,13 +246,9 @@ export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: Ser
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteService(service)}
-                        disabled={!canEdit || usedServiceIds.has(service.id)}
-                        title={
-                          usedServiceIds.has(service.id)
-                            ? "This service is used in invoices"
-                            : "Delete service"
-                        }
+                        onClick={() => deleteService(service.id)}
+                        disabled={!canEdit}
+                        title="Delete service"
                         className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

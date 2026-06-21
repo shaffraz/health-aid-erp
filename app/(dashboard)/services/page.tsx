@@ -21,7 +21,6 @@ export default async function ServicesPage() {
       />
       <ServicesAdmin
         initialServices={data.services}
-        initialInvoices={data.invoices}
         canEdit={hasPermission(user.role, "manageServices")}
       />
     </div>
