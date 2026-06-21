@@ -123,6 +123,26 @@ export const demoServices: Service[] = [
     active: true
   },
   {
+    id: "svc-medication-charges",
+    name: "Medication Charges",
+    category: "Consumables",
+    sellingPrice: 0,
+    defaultPayoutType: "none",
+    defaultPayoutValue: 0,
+    defaultPayoutReason: "Medication charges do not generate doctor payout",
+    active: true
+  },
+  {
+    id: "svc-consumables-charges",
+    name: "Consumables Charges",
+    category: "Consumables",
+    sellingPrice: 0,
+    defaultPayoutType: "none",
+    defaultPayoutValue: 0,
+    defaultPayoutReason: "Consumables charges do not generate doctor payout",
+    active: true
+  },
+  {
     id: "svc-daycare",
     name: "Day care admission package",
     category: "Hospital charges",

@@ -1,10 +1,11 @@
-import type {
-  DoctorPaymentRule,
-  DoctorPayout,
-  Invoice,
-  InvoiceItem,
-  RuleType,
-  Service
+import {
+  isAmountOnlyInvoiceServiceName,
+  type DoctorPaymentRule,
+  type DoctorPayout,
+  type Invoice,
+  type InvoiceItem,
+  type RuleType,
+  type Service
 } from "@/lib/types";
 
 export function calculateInvoiceTotals(items: InvoiceItem[], discount: number) {
@@ -77,6 +78,10 @@ export function generatePayoutsForInvoice(
     const service = services.find((candidate) => candidate.id === item.serviceId);
 
     if (!service) {
+      return;
+    }
+
+    if (isAmountOnlyInvoiceServiceName(service.name)) {
       return;
     }
 

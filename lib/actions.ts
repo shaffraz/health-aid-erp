@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
-import { paymentMethods, serviceCategories } from "@/lib/types";
+import {
+  isAmountOnlyInvoiceServiceName,
+  paymentMethods,
+  serviceCategories
+} from "@/lib/types";
 
 type ActionSuccess<T> = [T] extends [undefined]
   ? { ok: true; demo?: boolean }
@@ -31,7 +35,8 @@ const invoiceSchema = z.object({
     .array(
       z.object({
         serviceId: z.string().uuid().or(z.string().min(1)),
-        quantity: z.coerce.number().int().positive()
+        quantity: z.coerce.number().int().positive(),
+        unitPrice: z.coerce.number().min(0).optional()
       })
     )
     .min(1)
@@ -130,6 +135,7 @@ export async function createInvoiceAction(input: unknown): Promise<ActionResult<
   }
 
   const serviceById = new Map(services.map((service) => [service.id, service]));
+  let amountOnlyServiceMissingAmount = false;
   const itemRows = parsed.data.items.map((item) => {
     const service = serviceById.get(item.serviceId);
 
@@ -137,16 +143,28 @@ export async function createInvoiceAction(input: unknown): Promise<ActionResult<
       throw new Error("A selected service no longer exists.");
     }
 
-    const unitPrice = Number(service.selling_price);
+    const isAmountOnlyService = isAmountOnlyInvoiceServiceName(service.name);
+    const unitPrice = isAmountOnlyService
+      ? Number(item.unitPrice ?? 0)
+      : Number(service.selling_price);
+
+    if (isAmountOnlyService && unitPrice <= 0) {
+      amountOnlyServiceMissingAmount = true;
+    }
 
     return {
       service_id: service.id,
       service_name: service.name,
       category: service.category,
-      quantity: item.quantity,
+      quantity: isAmountOnlyService ? 1 : item.quantity,
       unit_price: unitPrice
     };
   });
+
+  if (amountOnlyServiceMissingAmount) {
+    return { ok: false, error: "Please enter an amount for the selected charge service." };
+  }
+
   const subtotal = itemRows.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
   const discount = Math.min(parsed.data.discount, subtotal);
   const totalAmount = subtotal - discount;

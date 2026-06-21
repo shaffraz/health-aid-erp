@@ -7,11 +7,21 @@ export const serviceCategories = [
   "Hospital charges",
   "Lab services",
   "Procedures",
-  "Medication",
   "Other"
 ] as const;
 
 export type ServiceCategory = (typeof serviceCategories)[number];
+
+export const amountOnlyInvoiceServiceNames = [
+  "Medication Charges",
+  "Consumables Charges"
+] as const;
+
+export function isAmountOnlyInvoiceServiceName(name?: string) {
+  return Boolean(
+    name && (amountOnlyInvoiceServiceNames as readonly string[]).includes(name)
+  );
+}
 
 export const paymentMethods = ["cash", "card", "bank_transfer", "insurance", "other"] as const;
 export type PaymentMethod = (typeof paymentMethods)[number];
