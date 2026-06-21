@@ -19,7 +19,11 @@ export default async function ServicesPage() {
         title="Service catalog"
         description="Create billable healthcare services with category, selling price, and default doctor payment configuration."
       />
-      <ServicesAdmin initialServices={data.services} canEdit={hasPermission(user.role, "manageServices")} />
+      <ServicesAdmin
+        initialServices={data.services}
+        initialInvoices={data.invoices}
+        canEdit={hasPermission(user.role, "manageServices")}
+      />
     </div>
   );
 }

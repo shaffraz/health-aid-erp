@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CirclePlus, Edit3, Save, Search, X } from "lucide-react";
+import { CirclePlus, Edit3, Save, Search, Trash2, X } from "lucide-react";
 import { money, usd } from "@/lib/format";
 import {
-  defaultPayoutEnabledForCategory,
   isPayoutEligibleCategory,
   serviceCategories,
   serviceStorageKey,
+  type Invoice,
   type Service,
   type ServiceCategory
 } from "@/lib/types";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 type ServicesAdminProps = {
   initialServices: Service[];
+  initialInvoices: Invoice[];
   canEdit: boolean;
 };
 
@@ -23,7 +24,6 @@ type ServiceForm = {
   name: string;
   category: ServiceCategory;
   sellingPrice: string;
-  payoutEnabled: boolean;
   payoutAmount: string;
   active: boolean;
 };
@@ -32,7 +32,6 @@ const emptyForm: ServiceForm = {
   name: "",
   category: "Consultation",
   sellingPrice: "0",
-  payoutEnabled: true,
   payoutAmount: "0",
   active: true
 };
@@ -43,7 +42,6 @@ function serviceToForm(service: Service): ServiceForm {
     name: service.name,
     category: service.category,
     sellingPrice: String(service.sellingPrice),
-    payoutEnabled: service.payoutEnabled,
     payoutAmount: String(service.defaultPayoutValue),
     active: service.active
   };
@@ -53,7 +51,7 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
-export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) {
+export function ServicesAdmin({ initialServices, initialInvoices, canEdit }: ServicesAdminProps) {
   const [services, setServices] = useState(initialServices);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
@@ -61,6 +59,14 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
   const [categoryFilter, setCategoryFilter] = useState<"all" | ServiceCategory>("all");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
+
+  const usedServiceIds = useMemo(
+    () =>
+      new Set(
+        initialInvoices.flatMap((invoice) => invoice.items.map((item) => item.serviceId))
+      ),
+    [initialInvoices]
+  );
 
   useEffect(() => {
     try {
@@ -97,7 +103,6 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
 
   const editing = Boolean(form.id);
   const categoryCanPayout = isPayoutEligibleCategory(form.category);
-  const effectivePayoutEnabled = categoryCanPayout && form.payoutEnabled;
 
   function resetForm() {
     setForm(emptyForm);
@@ -115,9 +120,6 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
     setForm((current) => ({
       ...current,
       category,
-      payoutEnabled: current.id
-        ? isPayoutEligibleCategory(category) && current.payoutEnabled
-        : defaultPayoutEnabledForCategory(category),
       payoutAmount: isPayoutEligibleCategory(category) ? current.payoutAmount : "0"
     }));
   }
@@ -134,8 +136,8 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
     }
 
     const sellingPrice = Math.max(0, Number(form.sellingPrice));
-    const payoutEnabled = isPayoutEligibleCategory(form.category) && form.payoutEnabled;
-    const payoutAmount = payoutEnabled ? Math.max(0, Number(form.payoutAmount)) : 0;
+    const payoutAmount = categoryCanPayout ? Math.max(0, Number(form.payoutAmount)) : 0;
+    const payoutEnabled = payoutAmount > 0;
     const nextService: Service = {
       id: form.id ?? crypto.randomUUID(),
       name,
@@ -164,16 +166,16 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
     setFormOpen(true);
   }
 
-  function toggleServiceActive(serviceId: string) {
+  function deleteService(service: Service) {
     if (!canEdit) {
       return;
     }
 
-    setServices((current) =>
-      current.map((service) =>
-        service.id === serviceId ? { ...service, active: !service.active } : service
-      )
-    );
+    if (usedServiceIds.has(service.id)) {
+      return;
+    }
+
+    setServices((current) => current.filter((candidate) => candidate.id !== service.id));
   }
 
   function formatPayout(service: Service) {
@@ -228,15 +230,20 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
               <tr>
                 <th className="px-5 py-3">Service name</th>
                 <th className="px-5 py-3">Category</th>
-                <th className="px-5 py-3 text-right">Price USD</th>
-                <th className="px-5 py-3 text-right">Doctor payout LKR</th>
-                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3 text-right">Selling price USD</th>
+                <th className="px-5 py-3 text-right">Doctor payout amount LKR</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredServices.map((service) => (
-                <tr key={service.id}>
+                <tr
+                  key={service.id}
+                  className={cn(
+                    "border-l-4",
+                    service.active ? "border-l-emerald-500" : "border-l-rose-500"
+                  )}
+                >
                   <td className="px-5 py-4">
                     <p className="font-semibold text-ink">{service.name}</p>
                   </td>
@@ -248,16 +255,6 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
                     {formatPayout(service)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={cn(
-                        "font-semibold",
-                        service.active ? "text-emerald-700" : "text-slate-500"
-                      )}
-                    >
-                      {service.active ? "Active" : "Inactive"}
-                    </span>
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
@@ -272,11 +269,17 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
                       </button>
                       <button
                         type="button"
-                        onClick={() => toggleServiceActive(service.id)}
-                        disabled={!canEdit}
-                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+                        onClick={() => deleteService(service)}
+                        disabled={!canEdit || usedServiceIds.has(service.id)}
+                        title={
+                          usedServiceIds.has(service.id)
+                            ? "This service is used in invoices"
+                            : "Delete service"
+                        }
+                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                       >
-                        {service.active ? "Disable" : "Enable"}
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Delete
                       </button>
                     </div>
                   </td>
@@ -284,7 +287,7 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
               ))}
               {!filteredServices.length ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
                     No services match your search.
                   </td>
                 </tr>
@@ -367,7 +370,7 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
 
                 <div>
                   <label className="label" htmlFor="selling-price">
-                    Price USD
+                    Selling price USD
                   </label>
                   <input
                     id="selling-price"
@@ -385,59 +388,20 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
 
                 <div>
                   <label className="label" htmlFor="payout-amount">
-                    Doctor payout LKR
+                    Doctor payout amount LKR
                   </label>
                   <input
                     id="payout-amount"
                     type="number"
                     min={0}
                     step="1"
-                    value={effectivePayoutEnabled ? form.payoutAmount : "0"}
+                    value={categoryCanPayout ? form.payoutAmount : "0"}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, payoutAmount: event.target.value }))
                     }
-                    disabled={!canEdit || !effectivePayoutEnabled}
-                    className="field mt-2 disabled:bg-slate-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="label" htmlFor="payout-enabled">
-                    Payout
-                  </label>
-                  <select
-                    id="payout-enabled"
-                    value={effectivePayoutEnabled ? "yes" : "no"}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        payoutEnabled: event.target.value === "yes"
-                      }))
-                    }
                     disabled={!canEdit || !categoryCanPayout}
                     className="field mt-2 disabled:bg-slate-100"
-                  >
-                    <option value="yes">Enabled</option>
-                    <option value="no">Disabled</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="label" htmlFor="service-active">
-                    Status
-                  </label>
-                  <select
-                    id="service-active"
-                    value={form.active ? "yes" : "no"}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, active: event.target.value === "yes" }))
-                    }
-                    disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
-                  >
-                    <option value="yes">Active</option>
-                    <option value="no">Inactive</option>
-                  </select>
+                  />
                 </div>
               </div>
             </div>
