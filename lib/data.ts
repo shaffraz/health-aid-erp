@@ -85,6 +85,7 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
       name: service.name,
       category: service.category,
       sellingPrice: Number(service.selling_price),
+      payoutEnabled: service.default_payout_type !== "none",
       defaultPayoutType: service.default_payout_type,
       defaultPayoutValue: Number(service.default_payout_value),
       defaultPayoutReason: service.default_payout_reason,

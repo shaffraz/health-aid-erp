@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CirclePlus,
   Download,
@@ -17,10 +17,11 @@ import {
   nextInvoiceNumber
 } from "@/lib/calculations";
 import { demoSettings } from "@/lib/demo-data";
-import { convertLkrToUsd, money, todayISO, usd } from "@/lib/format";
+import { money, todayISO, usd } from "@/lib/format";
 import {
   isAmountOnlyInvoiceServiceName,
   paymentMethods,
+  serviceStorageKey,
   type Doctor,
   type DoctorPaymentRule,
   type DoctorPayout,
@@ -66,34 +67,6 @@ function escapeHtml(value: string | number | undefined) {
     .replaceAll("'", "&#039;");
 }
 
-function lkrToUsd(value: number) {
-  return convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd);
-}
-
-function normalizeInvoiceToUsd(invoice: Invoice): Invoice {
-  const items = invoice.items.map((item) => ({
-    ...item,
-    unitPrice: lkrToUsd(item.unitPrice),
-    lineTotal: lkrToUsd(item.lineTotal)
-  }));
-  const totals = calculateInvoiceTotals(items, lkrToUsd(invoice.discount));
-
-  return {
-    ...invoice,
-    items,
-    subtotal: totals.subtotal,
-    discount: totals.discount,
-    totalAmount: totals.totalAmount
-  };
-}
-
-function normalizeServiceToUsd(service: Service): Service {
-  return {
-    ...service,
-    sellingPrice: lkrToUsd(service.sellingPrice)
-  };
-}
-
 export function InvoicePosForm({
   doctors,
   services,
@@ -102,16 +75,12 @@ export function InvoicePosForm({
   createdBy
 }: InvoicePosFormProps) {
   const exchangeRate = demoSettings.exchangeRateLkrPerUsd;
+  const [catalogServices, setCatalogServices] = useState(services);
   const activeDoctors = doctors.filter((doctor) => doctor.active);
-  const invoiceServices = useMemo(
-    () => services.map((service) => normalizeServiceToUsd(service)),
-    [services]
-  );
+  const invoiceServices = useMemo(() => catalogServices, [catalogServices]);
   const serviceOptions = invoiceServices.filter((service) => service.active);
 
-  const [invoices, setInvoices] = useState<Invoice[]>(() =>
-    initialInvoices.map((invoice) => normalizeInvoiceToUsd(invoice))
-  );
+  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
   const [payoutQueue, setPayoutQueue] = useState<DoctorPayout[]>(() =>
     initialInvoices
       .flatMap((invoice) => generatePayoutsForInvoice(invoice, services, paymentRules))
@@ -130,6 +99,22 @@ export function InvoicePosForm({
   ]);
   const [savedInvoiceNo, setSavedInvoiceNo] = useState("");
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    try {
+      const storedServices = window.localStorage.getItem(serviceStorageKey);
+      if (!storedServices) {
+        return;
+      }
+
+      const parsed = JSON.parse(storedServices);
+      if (Array.isArray(parsed)) {
+        setCatalogServices(parsed as Service[]);
+      }
+    } catch {
+      setCatalogServices(services);
+    }
+  }, [services]);
 
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
   const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
@@ -171,11 +156,13 @@ export function InvoicePosForm({
     () =>
       serviceLines
         .map((line) => {
-          const service = services.find((candidate) => candidate.id === line.serviceId);
+          const service = catalogServices.find((candidate) => candidate.id === line.serviceId);
 
           if (!service || isAmountOnlyInvoiceServiceName(service.name)) {
             return null;
           }
+
+          const unitPriceLkr = service.sellingPrice * exchangeRate;
 
           return {
             id: line.id,
@@ -183,12 +170,12 @@ export function InvoicePosForm({
             serviceName: service.name,
             category: service.category,
             quantity: line.quantity,
-            unitPrice: service.sellingPrice,
-            lineTotal: service.sellingPrice * line.quantity
+            unitPrice: unitPriceLkr,
+            lineTotal: unitPriceLkr * line.quantity
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
-    [serviceLines, services]
+    [catalogServices, exchangeRate, serviceLines]
   );
   const invoiceItems = serviceItemsUsd;
   const totals = calculateInvoiceTotals(invoiceItems, discount);
@@ -213,7 +200,7 @@ export function InvoicePosForm({
     ...draftInvoice,
     items: serviceItemsLkr
   } satisfies Invoice;
-  const payoutPreview = generatePayoutsForInvoice(payoutInvoice, services, paymentRules);
+  const payoutPreview = generatePayoutsForInvoice(payoutInvoice, catalogServices, paymentRules);
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
   function addServiceLine() {
@@ -348,7 +335,7 @@ export function InvoicePosForm({
         ...createdInvoice,
         items: serviceItemsLkr.map((item) => ({ ...item, id: makeId() }))
       },
-      services,
+      catalogServices,
       paymentRules
     );
 

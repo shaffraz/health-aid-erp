@@ -3,14 +3,21 @@ export type Role = (typeof roles)[number];
 
 export const serviceCategories = [
   "Consultation",
-  "Consumables",
-  "Hospital charges",
-  "Lab services",
   "Procedures",
-  "Other"
+  "IV Therapy",
+  "Wound Care",
+  "Vaccines / ARV",
+  "Lab Services",
+  "Day Care Admissions",
+  "Medication Charges",
+  "Consumables Charges",
+  "Hospital Charges",
+  "Other Charges"
 ] as const;
 
 export type ServiceCategory = (typeof serviceCategories)[number];
+
+export const serviceStorageKey = "health-aid-services-v1";
 
 export const amountOnlyInvoiceServiceNames = [
   "Medication Charges",
@@ -21,6 +28,22 @@ export function isAmountOnlyInvoiceServiceName(name?: string) {
   return Boolean(
     name && (amountOnlyInvoiceServiceNames as readonly string[]).includes(name)
   );
+}
+
+export const payoutEligibleCategories: ServiceCategory[] = [
+  "Consultation",
+  "Procedures",
+  "IV Therapy",
+  "Wound Care",
+  "Vaccines / ARV"
+];
+
+export function isPayoutEligibleCategory(category: ServiceCategory) {
+  return payoutEligibleCategories.includes(category);
+}
+
+export function defaultPayoutEnabledForCategory(category: ServiceCategory) {
+  return isPayoutEligibleCategory(category);
 }
 
 export const paymentMethods = ["cash", "card", "bank_transfer", "insurance", "other"] as const;
@@ -53,11 +76,16 @@ export type Service = {
   name: string;
   category: ServiceCategory;
   sellingPrice: number;
+  payoutEnabled: boolean;
   defaultPayoutType: RuleType;
   defaultPayoutValue: number;
   defaultPayoutReason: string;
   active: boolean;
 };
+
+export function isServicePayoutEnabled(service: Service) {
+  return service.payoutEnabled && service.defaultPayoutType !== "none";
+}
 
 export type DoctorPaymentRule = {
   id: string;

@@ -1,5 +1,6 @@
 import {
   isAmountOnlyInvoiceServiceName,
+  isServicePayoutEnabled,
   type DoctorPaymentRule,
   type DoctorPayout,
   type Invoice,
@@ -81,7 +82,7 @@ export function generatePayoutsForInvoice(
       return;
     }
 
-    if (isAmountOnlyInvoiceServiceName(service.name)) {
+    if (isAmountOnlyInvoiceServiceName(service.name) || !isServicePayoutEnabled(service)) {
       return;
     }
 
