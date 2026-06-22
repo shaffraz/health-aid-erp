@@ -16,13 +16,12 @@ export default async function DoctorsPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Admin setup"
-        title="Doctors and payment rules"
-        description="Create doctors and doctor-specific payout rules. Exact service rules override category rules, and both override service defaults."
+        title="Doctors"
+        description="Manage doctor records, active status, and unpaid payout visibility for the mock ERP workflow."
       />
       <DoctorsAdmin
         initialDoctors={data.doctors}
-        initialRules={data.paymentRules}
-        services={data.services}
+        payouts={data.payouts}
         canEdit={hasPermission(user.role, "manageDoctors")}
       />
     </div>

@@ -18,6 +18,7 @@ export const serviceCategories = [
 export type ServiceCategory = (typeof serviceCategories)[number];
 
 export const serviceStorageKey = "health-aid-services-v1";
+export const doctorStorageKey = "health-aid-doctors-v1";
 
 export const amountOnlyInvoiceServiceNames = [
   "Medication Charges",
@@ -68,6 +69,7 @@ export type Doctor = {
   registrationNo?: string;
   phone?: string;
   email?: string;
+  notes?: string;
   active: boolean;
 };
 

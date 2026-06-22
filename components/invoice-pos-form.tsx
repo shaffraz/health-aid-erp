@@ -19,6 +19,7 @@ import {
 import { demoSettings } from "@/lib/demo-data";
 import { money, todayISO, usd } from "@/lib/format";
 import {
+  doctorStorageKey,
   isAmountOnlyInvoiceServiceName,
   paymentMethods,
   serviceStorageKey,
@@ -75,8 +76,12 @@ export function InvoicePosForm({
   createdBy
 }: InvoicePosFormProps) {
   const exchangeRate = demoSettings.exchangeRateLkrPerUsd;
+  const [doctorCatalog, setDoctorCatalog] = useState(doctors);
   const [catalogServices, setCatalogServices] = useState(services);
-  const activeDoctors = doctors.filter((doctor) => doctor.active);
+  const activeDoctors = useMemo(
+    () => doctorCatalog.filter((doctor) => doctor.active),
+    [doctorCatalog]
+  );
   const invoiceServices = useMemo(() => catalogServices, [catalogServices]);
   const serviceOptions = invoiceServices.filter((service) => service.active);
 
@@ -102,6 +107,33 @@ export function InvoicePosForm({
 
   useEffect(() => {
     try {
+      const storedDoctors = window.localStorage.getItem(doctorStorageKey);
+      if (!storedDoctors) {
+        return;
+      }
+
+      const parsed = JSON.parse(storedDoctors);
+      if (Array.isArray(parsed)) {
+        setDoctorCatalog(parsed as Doctor[]);
+      }
+    } catch {
+      setDoctorCatalog(doctors);
+    }
+  }, [doctors]);
+
+  useEffect(() => {
+    if (!activeDoctors.length) {
+      setDoctorId("");
+      return;
+    }
+
+    if (!activeDoctors.some((doctor) => doctor.id === doctorId)) {
+      setDoctorId(activeDoctors[0].id);
+    }
+  }, [activeDoctors, doctorId]);
+
+  useEffect(() => {
+    try {
       const storedServices = window.localStorage.getItem(serviceStorageKey);
       if (!storedServices) {
         return;
@@ -118,7 +150,7 @@ export function InvoicePosForm({
 
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
   const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
-  const selectedDoctor = doctors.find((doctor) => doctor.id === doctorId);
+  const selectedDoctor = doctorCatalog.find((doctor) => doctor.id === doctorId);
 
   const serviceItemsUsd = useMemo<InvoiceItem[]>(
     () =>
@@ -419,11 +451,15 @@ export function InvoicePosForm({
               onChange={(event) => setDoctorId(event.target.value)}
               className="field mt-2"
             >
-              {activeDoctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.name}
-                </option>
-              ))}
+              {activeDoctors.length ? (
+                activeDoctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">No active doctors</option>
+              )}
             </select>
           </div>
           <div>
