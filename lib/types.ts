@@ -1,4 +1,4 @@
-export const roles = ["admin", "staff", "doctor", "accountant"] as const;
+export const roles = ["admin", "staff", "doctor", "accountant", "insurance_partner"] as const;
 export type Role = (typeof roles)[number];
 
 export const serviceCategories = [
@@ -85,6 +85,7 @@ export type AppUser = {
   email: string;
   role: Role;
   doctorId?: string;
+  assistanceCompany?: string;
 };
 
 export type Doctor = {

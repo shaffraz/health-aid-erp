@@ -41,7 +41,13 @@ export function LoginPanel() {
 
   function enterDemo(role: Role) {
     document.cookie = `demo_role=${role}; path=/; max-age=31536000; SameSite=Lax`;
-    window.location.assign(role === "doctor" ? "/doctor-portal" : "/dashboard");
+    window.location.assign(
+      role === "doctor"
+        ? "/doctor-portal"
+        : role === "insurance_partner"
+          ? "/insurance-claims"
+          : "/dashboard"
+    );
   }
 
   return (
@@ -58,7 +64,7 @@ export function LoginPanel() {
           </p>
           <div className="mt-8 grid gap-3 text-sm">
             {[
-              "Role-aware access for admin, staff, doctor, and accountant",
+              "Role-aware access for admin, staff, doctor, accountant, and insurance partners",
               "Automatic doctor payout generation from invoice services",
               "PostgreSQL RLS policies keep doctor earnings private"
             ].map((item) => (

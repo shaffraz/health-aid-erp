@@ -1,27 +1,28 @@
 import { AccessDenied } from "@/components/access-denied";
-import { InvoicesDashboard } from "@/components/invoices-dashboard";
+import { InsuranceClaimsDashboard } from "@/components/insurance-claims-dashboard";
 import { SectionHeader } from "@/components/section-header";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkspaceData } from "@/lib/data";
 import { hasPermission } from "@/lib/permissions";
 
-export default async function InvoicesPage() {
+export default async function InsuranceClaimsPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "viewInvoices")) {
+  if (!hasPermission(user.role, "insuranceClaims")) {
     return <AccessDenied />;
   }
 
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Invoices"
-        title="Invoice Registry"
+        eyebrow="Finance"
+        title="Insurance Claims"
       />
 
-      <InvoicesDashboard
-        doctors={data.doctors}
+      <InsuranceClaimsDashboard
         invoices={data.invoices}
+        insuranceReceivables={data.insuranceReceivables}
+        currentUser={user}
       />
     </div>
   );

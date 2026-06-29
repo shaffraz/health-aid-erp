@@ -4,13 +4,15 @@ export const roleLabels: Record<Role, string> = {
   admin: "Admin",
   staff: "Staff",
   doctor: "Doctor",
-  accountant: "Accountant"
+  accountant: "Accountant",
+  insurance_partner: "Insurance Partner"
 };
 
 export const permissions = {
   dashboard: ["admin", "staff", "accountant", "doctor"],
   createInvoices: ["admin", "staff"],
   viewInvoices: ["admin", "staff", "accountant"],
+  insuranceClaims: ["admin", "accountant", "insurance_partner"],
   manageServices: ["admin"],
   manageDoctors: ["admin"],
   doctorPortal: ["doctor"],

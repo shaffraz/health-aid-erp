@@ -16,10 +16,16 @@ export async function getCurrentUser(): Promise<AppUser> {
 
     return {
       id: `demo-${role}`,
-      name: role === "doctor" ? doctor.name : `Demo ${roleLabels[role]}`,
+      name:
+        role === "doctor"
+          ? doctor.name
+          : role === "insurance_partner"
+            ? "Global Travel Assist"
+            : `Demo ${roleLabels[role]}`,
       email: `${role}@healthaid.local`,
       role,
-      doctorId: role === "doctor" ? doctor.id : undefined
+      doctorId: role === "doctor" ? doctor.id : undefined,
+      assistanceCompany: role === "insurance_partner" ? "Global Travel Assist" : undefined
     };
   }
 

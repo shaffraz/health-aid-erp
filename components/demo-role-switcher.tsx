@@ -20,7 +20,13 @@ export function DemoRoleSwitcher({ activeRole }: DemoRoleSwitcherProps) {
 
   function switchRole(role: Role) {
     document.cookie = `demo_role=${role}; path=/; max-age=31536000; SameSite=Lax`;
-    window.location.assign(role === "doctor" ? "/doctor-portal" : "/dashboard");
+    window.location.assign(
+      role === "doctor"
+        ? "/doctor-portal"
+        : role === "insurance_partner"
+          ? "/insurance-claims"
+          : "/dashboard"
+    );
   }
 
   return (
