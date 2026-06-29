@@ -184,6 +184,7 @@ export function DashboardOverview({
   const monthlyPayouts = visiblePayouts.filter(
     (payout) => monthKey(payout.date) === selectedMonth
   );
+  const activeDoctors = doctors.filter((doctor) => doctor.active);
   const todaySales = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
   const consultationsToday = todayInvoices.reduce(
     (sum, invoice) =>
@@ -244,9 +245,6 @@ export function DashboardOverview({
     };
   });
 
-  const monthlyPaidPayouts = monthlyPayouts
-    .filter((payout) => payout.status === "paid")
-    .reduce((sum, payout) => sum + payout.payoutAmount, 0);
   const monthlyPendingPayouts = monthlyPayouts
     .filter((payout) => payout.status === "unpaid")
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
@@ -281,48 +279,55 @@ export function DashboardOverview({
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Operational KPIs" />
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-5">
-          <KpiCard
-            label="Operating Mode"
-            value={paymentModeLabels[paymentSettings.activeModel]}
-            tone="primary"
-            className="xl:col-span-2"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <select
-                id="dashboard-payment-mode"
-                value={draftPaymentMode}
-                onChange={(event) =>
-                  setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
-                }
-                className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
-                aria-label="Operating mode"
-              >
-                <option value="low_season">{paymentModeLabels.low_season}</option>
-                <option value="peak_season">{paymentModeLabels.peak_season}</option>
-              </select>
-              <button
-                type="button"
-                onClick={savePaymentMode}
-                disabled={!paymentModeChanged}
-                className={buttonClass(paymentModeChanged ? "primary" : "muted", "min-h-11")}
-              >
-                Save
-              </button>
+        <SectionTitle title="Operations Control" />
+        <div className="p-6">
+          <div className="rounded-xl border border-[#efefef] bg-white p-6 shadow-sm">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-end">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+                  Current Operating Mode
+                </p>
+                <p className="mt-3 text-4xl font-bold tracking-tight text-[#224770]">
+                  {paymentModeLabels[paymentSettings.activeModel]}
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <select
+                  id="dashboard-payment-mode"
+                  value={draftPaymentMode}
+                  onChange={(event) =>
+                    setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
+                  }
+                  className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
+                  aria-label="Operating mode"
+                >
+                  <option value="low_season">{paymentModeLabels.low_season}</option>
+                  <option value="peak_season">{paymentModeLabels.peak_season}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={savePaymentMode}
+                  disabled={!paymentModeChanged}
+                  className={buttonClass(paymentModeChanged ? "primary" : "muted", "min-h-11")}
+                >
+                  Save Mode
+                </button>
+              </div>
             </div>
-          </KpiCard>
-          <KpiCard label="Today's Sales USD" value={usd(todaySales)} tone="info" />
+          </div>
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden border-[#efefef] bg-white">
+        <SectionTitle title="Business Performance" />
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label="Today's Sales (USD)" value={usd(todaySales)} tone="info" />
           <KpiCard label="New Consultations Today" value={String(consultationsToday)} />
+          <KpiCard label="Active Doctors" value={String(activeDoctors.length)} tone="primary" />
           <KpiCard
-            label="Pending Doctor Payouts LKR"
+            label="Pending Doctor Payouts (LKR)"
             value={money(monthlyPendingPayouts)}
             tone="danger"
-          />
-          <KpiCard
-            label="Monthly Payouts Paid LKR"
-            value={money(monthlyPaidPayouts)}
-            tone="success"
           />
         </div>
       </section>
