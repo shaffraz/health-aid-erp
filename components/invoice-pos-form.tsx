@@ -254,10 +254,9 @@ export function InvoicePosForm({
           }
 
           const isAmountOnlyService = isAmountOnlyInvoiceServiceName(service.name);
-          const quantity = 1;
-          const unitPrice = roundUsd(isAmountOnlyService ? line.amountUsd : service.sellingPrice);
+          const lineAmount = roundUsd(isAmountOnlyService ? line.amountUsd : service.sellingPrice);
 
-          if (isAmountOnlyService && unitPrice <= 0) {
+          if (isAmountOnlyService && lineAmount <= 0) {
             return null;
           }
 
@@ -266,9 +265,9 @@ export function InvoicePosForm({
             serviceId: service.id,
             serviceName: service.name,
             category: service.category,
-            quantity,
-            unitPrice,
-            lineTotal: unitPrice * quantity
+            quantity: 1,
+            unitPrice: lineAmount,
+            lineTotal: lineAmount
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
@@ -376,10 +375,10 @@ export function InvoicePosForm({
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
     ${targetInvoice.email ? `<p><strong>Email:</strong> ${escapeHtml(targetInvoice.email)}</p>` : ""}
     <p><strong>Doctor:</strong> ${escapeHtml(invoiceDoctor?.name ?? "Unassigned")}</p>
-    <h2>Invoice items</h2>
+    <h2>Services and charges</h2>
     <table>
       <thead>
-        <tr><th>Item</th><th>Amount (USD)</th></tr>
+        <tr><th>Item</th><th>Amount</th></tr>
       </thead>
       <tbody>${itemRows || '<tr><td colspan="2">No invoice items</td></tr>'}</tbody>
     </table>
@@ -495,21 +494,24 @@ export function InvoicePosForm({
     const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
 
     return (
-      <FieldShell>
-        <label className="label" htmlFor={`charge-${service.id}`}>
+      <div className="grid gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+        <label className="text-sm font-semibold text-[#224770]" htmlFor={`charge-${service.id}`}>
           {label}
         </label>
-        <input
-          id={`charge-${service.id}`}
-          type="number"
-          min={0}
-          step="1"
-          value={line?.amountUsd ?? 0}
-          onChange={(event) => updateChargeLine(service.id, Number(event.target.value))}
-          className="field mt-2 text-right font-semibold"
-          placeholder="0"
-        />
-      </FieldShell>
+        <div className="flex items-center overflow-hidden rounded-lg border border-[#dbe3ea] bg-white focus-within:ring-2 focus-within:ring-[#0eb6ef]/20">
+          <span className="px-3 text-sm font-semibold text-[#46484a]">$</span>
+          <input
+            id={`charge-${service.id}`}
+            type="number"
+            min={0}
+            step="1"
+            value={line?.amountUsd ?? 0}
+            onChange={(event) => updateChargeLine(service.id, Number(event.target.value))}
+            className="h-10 w-full border-0 bg-transparent px-3 py-2 text-right text-sm font-semibold text-[#224770] outline-none"
+            placeholder="0"
+          />
+        </div>
+      </div>
     );
   }
 
@@ -588,19 +590,6 @@ export function InvoicePosForm({
           />
         </FieldShell>
         <FieldShell>
-          <label className="label" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="field mt-2"
-            placeholder="Optional"
-          />
-        </FieldShell>
-        <FieldShell>
           <label className="label" htmlFor="nationality">
             Nationality
           </label>
@@ -613,6 +602,19 @@ export function InvoicePosForm({
             required
           />
         </FieldShell>
+        <div className="md:col-span-2">
+          <label className="label" htmlFor="email">
+            Email (optional)
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="field mt-2"
+            placeholder="Optional"
+          />
+        </div>
       </div>
     );
   }
@@ -662,19 +664,20 @@ export function InvoicePosForm({
     );
   }
 
-  function ChargeSection({
-    title,
-    label,
-    service
-  }: {
-    title: string;
-    label: string;
-    service?: Service;
-  }) {
+  function AdditionalChargesSection() {
     return (
       <div className="space-y-4">
-        <SectionHeading title={title} />
-        <AdditionalChargeInput label={label} service={service} />
+        <SectionHeading title="Additional Charges" />
+        <div className="grid gap-3">
+          <AdditionalChargeInput
+            label="Medication Charges"
+            service={medicationChargeService}
+          />
+          <AdditionalChargeInput
+            label="Consumable Charges"
+            service={consumableChargeService}
+          />
+        </div>
       </div>
     );
   }
@@ -776,7 +779,7 @@ export function InvoicePosForm({
         <div className="space-y-3 text-sm">
           <div>
             <label className="label" htmlFor="discount">
-              Discount USD
+              Discount
             </label>
             <input
               id="discount"
@@ -789,7 +792,7 @@ export function InvoicePosForm({
             />
           </div>
           <div className="flex justify-between border-t border-[#efefef] pt-3 text-base">
-            <span className="font-semibold text-[#224770]">Grand total USD</span>
+            <span className="font-semibold text-[#224770]">Grand Total</span>
             <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
           </div>
         </div>
@@ -810,36 +813,40 @@ export function InvoicePosForm({
 
   function InvoiceHeader() {
     return (
-      <div className="flex flex-col gap-5 border-b border-[#efefef] pb-5 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
-          <p className="label">Invoice Information</p>
-          <h2 className="mt-2 whitespace-nowrap text-lg font-bold tracking-tight text-[#224770] sm:text-xl lg:text-2xl">
-            {invoiceNo}
-          </h2>
-          <p className="mt-1 whitespace-nowrap text-sm text-[#46484a]">
-            {invoiceDate} at {invoiceTime}
-          </p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-[minmax(140px,1fr)_minmax(120px,0.8fr)_auto_auto] sm:items-end xl:min-w-[560px]">
-          <InvoiceTimestampFields />
-          <button
-            type="button"
-            onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
-            className={buttonClass("secondary", "h-10 px-3 py-2")}
-          >
-            Print
-          </button>
-          <button
-            type="button"
-            onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
-            disabled={!formReady && !lastSavedInvoice}
-            className={buttonClass(
-              formReady || lastSavedInvoice ? "secondary" : "muted",
-              "h-10 px-3 py-2"
-            )}
-          >
-            Download
-          </button>
+      <div className="border-b border-[#efefef] pb-5">
+        <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
+          <div className="min-w-0 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-4">
+            <p className="label">Invoice Information</p>
+            <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
+              {invoiceNo}
+            </h2>
+            <p className="mt-1 whitespace-nowrap text-sm text-[#46484a]">
+              {invoiceDate} at {invoiceTime}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InvoiceTimestampFields />
+          </div>
+          <div className="flex gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
+              className={buttonClass("secondary", "h-10 px-3 py-2")}
+            >
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
+              disabled={!formReady && !lastSavedInvoice}
+              className={buttonClass(
+                formReady || lastSavedInvoice ? "secondary" : "muted",
+                "h-10 px-3 py-2"
+              )}
+            >
+              Download
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -871,21 +878,12 @@ export function InvoicePosForm({
             </div>
 
             <div className="space-y-4">
-              <SectionHeading title="Billing Details" />
+              <SectionHeading title="Billing Information" />
               <BillingDetailsFields />
             </div>
 
             <InvoiceServicesSection />
-            <ChargeSection
-              title="Medication Charges"
-              label="Medication Charges USD"
-              service={medicationChargeService}
-            />
-            <ChargeSection
-              title="Consumable Charges"
-              label="Consumable Charges USD"
-              service={consumableChargeService}
-            />
+            <AdditionalChargesSection />
 
             <div className="grid gap-4 md:grid-cols-[1fr_260px]">
               <NotesSection />
@@ -897,7 +895,6 @@ export function InvoicePosForm({
         <aside className="space-y-6">
           <section className="panel p-5">
             <h3 className="font-semibold text-[#224770]">Invoice Preview</h3>
-            <p className="mt-1 text-sm text-[#46484a]">Patient invoice amounts remain in USD.</p>
             <div className="mt-4 space-y-4">
               <PreviewGroup title="Clinical Services" items={clinicalInvoiceItems} />
               <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
@@ -914,11 +911,11 @@ export function InvoicePosForm({
                   </span>
                 </div>
                 <div className="mt-2 flex justify-between">
-                  <span className="text-[#46484a]">Discount USD</span>
+                  <span className="text-[#46484a]">Discount</span>
                   <span className="font-semibold text-[#224770]">{usdWhole(totals.discount)}</span>
                 </div>
                 <div className="mt-2 flex justify-between border-t border-[#efefef] pt-2 text-base">
-                  <span className="font-semibold text-[#224770]">Grand total USD</span>
+                  <span className="font-semibold text-[#224770]">Grand Total</span>
                   <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
                 </div>
               </div>
