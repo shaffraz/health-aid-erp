@@ -19,7 +19,12 @@ export default async function ReportsPage() {
         title="Operational and finance reports"
         description="Daily sales, category income, invoices, doctor payout summaries, paid/unpaid status, and monthly doctor payment exports."
       />
-      <ReportsDashboard doctors={data.doctors} invoices={data.invoices} payouts={data.payouts} />
+      <ReportsDashboard
+        doctors={data.doctors}
+        invoices={data.invoices}
+        payouts={data.payouts}
+        insuranceReceivables={data.insuranceReceivables}
+      />
     </div>
   );
 }

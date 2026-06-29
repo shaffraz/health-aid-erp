@@ -8,6 +8,7 @@ import type {
   AuditLog,
   Doctor,
   DoctorPaymentRule,
+  InsuranceReceivable,
   Invoice,
   InvoiceItem,
   PayoutVoucher,
@@ -321,6 +322,51 @@ export const demoVouchers: PayoutVoucher[] = [
   }
 ];
 
+export const demoInsuranceReceivables: InsuranceReceivable[] = [
+  {
+    id: "ins-rec-001",
+    insuranceCompany: "Global Travel Assist",
+    patients: ["Mia Carter", "Luka Weber"],
+    invoices: ["HA-ABAY-2026-0001", "HA-ABAY-2026-0002"],
+    billedDate: today,
+    totalBilled: 920,
+    paidAmount: 0,
+    status: "Pending"
+  },
+  {
+    id: "ins-rec-002",
+    insuranceCompany: "NomadCare Insurance",
+    patients: ["Amelia Brooks"],
+    invoices: ["HA-ABAY-2026-0007"],
+    billedDate: today,
+    paidDate: today,
+    totalBilled: 640,
+    paidAmount: 280,
+    status: "Partially Paid"
+  },
+  {
+    id: "ins-rec-003",
+    insuranceCompany: "Blue Ocean Travel Cover",
+    patients: ["Chen Min"],
+    invoices: ["HA-ABAY-2026-0003"],
+    billedDate: monthStart,
+    paidDate: today,
+    totalBilled: 430,
+    paidAmount: 430,
+    status: "Paid"
+  },
+  {
+    id: "ins-rec-004",
+    insuranceCompany: "Island Rescue Claims",
+    patients: ["Noah Jensen", "Sofia Lind"],
+    invoices: ["HA-ABAY-2026-0008", "HA-ABAY-2026-0009"],
+    billedDate: monthStart,
+    totalBilled: 1180,
+    paidAmount: 250,
+    status: "Overdue"
+  }
+];
+
 export const demoAuditLogs: AuditLog[] = [
   {
     id: "audit-001",
@@ -349,5 +395,6 @@ export const demoWorkspaceData: WorkspaceData = {
   invoices: demoInvoices,
   payouts: demoPayouts,
   vouchers: demoVouchers,
+  insuranceReceivables: demoInsuranceReceivables,
   auditLogs: demoAuditLogs
 };

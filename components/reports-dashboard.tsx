@@ -2,16 +2,35 @@
 
 import { useMemo, useState } from "react";
 import { BarChart3, CalendarDays, Download, ReceiptText, Stethoscope } from "lucide-react";
+import { KpiCard, tableStyles } from "@/components/erp-ui";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
-import { money, monthKey, shortDate, todayISO, usd } from "@/lib/format";
-import type { Doctor, DoctorPayout, Invoice, ServiceCategory } from "@/lib/types";
+import { money, monthKey, shortDate, todayISO, usd, usdWhole } from "@/lib/format";
+import type {
+  Doctor,
+  DoctorPayout,
+  InsuranceReceivable,
+  Invoice,
+  ServiceCategory
+} from "@/lib/types";
 
 type ReportsDashboardProps = {
   doctors: Doctor[];
   invoices: Invoice[];
   payouts: DoctorPayout[];
+  insuranceReceivables: InsuranceReceivable[];
 };
+
+const receivableStatusTones = {
+  Pending: "amber",
+  "Partially Paid": "cyan",
+  Paid: "green",
+  Overdue: "red"
+} satisfies Record<InsuranceReceivable["status"], "green" | "amber" | "cyan" | "red">;
+
+function receivableOutstanding(receivable: InsuranceReceivable) {
+  return Math.max(0, receivable.totalBilled - receivable.paidAmount);
+}
 
 function downloadCsv(fileName: string, rows: string[][]) {
   const csv = rows
@@ -28,7 +47,12 @@ function downloadCsv(fileName: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboardProps) {
+export function ReportsDashboard({
+  doctors,
+  invoices,
+  payouts,
+  insuranceReceivables
+}: ReportsDashboardProps) {
   const [date, setDate] = useState(todayISO());
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const invoiceUsd = (value: number) => usd(value);
@@ -83,6 +107,23 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
     .filter((payout) => payout.status === "unpaid")
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
   const maxCategory = Math.max(...categoryIncome.map((item) => item.total), 1);
+  const monthlyInsuranceReceivables = insuranceReceivables.filter(
+    (receivable) => monthKey(receivable.billedDate) === month
+  );
+  const insuranceBilledThisMonth = monthlyInsuranceReceivables.reduce(
+    (sum, receivable) => sum + receivable.totalBilled,
+    0
+  );
+  const insurancePaidThisMonth = insuranceReceivables
+    .filter((receivable) => receivable.paidDate && monthKey(receivable.paidDate) === month)
+    .reduce((sum, receivable) => sum + receivable.paidAmount, 0);
+  const insuranceOutstanding = monthlyInsuranceReceivables.reduce(
+    (sum, receivable) => sum + receivableOutstanding(receivable),
+    0
+  );
+  const overdueInsuranceReceivables = monthlyInsuranceReceivables
+    .filter((receivable) => receivable.status === "Overdue")
+    .reduce((sum, receivable) => sum + receivableOutstanding(receivable), 0);
 
   function exportMonthlyDoctorPayments() {
     downloadCsv("monthly-doctor-payment-report.csv", [
@@ -169,6 +210,89 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
           tone="amber"
         />
       </div>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-[#efefef] p-5">
+          <h2 className="font-semibold text-[#224770]">Insurance Outstanding Receivables</h2>
+        </div>
+        <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Insurance Billed This Month"
+            value={usdWhole(insuranceBilledThisMonth)}
+            tone="info"
+            className="min-h-28"
+          />
+          <KpiCard
+            label="Insurance Paid This Month"
+            value={usdWhole(insurancePaidThisMonth)}
+            tone="success"
+            className="min-h-28"
+          />
+          <KpiCard
+            label="Insurance Outstanding"
+            value={usdWhole(insuranceOutstanding)}
+            tone="warning"
+            className="min-h-28"
+          />
+          <KpiCard
+            label="Overdue Insurance Receivables"
+            value={usdWhole(overdueInsuranceReceivables)}
+            tone="danger"
+            className="min-h-28"
+          />
+        </div>
+        <div className={tableStyles.wrapper}>
+          <table className={tableStyles.table}>
+            <thead className={tableStyles.head}>
+              <tr>
+                <th className={tableStyles.headerCell}>Insurance company</th>
+                <th className={tableStyles.headerCell}>Patients</th>
+                <th className={tableStyles.headerCell}>Invoices</th>
+                <th className={tableStyles.numericHeaderCell}>Total billed USD</th>
+                <th className={tableStyles.numericHeaderCell}>Paid amount USD</th>
+                <th className={tableStyles.numericHeaderCell}>Outstanding amount USD</th>
+                <th className={tableStyles.headerCell}>Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#efefef]">
+              {monthlyInsuranceReceivables.map((receivable) => (
+                <tr key={receivable.id} className={tableStyles.row}>
+                  <td className={tableStyles.strongCell}>{receivable.insuranceCompany}</td>
+                  <td className={tableStyles.cell}>
+                    <p>{receivable.patients.join(", ")}</p>
+                    <p className="mt-1 text-xs text-[#46484a]">
+                      {receivable.patients.length} patient{receivable.patients.length === 1 ? "" : "s"}
+                    </p>
+                  </td>
+                  <td className={tableStyles.cell}>
+                    <p>{receivable.invoices.join(", ")}</p>
+                    <p className="mt-1 text-xs text-[#46484a]">
+                      Billed {shortDate(receivable.billedDate)}
+                    </p>
+                  </td>
+                  <td className={tableStyles.numericCell}>{usdWhole(receivable.totalBilled)}</td>
+                  <td className={tableStyles.numericCell}>{usdWhole(receivable.paidAmount)}</td>
+                  <td className={tableStyles.numericCell}>
+                    {usdWhole(receivableOutstanding(receivable))}
+                  </td>
+                  <td className={tableStyles.cell}>
+                    <StatusPill tone={receivableStatusTones[receivable.status]}>
+                      {receivable.status}
+                    </StatusPill>
+                  </td>
+                </tr>
+              ))}
+              {!monthlyInsuranceReceivables.length ? (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={7}>
+                    No insurance receivables for the selected month.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <section className="panel p-5">

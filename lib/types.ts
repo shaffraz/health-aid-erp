@@ -54,6 +54,7 @@ export type PaymentMethod = (typeof paymentMethods)[number];
 export type RuleType = "fixed" | "percentage" | "none";
 export type PayoutStatus = "unpaid" | "paid";
 export type VoucherStatus = "unpaid" | "paid";
+export type InsuranceReceivableStatus = "Pending" | "Partially Paid" | "Paid" | "Overdue";
 export type DoctorPaymentModelType = "low_season" | "peak_season";
 export type PayoutMode = "invoice" | "shift" | "pending_shift";
 
@@ -185,6 +186,18 @@ export type PayoutVoucher = {
   notes?: string;
 };
 
+export type InsuranceReceivable = {
+  id: string;
+  insuranceCompany: string;
+  patients: string[];
+  invoices: string[];
+  billedDate: string;
+  paidDate?: string;
+  totalBilled: number;
+  paidAmount: number;
+  status: InsuranceReceivableStatus;
+};
+
 export type AuditLog = {
   id: string;
   actor: string;
@@ -202,5 +215,6 @@ export type WorkspaceData = {
   invoices: Invoice[];
   payouts: DoctorPayout[];
   vouchers: PayoutVoucher[];
+  insuranceReceivables: InsuranceReceivable[];
   auditLogs: AuditLog[];
 };
