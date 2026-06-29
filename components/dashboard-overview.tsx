@@ -29,7 +29,7 @@ type DashboardOverviewProps = {
   payouts: DoctorPayout[];
 };
 
-type CardVariant = "default" | "muted" | "blue" | "sky" | "green";
+type CardVariant = "default" | "muted" | "info" | "positive" | "danger";
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
   low_season: "Low Season",
@@ -83,23 +83,23 @@ const cardVariants: Record<
     value: "text-[#224770]",
     detail: "text-[#46484a]"
   },
-  blue: {
-    panel: "border-[#224770] bg-[#224770]",
-    label: "text-white/80",
-    value: "text-white",
-    detail: "text-white/85"
+  info: {
+    panel: "border-[#d8edf7] bg-white",
+    label: "text-[#46484a]",
+    value: "text-[#224770]",
+    detail: "text-[#46484a]"
   },
-  sky: {
-    panel: "border-[#0eb6ef] bg-[#0eb6ef]",
-    label: "text-white/85",
-    value: "text-white",
-    detail: "text-white/90"
+  positive: {
+    panel: "border-[#dceccd] bg-white",
+    label: "text-[#46484a]",
+    value: "text-[#4f7f22]",
+    detail: "text-[#46484a]"
   },
-  green: {
-    panel: "border-[#84bc3f] bg-[#84bc3f]",
-    label: "text-white/85",
-    value: "text-white",
-    detail: "text-white/90"
+  danger: {
+    panel: "border-[#f4c7c7] bg-[#fff8f8]",
+    label: "text-[#8f1d1d]",
+    value: "text-[#b42318]",
+    detail: "text-[#8f1d1d]"
   }
 };
 
@@ -390,20 +390,20 @@ export function DashboardOverview({
         <SectionTitle title="Operating Control" />
         <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_280px]">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(150px,0.7fr)_minmax(150px,0.7fr)]">
-            <div className="min-h-32 rounded-xl border border-[#224770] bg-[#224770] p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+            <div className="min-h-32 rounded-xl border border-[#efefef] bg-white p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
                     Active Operating Mode
                   </p>
-                  <h3 className="mt-2 text-2xl font-bold text-white">
+                  <h3 className="mt-2 text-2xl font-bold text-[#224770]">
                     {paymentModeLabels[paymentSettings.activeModel]}
                   </h3>
                 </div>
                 <div className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end">
                   <div className="flex-1">
                     <label
-                      className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80"
+                      className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]"
                       htmlFor="dashboard-payment-mode"
                     >
                       Select mode
@@ -427,8 +427,8 @@ export function DashboardOverview({
                     className={cn(
                       "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold transition",
                       paymentModeChanged
-                        ? "bg-white text-[#224770] hover:bg-[#efefef]"
-                        : "bg-white/35 text-white/70"
+                        ? "bg-[#224770] text-white hover:bg-[#224770]/90"
+                        : "bg-[#efefef] text-[#46484a]"
                     )}
                   >
                     Save mode
@@ -455,8 +455,9 @@ export function DashboardOverview({
               {teamDirectory.map((memberGroup) => (
                 <div key={memberGroup.label} className="flex items-center gap-3 text-sm">
                   <span className="font-medium text-[#46484a]">{memberGroup.label}</span>
-                  <span className="min-w-4 flex-1 border-b border-dotted border-[#cfd3d6]" />
-                  <span className="font-bold text-[#224770]">{memberGroup.count}</span>
+                  <span className="ml-auto min-w-8 text-right font-bold text-[#224770]">
+                    {memberGroup.count}
+                  </span>
                 </div>
               ))}
             </div>
@@ -465,16 +466,26 @@ export function DashboardOverview({
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Today's Summary" />
-        <div className="grid gap-4 p-5 md:grid-cols-2">
+        <SectionTitle title="Key Operational KPIs" />
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             label="Today's sales"
             value={usd(todaySales)}
-            variant="sky"
+            variant="info"
           />
           <SummaryCard
             label="New consultations today"
             value={String(consultationsToday)}
+          />
+          <SummaryCard
+            label="Pending Doctor Payouts"
+            value={money(monthlyPendingPayouts)}
+            variant="danger"
+          />
+          <SummaryCard
+            label="Monthly payouts paid"
+            value={money(monthlyPaidPayouts)}
+            variant="positive"
           />
         </div>
       </section>
@@ -554,18 +565,7 @@ export function DashboardOverview({
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
         <SectionTitle title="Doctor Payout Summary" />
-        <div className="grid gap-4 p-5 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <SummaryCard
-              label="Monthly payouts paid"
-              value={money(monthlyPaidPayouts)}
-            />
-            <SummaryCard
-              label="Pending Doctor Payouts"
-              value={money(monthlyPendingPayouts)}
-              variant="green"
-            />
-          </div>
+        <div className="p-5">
           <div className="overflow-hidden rounded-xl border border-[#efefef]">
             <div className="bg-[#efefef] px-4 py-3">
               <h3 className="text-sm font-semibold text-[#224770]">Doctor Payout Summary</h3>
