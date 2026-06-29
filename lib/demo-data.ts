@@ -258,9 +258,9 @@ export const demoInvoices: Invoice[] = [
     nationality: "Australian",
     doctorId: "doc-ameer",
     items: [item("item-001-a", "svc-emergency-consult"), item("item-001-b", "svc-iv")],
-    discount: 500,
-    paymentMethod: "card",
-    notes: "Traveller with dehydration symptoms. Paid by card.",
+    discount: 0,
+    paymentMethod: "insurance",
+    notes: "Traveller with dehydration symptoms. Billed to insurance.",
     createdBy: "demo-admin"
   }),
   invoice({
@@ -289,8 +289,8 @@ export const demoInvoices: Invoice[] = [
     nationality: "Chinese",
     doctorId: "doc-nadeesha",
     items: [item("item-003-a", "svc-consult"), item("item-003-b", "svc-cbc")],
-    discount: 300,
-    paymentMethod: "bank_transfer",
+    discount: 0,
+    paymentMethod: "insurance",
     notes: "Fever screen and basic labs.",
     createdBy: "demo-admin"
   })
@@ -326,10 +326,10 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
   {
     id: "ins-rec-001",
     insuranceCompany: "Global Travel Assist",
-    patients: ["Mia Carter", "Luka Weber"],
-    invoices: ["HA-ABAY-2026-0001", "HA-ABAY-2026-0002"],
+    patients: ["Mia Carter"],
+    invoices: ["HA-ABAY-2026-0001"],
     billedDate: today,
-    totalBilled: 920,
+    totalBilled: 54,
     paidAmount: 0,
     status: "Pending"
   },
@@ -351,8 +351,8 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
     invoices: ["HA-ABAY-2026-0003"],
     billedDate: monthStart,
     paidDate: today,
-    totalBilled: 430,
-    paidAmount: 430,
+    totalBilled: 21,
+    paidAmount: 21,
     status: "Paid"
   },
   {
