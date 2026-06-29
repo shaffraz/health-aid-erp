@@ -283,10 +283,11 @@ export function DashboardOverview({
   );
   const activeDoctors = doctors.filter((doctor) => doctor.active);
   const activeServices = services.filter((service) => service.active);
-  const roleCounts = [
-    ...roleCountsBase.slice(0, 2),
-    { label: "Doctor", count: doctors.length },
-    roleCountsBase[2]
+  const teamDirectory = [
+    { label: "Administrators", count: roleCountsBase[0].count },
+    { label: "Doctors", count: doctors.length },
+    { label: "Staff", count: roleCountsBase[1].count },
+    { label: "Accountants", count: roleCountsBase[2].count }
   ];
 
   const todaySales = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
@@ -387,55 +388,55 @@ export function DashboardOverview({
     <div className="space-y-6">
       <section className="panel overflow-hidden border-[#efefef] bg-white">
         <SectionTitle title="Operations Setup" />
-        <div className="grid gap-4 p-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="min-h-32 rounded-xl border border-[#224770] bg-[#224770] p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
-                  Active Doctor Payment Mode
-                </p>
-                <h3 className="mt-2 text-2xl font-bold text-white">
-                  {paymentModeLabels[paymentSettings.activeModel]}
-                </h3>
-              </div>
-              <div className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80"
-                    htmlFor="dashboard-payment-mode"
-                  >
-                    Select mode
-                  </label>
-                  <select
-                    id="dashboard-payment-mode"
-                    value={draftPaymentMode}
-                    onChange={(event) =>
-                      setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
-                    }
-                    className="field mt-2 border-[#224770]/20 bg-white"
-                  >
-                    <option value="low_season">{paymentModeLabels.low_season}</option>
-                    <option value="peak_season">{paymentModeLabels.peak_season}</option>
-                  </select>
+        <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(150px,0.7fr)_minmax(150px,0.7fr)]">
+            <div className="min-h-32 rounded-xl border border-[#224770] bg-[#224770] p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
+                    Active Doctor Payment Mode
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold text-white">
+                    {paymentModeLabels[paymentSettings.activeModel]}
+                  </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={savePaymentMode}
-                  disabled={!paymentModeChanged}
-                  className={cn(
-                    "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold transition",
-                    paymentModeChanged
-                      ? "bg-white text-[#224770] hover:bg-[#efefef]"
-                      : "bg-white/35 text-white/70"
-                  )}
-                >
-                  Save mode
-                </button>
+                <div className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80"
+                      htmlFor="dashboard-payment-mode"
+                    >
+                      Select mode
+                    </label>
+                    <select
+                      id="dashboard-payment-mode"
+                      value={draftPaymentMode}
+                      onChange={(event) =>
+                        setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
+                      }
+                      className="field mt-2 border-[#224770]/20 bg-white"
+                    >
+                      <option value="low_season">{paymentModeLabels.low_season}</option>
+                      <option value="peak_season">{paymentModeLabels.peak_season}</option>
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={savePaymentMode}
+                    disabled={!paymentModeChanged}
+                    className={cn(
+                      "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold transition",
+                      paymentModeChanged
+                        ? "bg-white text-[#224770] hover:bg-[#efefef]"
+                        : "bg-white/35 text-white/70"
+                    )}
+                  >
+                    Save mode
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
             <SummaryCard
               label="Active doctors"
               value={String(activeDoctors.length)}
@@ -445,16 +446,20 @@ export function DashboardOverview({
               value={String(activeServices.length)}
             />
           </div>
-        </div>
-        <div className="border-t border-[#efefef] px-5 pb-5">
-          <div className="grid gap-3 pt-5 sm:grid-cols-2 xl:grid-cols-4">
-            {roleCounts.map((role) => (
-              <SummaryCard
-                key={role.label}
-                label={role.label}
-                value={String(role.count)}
-              />
-            ))}
+
+          <div className="rounded-xl border border-[#efefef] bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+              Team Directory
+            </p>
+            <div className="mt-4 space-y-3">
+              {teamDirectory.map((memberGroup) => (
+                <div key={memberGroup.label} className="flex items-center gap-3 text-sm">
+                  <span className="font-medium text-[#46484a]">{memberGroup.label}</span>
+                  <span className="min-w-4 flex-1 border-b border-dotted border-[#cfd3d6]" />
+                  <span className="font-bold text-[#224770]">{memberGroup.count}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
