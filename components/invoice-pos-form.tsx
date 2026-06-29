@@ -49,8 +49,8 @@ const paymentLabels: Record<(typeof paymentMethods)[number], string> = {
 };
 
 const paymentModelLabels = {
-  low_season: "Low Season",
-  peak_season: "Peak Season"
+  low_season: "On-Call Mode",
+  peak_season: "Clinic Shift Mode"
 } satisfies Record<DoctorPaymentModel["activeModel"], string>;
 
 function roundUsd(value: number) {
@@ -926,7 +926,7 @@ export function InvoicePosForm({
             <h3 className="font-semibold text-[#224770]">Doctor Payout Preview</h3>
             <div className="mt-3 rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
               <div className="flex justify-between gap-3">
-                <span className="text-[#46484a]">Active payment model</span>
+                <span className="text-[#46484a]">Current Payment Mode</span>
                 <span className="font-semibold text-[#224770]">
                   {paymentModelLabels[paymentSettings.activeModel]}
                 </span>

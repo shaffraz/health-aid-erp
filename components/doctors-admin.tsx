@@ -45,8 +45,8 @@ const emptyForm: DoctorForm = {
 };
 
 const modelLabels: Record<DoctorPaymentModelType, string> = {
-  low_season: "Low Season / Per Patient",
-  peak_season: "Peak Season / Shift Based"
+  low_season: "On-Call Mode / Per Patient",
+  peak_season: "Clinic Shift Mode / Shift Based"
 };
 
 function toAmount(value: string | number, fallback: number) {
@@ -294,7 +294,7 @@ export function DoctorsAdmin({
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
           <div className="xl:col-span-3">
             <label className="label" htmlFor="global-payment-model">
-              Current active payment model
+              Current Payment Mode
             </label>
             <select
               id="global-payment-model"

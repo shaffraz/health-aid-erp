@@ -210,10 +210,10 @@ export function PayoutManagement({
       `Status: ${selectedVoucher.status}`,
       `Total: ${lkr(selectedVoucher.totalAmount)}`,
       " ",
-      "Invoice/Shift | Type | Reason | Amount",
+      "Invoice/Clinic Shift | Type | Reason | Amount",
       ...voucherPayouts.map(
         (payout) =>
-          `${payout.invoiceNo} | ${payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"} | ${payout.paymentReason} | ${lkr(payout.payoutAmount)}`
+          `${payout.invoiceNo} | ${payout.payoutMode === "shift" ? "Clinic Shift Voucher" : "Invoice payout"} | ${payout.paymentReason} | ${lkr(payout.payoutAmount)}`
       )
     ];
     const blob = new Blob([buildSimplePdf(lines)], { type: "application/pdf" });
@@ -321,7 +321,7 @@ export function PayoutManagement({
               <thead className={tableStyles.head}>
                 <tr>
                   <th className={tableStyles.headerCell}>Doctor</th>
-                  <th className={tableStyles.headerCell}>Invoice / Shift</th>
+                  <th className={tableStyles.headerCell}>Invoice / Clinic Shift</th>
                   <th className={tableStyles.headerCell}>Type</th>
                   <th className={tableStyles.headerCell}>Reason</th>
                   <th className={tableStyles.numericHeaderCell}>Amount LKR</th>
@@ -340,7 +340,7 @@ export function PayoutManagement({
                         <p className="text-xs font-normal text-slate-500">{shortDate(payout.date)}</p>
                       </td>
                       <td className={tableStyles.cell}>
-                        {payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"}
+                        {payout.payoutMode === "shift" ? "Clinic Shift Voucher" : "Invoice payout"}
                       </td>
                       <td className={tableStyles.cell}>{payout.paymentReason}</td>
                       <td className={tableStyles.numericCell}>

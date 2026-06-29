@@ -39,7 +39,7 @@ export const demoDoctors: Doctor[] = [
     designation: "General practitioner",
     registrationNo: "SLMC 51904",
     phone: "+94 76 203 7712",
-    notes: "Low season per-patient consultation model.",
+    notes: "On-Call per-patient consultation model.",
     active: true
   },
   {
@@ -48,7 +48,7 @@ export const demoDoctors: Doctor[] = [
     designation: "Procedures and wound care doctor",
     registrationNo: "SLMC 46702",
     phone: "+94 75 889 6440",
-    notes: "Peak season shift model for evening procedure cover.",
+    notes: "Clinic Shift model for evening procedure cover.",
     active: true
   }
 ];

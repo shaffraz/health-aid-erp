@@ -102,8 +102,8 @@ export function generatePayoutsForInvoice(
         invoiceNo: invoice.invoiceNo,
         date: invoice.date,
         time: invoiceTime,
-        serviceName: "Peak season patient",
-        paymentReason: "Pending shift calculation",
+        serviceName: "Clinic Shift Patient",
+        paymentReason: "Pending Clinic Shift calculation",
         payoutAmount: 0,
         status: "unpaid",
         payoutMode: "pending_shift",
@@ -131,10 +131,10 @@ export function generatePayoutsForInvoice(
       invoiceNo: invoice.invoiceNo,
       date: invoice.date,
       time: invoiceTime,
-      serviceName: "Low season consultation",
+      serviceName: "On-Call Consultation",
       paymentReason: isNight
-        ? `Night consultation payout (${invoiceTime})`
-        : `Day consultation payout (${invoiceTime})`,
+        ? `On-Call night consultation payout (${invoiceTime})`
+        : `On-Call day consultation payout (${invoiceTime})`,
       payoutAmount,
       status: "unpaid",
       payoutMode: "invoice"
@@ -186,7 +186,7 @@ export function generateShiftPayoutSummaries(
       invoiceNo: `Shift ${shift.shiftStartTime}-${shift.shiftEndTime}`,
       date,
       time: shift.shiftEndTime,
-      serviceName: "Peak season shift voucher",
+      serviceName: "Clinic Shift Voucher",
       paymentReason:
         bonus > 0
           ? `${shiftHours}h base pay + ${patientCount} patient bonus`

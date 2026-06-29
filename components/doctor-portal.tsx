@@ -97,7 +97,7 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               <tr>
                 <th className="px-5 py-3">Date</th>
-                <th className="px-5 py-3">Invoice / Shift</th>
+                <th className="px-5 py-3">Invoice / Clinic Shift</th>
                 <th className="px-5 py-3">Type</th>
                 <th className="px-5 py-3">Payment reason</th>
                 <th className="px-5 py-3 text-right">Amount</th>
@@ -110,7 +110,7 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
                   <td className="whitespace-nowrap px-5 py-4 text-slate-600">{shortDate(payout.date)}</td>
                   <td className="whitespace-nowrap px-5 py-4 font-semibold text-ink">{payout.invoiceNo}</td>
                   <td className="px-5 py-4 text-slate-600">
-                    {payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"}
+                    {payout.payoutMode === "shift" ? "Clinic Shift Voucher" : "Invoice payout"}
                   </td>
                   <td className="px-5 py-4 text-slate-600">{payout.paymentReason}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">

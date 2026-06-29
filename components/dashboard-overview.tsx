@@ -27,8 +27,8 @@ type DashboardOverviewProps = {
 };
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
-  low_season: "Low Season",
-  peak_season: "Peak Season"
+  low_season: "On-Call Mode",
+  peak_season: "Clinic Shift Mode"
 };
 
 const clinicalProcedureCategories: ServiceCategory[] = [
@@ -285,7 +285,7 @@ export function DashboardOverview({
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-end">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-                  Current Operating Mode
+                  Doctor Payment Mode
                 </p>
                 <p className="mt-3 text-4xl font-bold tracking-tight text-[#224770]">
                   {paymentModeLabels[paymentSettings.activeModel]}
@@ -299,7 +299,7 @@ export function DashboardOverview({
                     setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
                   }
                   className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
-                  aria-label="Operating mode"
+                  aria-label="Doctor payment mode"
                 >
                   <option value="low_season">{paymentModeLabels.low_season}</option>
                   <option value="peak_season">{paymentModeLabels.peak_season}</option>
@@ -310,7 +310,7 @@ export function DashboardOverview({
                   disabled={!paymentModeChanged}
                   className={buttonClass(paymentModeChanged ? "primary" : "muted", "min-h-11")}
                 >
-                  Save Mode
+                  Save Payment Mode
                 </button>
               </div>
             </div>
@@ -353,7 +353,7 @@ export function DashboardOverview({
         </section>
 
         <section className="panel overflow-hidden border-[#efefef] bg-white">
-          <SectionTitle title="Season Summary" />
+          <SectionTitle title="Operational Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             <KpiCard
               label="New consultations"
