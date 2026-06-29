@@ -52,6 +52,12 @@ const paymentMethodLabels: Record<Extract<PaymentMethod, "cash" | "card" | "insu
   insurance: "Insurance"
 };
 
+const paymentDistributionColors = {
+  cash: "#224770",
+  card: "#0eb6ef",
+  insurance: "#84bc3f"
+} satisfies Record<Extract<PaymentMethod, "cash" | "card" | "insurance">, string>;
+
 const periodCategories: PeriodCategory[] = [
   "New Consultations",
   "Review Consultations",
@@ -158,6 +164,51 @@ function SummaryCard({
         {value}
       </p>
       {helper ? <p className="mt-1 text-sm font-medium text-[#46484a]">{helper}</p> : null}
+    </div>
+  );
+}
+
+function PaymentDistributionPanel({
+  rows,
+  total
+}: {
+  rows: Array<{
+    method: Extract<PaymentMethod, "cash" | "card" | "insurance">;
+    amount: number;
+  }>;
+  total: number;
+}) {
+  return (
+    <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md xl:col-span-3">
+      <p className="label text-[#46484a]">Cash / Card / Insurance Distribution</p>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {rows.map((row) => {
+          const percentage = total > 0 ? Math.round((row.amount / total) * 100) : 0;
+
+          return (
+            <div key={row.method} className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-[#224770]">
+                  {paymentMethodLabels[row.method]}
+                </span>
+                <span className="text-sm font-bold text-[#224770]">
+                  {usdWhole(row.amount)}
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${percentage}%`,
+                    backgroundColor: paymentDistributionColors[row.method]
+                  }}
+                />
+              </div>
+              <p className="mt-2 text-xs font-semibold text-[#46484a]">{percentage}%</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -353,9 +404,14 @@ export function DashboardOverview({
   const outstandingInsuranceReceivables = insuranceReceivables
     .filter((receivable) => receivable.status !== "Paid")
     .reduce((sum, receivable) => sum + receivableOutstanding(receivable), 0);
-  const paymentDistribution = (["cash", "card", "insurance"] as const)
-    .map((method) => `${paymentMethodLabels[method]} ${usdWhole(paymentTotal(method))}`)
-    .join(" / ");
+  const paymentDistributionRows = (["cash", "card", "insurance"] as const).map((method) => ({
+    method,
+    amount: paymentTotal(method)
+  }));
+  const paymentDistributionTotal = paymentDistributionRows.reduce(
+    (sum, row) => sum + row.amount,
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -508,10 +564,6 @@ export function DashboardOverview({
         <SectionTitle title="Business Insights" />
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
           <SummaryCard
-            label="Cash / Card / Insurance Distribution"
-            value={paymentDistribution}
-          />
-          <SummaryCard
             label="Pending Doctor Payouts (LKR)"
             value={money(monthlyPendingPayouts)}
             warning={monthlyPendingPayouts > 0}
@@ -524,6 +576,10 @@ export function DashboardOverview({
           <SummaryCard
             label="Average Invoice Value (USD)"
             value={usdWhole(averageInvoiceValue)}
+          />
+          <PaymentDistributionPanel
+            rows={paymentDistributionRows}
+            total={paymentDistributionTotal}
           />
         </div>
       </section>

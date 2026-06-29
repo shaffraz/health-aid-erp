@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { KpiCard, buttonClass } from "@/components/erp-ui";
+import { buttonClass } from "@/components/erp-ui";
 import {
   calculateInvoiceTotals,
   generatePayoutsForInvoice,
@@ -12,7 +12,7 @@ import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money, monthKey, todayISO, usdWhole } from "@/lib/format";
+import { money, todayISO, usdWhole } from "@/lib/format";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
@@ -124,7 +124,6 @@ export function InvoicePosForm({
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethods)[number]>("cash");
   const [notes, setNotes] = useState("");
-  const [serviceSearch, setServiceSearch] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([]);
   const [chargeLines, setChargeLines] = useState<DraftLine[]>(() =>
@@ -219,27 +218,6 @@ export function InvoicePosForm({
   const consumableChargeService = additionalChargeOptions.find((service) =>
     service.name.toLowerCase().includes("consumable")
   );
-  const filteredClinicalServiceOptions = useMemo(() => {
-    const searchTerm = serviceSearch.trim().toLowerCase();
-
-    if (!searchTerm) {
-      return clinicalServiceOptions;
-    }
-
-    return clinicalServiceOptions.filter((service) =>
-      `${service.name} ${service.category}`.toLowerCase().includes(searchTerm)
-    );
-  }, [clinicalServiceOptions, serviceSearch]);
-
-  const currentDate = todayISO();
-  const currentMonth = currentDate.slice(0, 7);
-  const todayInvoices = invoices.filter((invoice) => invoice.date === currentDate);
-  const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === currentMonth);
-  const todayRevenue = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-  const monthlyRevenue = monthlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-  const averageInvoiceValue = monthlyInvoices.length
-    ? monthlyRevenue / monthlyInvoices.length
-    : 0;
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
   const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
 
@@ -333,7 +311,6 @@ export function InvoicePosForm({
       { id: makeId(), serviceId, amountUsd: 0 }
     ]);
     setSelectedServiceId("");
-    setServiceSearch("");
   }
 
   function removeServiceLine(id: string) {
@@ -445,7 +422,6 @@ export function InvoicePosForm({
     setDiscount(0);
     setPaymentMethod("cash");
     setNotes("");
-    setServiceSearch("");
     setServiceLines([]);
     setChargeLines(
       additionalChargeOptions.map((service) => ({
@@ -688,37 +664,28 @@ export function InvoicePosForm({
         <SectionHeading title="Clinical Services" />
         <FieldShell>
           <label className="label" htmlFor="service-selector">
-            Search / Select Service
+            Select Service
           </label>
-          <div className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
-            <input
-              id="service-search"
-              value={serviceSearch}
-              onChange={(event) => setServiceSearch(event.target.value)}
-              className="field"
-              placeholder="Search clinical services"
-            />
-            <select
-              id="service-selector"
-              value={selectedServiceId}
-              onChange={(event) => {
-                addSelectedService(event.target.value);
-              }}
-              disabled={!clinicalServiceOptions.length}
-              className="field"
-            >
-              <option value="">
-                {filteredClinicalServiceOptions.length
-                  ? "Select a service to add"
-                  : "No matching services"}
+          <select
+            id="service-selector"
+            value={selectedServiceId}
+            onChange={(event) => {
+              addSelectedService(event.target.value);
+            }}
+            disabled={!clinicalServiceOptions.length}
+            className="field mt-2"
+          >
+            <option value="">
+              {clinicalServiceOptions.length
+                ? "Select a service to add"
+                : "No active clinical services"}
+            </option>
+            {clinicalServiceOptions.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name} - {usdWhole(roundUsd(candidate.sellingPrice))}
               </option>
-              {filteredClinicalServiceOptions.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name} - {usdWhole(roundUsd(candidate.sellingPrice))}
-                </option>
-              ))}
-            </select>
-          </div>
+            ))}
+          </select>
         </FieldShell>
 
         <div className="space-y-3">
@@ -853,15 +820,7 @@ export function InvoicePosForm({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Today's Invoices" value={String(todayInvoices.length)} tone="primary" />
-        <KpiCard label="Today's Revenue USD" value={usdWhole(todayRevenue)} tone="info" />
-        <KpiCard label="Monthly Revenue USD" value={usdWhole(monthlyRevenue)} tone="success" />
-        <KpiCard label="Average Invoice Value USD" value={usdWhole(averageInvoiceValue)} />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="panel p-5">
           <InvoiceHeader />
 
@@ -977,7 +936,6 @@ export function InvoicePosForm({
             </div>
           </section>
         </aside>
-      </div>
     </div>
   );
 }
