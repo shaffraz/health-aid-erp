@@ -389,49 +389,42 @@ export function DashboardOverview({
       <section className="panel overflow-hidden border-[#efefef] bg-white">
         <SectionTitle title="Operating Control" />
         <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(150px,0.7fr)_minmax(150px,0.7fr)]">
-            <div className="min-h-32 rounded-xl border border-[#efefef] bg-white p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="grid gap-4 lg:grid-cols-[minmax(280px,1.35fr)_minmax(150px,0.6fr)_minmax(150px,0.6fr)]">
+            <div className="min-h-36 rounded-xl border border-[#efefef] bg-white p-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+              <div className="flex h-full flex-col justify-between gap-6">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-                    Active Operating Mode
+                    Operating Mode
                   </p>
-                  <h3 className="mt-2 text-2xl font-bold text-[#224770]">
+                  <h3 className="mt-3 text-3xl font-bold text-[#224770]">
                     {paymentModeLabels[paymentSettings.activeModel]}
                   </h3>
                 </div>
-                <div className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end">
-                  <div className="flex-1">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]"
-                      htmlFor="dashboard-payment-mode"
-                    >
-                      Select mode
-                    </label>
-                    <select
-                      id="dashboard-payment-mode"
-                      value={draftPaymentMode}
-                      onChange={(event) =>
-                        setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
-                      }
-                      className="field mt-2 border-[#224770]/20 bg-white"
-                    >
-                      <option value="low_season">{paymentModeLabels.low_season}</option>
-                      <option value="peak_season">{paymentModeLabels.peak_season}</option>
-                    </select>
-                  </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <select
+                    id="dashboard-payment-mode"
+                    value={draftPaymentMode}
+                    onChange={(event) =>
+                      setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
+                    }
+                    className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
+                    aria-label="Operating mode"
+                  >
+                    <option value="low_season">{paymentModeLabels.low_season}</option>
+                    <option value="peak_season">{paymentModeLabels.peak_season}</option>
+                  </select>
                   <button
                     type="button"
                     onClick={savePaymentMode}
                     disabled={!paymentModeChanged}
                     className={cn(
-                      "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold transition",
+                      "focus-ring min-h-11 rounded-lg px-5 text-sm font-semibold transition",
                       paymentModeChanged
                         ? "bg-[#224770] text-white hover:bg-[#224770]/90"
                         : "bg-[#efefef] text-[#46484a]"
                     )}
                   >
-                    Save mode
+                    Save
                   </button>
                 </div>
               </div>
