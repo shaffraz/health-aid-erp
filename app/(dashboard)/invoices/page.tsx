@@ -16,14 +16,13 @@ export default async function InvoicesPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Invoices"
-        title="Invoice register"
+        title="Invoice Registry"
       />
 
       <InvoicesDashboard
         doctors={data.doctors}
         invoices={data.invoices}
         insuranceReceivables={data.insuranceReceivables}
-        currentRole={user.role}
       />
     </div>
   );
