@@ -387,14 +387,14 @@ export function DashboardOverview({
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Operations Setup" />
+        <SectionTitle title="Operating Control" />
         <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_280px]">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(150px,0.7fr)_minmax(150px,0.7fr)]">
             <div className="min-h-32 rounded-xl border border-[#224770] bg-[#224770] p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
-                    Active Doctor Payment Mode
+                    Active Operating Mode
                   </p>
                   <h3 className="mt-2 text-2xl font-bold text-white">
                     {paymentModeLabels[paymentSettings.activeModel]}
