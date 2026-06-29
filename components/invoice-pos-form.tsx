@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { KpiCard, buttonClass } from "@/components/erp-ui";
 import {
   calculateInvoiceTotals,
   generatePayoutsForInvoice,
-  generatePayoutsForInvoices,
   nextInvoiceNumber
 } from "@/lib/calculations";
 import {
@@ -23,12 +22,10 @@ import {
   serviceStorageKey,
   type Doctor,
   type DoctorPaymentModel,
-  type DoctorPayout,
   type Invoice,
   type InvoiceItem,
   type Service
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type DraftLine = {
   id: string;
@@ -51,6 +48,11 @@ const paymentLabels: Record<(typeof paymentMethods)[number], string> = {
   insurance: "Insurance",
   other: "Other"
 };
+
+const paymentModelLabels = {
+  low_season: "Low Season",
+  peak_season: "Peak Season"
+} satisfies Record<DoctorPaymentModel["activeModel"], string>;
 
 function makeId() {
   return crypto.randomUUID();
@@ -90,28 +92,46 @@ export function InvoicePosForm({
     [doctorCatalog]
   );
   const invoiceServices = useMemo(() => catalogServices, [catalogServices]);
-  const serviceOptions = invoiceServices.filter((service) => service.active);
+  const serviceOptions = useMemo(
+    () => invoiceServices.filter((service) => service.active),
+    [invoiceServices]
+  );
+  const clinicalServiceOptions = useMemo(
+    () =>
+      serviceOptions.filter((service) => !isAmountOnlyInvoiceServiceName(service.name)),
+    [serviceOptions]
+  );
+  const additionalChargeOptions = useMemo(
+    () => serviceOptions.filter((service) => isAmountOnlyInvoiceServiceName(service.name)),
+    [serviceOptions]
+  );
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
     defaultDoctorPaymentModel
   );
-  const [payoutQueue, setPayoutQueue] = useState<DoctorPayout[]>(() =>
-    generatePayoutsForInvoices(initialInvoices, defaultDoctorPaymentModel, {
-      includePendingShiftRecords: true
-    }).slice(0, 8)
-  );
+  const [invoiceDate, setInvoiceDate] = useState(() => todayISO());
+  const [invoiceTime, setInvoiceTime] = useState(() => currentTimeHHMM());
   const [patientName, setPatientName] = useState("");
   const [passport, setPassport] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [nationality, setNationality] = useState("");
   const [doctorId, setDoctorId] = useState(activeDoctors[0]?.id ?? "");
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethods)[number]>("cash");
   const [notes, setNotes] = useState("");
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([
-    { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
+    { id: makeId(), serviceId: clinicalServiceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
   ]);
+  const [chargeLines, setChargeLines] = useState<DraftLine[]>(() =>
+    additionalChargeOptions.map((service) => ({
+      id: makeId(),
+      serviceId: service.id,
+      quantity: 1,
+      amountUsd: 0
+    }))
+  );
   const [savedInvoiceNo, setSavedInvoiceNo] = useState("");
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
 
@@ -170,12 +190,42 @@ export function InvoicePosForm({
   }, []);
 
   useEffect(() => {
-    setPayoutQueue(
-      generatePayoutsForInvoices(invoices, paymentSettings, {
-        includePendingShiftRecords: true
-      }).slice(0, 8)
+    setServiceLines((current) => {
+      const validLines = current.filter((line) =>
+        clinicalServiceOptions.some((service) => service.id === line.serviceId)
+      );
+
+      if (validLines.length) {
+        return validLines;
+      }
+
+      return clinicalServiceOptions[0]
+        ? [
+            {
+              id: makeId(),
+              serviceId: clinicalServiceOptions[0].id,
+              quantity: 1,
+              amountUsd: 0
+            }
+          ]
+        : [];
+    });
+
+    setChargeLines((current) =>
+      additionalChargeOptions.map((service) => {
+        const existing = current.find((line) => line.serviceId === service.id);
+
+        return (
+          existing ?? {
+            id: makeId(),
+            serviceId: service.id,
+            quantity: 1,
+            amountUsd: 0
+          }
+        );
+      })
     );
-  }, [invoices, paymentSettings]);
+  }, [additionalChargeOptions, clinicalServiceOptions]);
 
   const currentDate = todayISO();
   const currentMonth = currentDate.slice(0, 7);
@@ -188,11 +238,10 @@ export function InvoicePosForm({
     : 0;
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
   const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
-  const selectedDoctor = doctorCatalog.find((doctor) => doctor.id === doctorId);
 
   const serviceItemsUsd = useMemo<InvoiceItem[]>(
     () =>
-      serviceLines
+      [...serviceLines, ...chargeLines]
         .map((line) => {
           const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
 
@@ -219,20 +268,20 @@ export function InvoicePosForm({
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
-    [invoiceServices, serviceLines]
+    [chargeLines, invoiceServices, serviceLines]
   );
 
   const invoiceItems = serviceItemsUsd;
   const totals = calculateInvoiceTotals(invoiceItems, discount);
-  const invoiceTime = currentTimeHHMM();
   const draftInvoice = {
     id: "draft",
     invoiceNo,
-    date: currentDate,
+    date: invoiceDate,
     time: invoiceTime,
     patientName: patientName || "Draft patient",
     passport: passport || undefined,
     phone: phone || undefined,
+    email: email || undefined,
     nationality: nationality || undefined,
     doctorId,
     items: invoiceItems,
@@ -249,19 +298,14 @@ export function InvoicePosForm({
   function addServiceLine() {
     setServiceLines((current) => [
       ...current,
-      { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
+      { id: makeId(), serviceId: clinicalServiceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
     ]);
   }
 
   function updateServiceSelection(id: string, serviceId: string) {
-    const selectedService = invoiceServices.find((service) => service.id === serviceId);
-    const isAmountOnlyService = isAmountOnlyInvoiceServiceName(selectedService?.name);
-
     setServiceLines((current) =>
       current.map((line) =>
-        line.id === id
-          ? { ...line, serviceId, quantity: isAmountOnlyService ? 1 : line.quantity }
-          : line
+        line.id === id ? { ...line, serviceId } : line
       )
     );
   }
@@ -279,6 +323,7 @@ export function InvoicePosForm({
   }
 
   function buildInvoiceHtml(targetInvoice: Invoice) {
+    const invoiceDoctor = doctorCatalog.find((doctor) => doctor.id === targetInvoice.doctorId);
     const itemRows = targetInvoice.items
       .map(
         (item) =>
@@ -320,7 +365,8 @@ export function InvoicePosForm({
     <h1>Health Aid Arugambay</h1>
     <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)} ${escapeHtml(targetInvoice.time)}</p>
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
-    <p><strong>Doctor:</strong> ${escapeHtml(selectedDoctor?.name ?? "Unassigned")}</p>
+    ${targetInvoice.email ? `<p><strong>Email:</strong> ${escapeHtml(targetInvoice.email)}</p>` : ""}
+    <p><strong>Doctor:</strong> ${escapeHtml(invoiceDoctor?.name ?? "Unassigned")}</p>
     <h2>Invoice items</h2>
     <table>
       <thead>
@@ -374,24 +420,411 @@ export function InvoicePosForm({
       items: invoiceItems.map((item) => ({ ...item, id: makeId() }))
     };
     const nextInvoices = [createdInvoice, ...invoices];
-    const nextPayouts = generatePayoutsForInvoices(nextInvoices, paymentSettings, {
-      includePendingShiftRecords: true
-    });
 
     setInvoices(nextInvoices);
-    setPayoutQueue(nextPayouts.slice(0, 8));
     setSavedInvoiceNo(createdInvoice.invoiceNo);
     setLastSavedInvoice(createdInvoice);
+    setInvoiceDate(todayISO());
+    setInvoiceTime(currentTimeHHMM());
     setPatientName("");
     setPassport("");
     setPhone("");
+    setEmail("");
     setNationality("");
     setDiscount(0);
     setPaymentMethod("cash");
     setNotes("");
     setServiceLines([
-      { id: makeId(), serviceId: serviceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
+      { id: makeId(), serviceId: clinicalServiceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
     ]);
+    setChargeLines(
+      additionalChargeOptions.map((service) => ({
+        id: makeId(),
+        serviceId: service.id,
+        quantity: 1,
+        amountUsd: 0
+      }))
+    );
+  }
+
+  function updateChargeLine(serviceId: string, amountUsd: number) {
+    setChargeLines((current) =>
+      current.map((line) =>
+        line.serviceId === serviceId ? { ...line, amountUsd: Math.max(0, amountUsd) } : line
+      )
+    );
+  }
+
+  function SectionHeading({ title }: { title: string }) {
+    return (
+      <div className="border-b border-[#efefef] pb-3">
+        <h3 className="font-semibold text-[#224770]">{title}</h3>
+      </div>
+    );
+  }
+
+  function FieldShell({ children }: { children: ReactNode }) {
+    return <div>{children}</div>;
+  }
+
+  function AdditionalChargeInput({ service }: { service: Service }) {
+    const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
+
+    return (
+      <FieldShell>
+        <label className="label" htmlFor={`charge-${service.id}`}>
+          {service.name} USD
+        </label>
+        <input
+          id={`charge-${service.id}`}
+          type="number"
+          min={0}
+          step="0.01"
+          value={line?.amountUsd ?? 0}
+          onChange={(event) => updateChargeLine(service.id, Number(event.target.value))}
+          className="field mt-2 text-right font-semibold"
+          placeholder="0.00"
+        />
+      </FieldShell>
+    );
+  }
+
+  function InvoiceTimestampFields() {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FieldShell>
+          <label className="label" htmlFor="invoice-date">
+            Invoice date
+          </label>
+          <input
+            id="invoice-date"
+            type="date"
+            value={invoiceDate}
+            onChange={(event) => setInvoiceDate(event.target.value)}
+            className="field mt-2"
+          />
+        </FieldShell>
+        <FieldShell>
+          <label className="label" htmlFor="invoice-time">
+            Invoice time
+          </label>
+          <input
+            id="invoice-time"
+            type="time"
+            value={invoiceTime}
+            onChange={(event) => setInvoiceTime(event.target.value)}
+            className="field mt-2"
+          />
+        </FieldShell>
+      </div>
+    );
+  }
+
+  function PatientInformationFields() {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <FieldShell>
+          <label className="label" htmlFor="patientName">
+            Patient name
+          </label>
+          <input
+            id="patientName"
+            value={patientName}
+            onChange={(event) => setPatientName(event.target.value)}
+            className="field mt-2"
+            placeholder="Patient full name"
+          />
+        </FieldShell>
+        <FieldShell>
+          <label className="label" htmlFor="passport">
+            Passport
+          </label>
+          <input
+            id="passport"
+            value={passport}
+            onChange={(event) => setPassport(event.target.value)}
+            className="field mt-2"
+            placeholder="Optional"
+          />
+        </FieldShell>
+        <FieldShell>
+          <label className="label" htmlFor="phone">
+            Phone
+          </label>
+          <input
+            id="phone"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            className="field mt-2"
+            placeholder="Optional"
+          />
+        </FieldShell>
+        <FieldShell>
+          <label className="label" htmlFor="email">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="field mt-2"
+            placeholder="Optional"
+          />
+        </FieldShell>
+        <FieldShell>
+          <label className="label" htmlFor="nationality">
+            Nationality
+          </label>
+          <input
+            id="nationality"
+            value={nationality}
+            onChange={(event) => setNationality(event.target.value)}
+            className="field mt-2"
+            placeholder="Optional"
+          />
+        </FieldShell>
+      </div>
+    );
+  }
+
+  function ClinicalInformationFields() {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <FieldShell>
+          <label className="label" htmlFor="doctor">
+            Doctor
+          </label>
+          <select
+            id="doctor"
+            value={doctorId}
+            onChange={(event) => setDoctorId(event.target.value)}
+            className="field mt-2"
+          >
+            {activeDoctors.length ? (
+              activeDoctors.map((doctor) => (
+                <option key={doctor.id} value={doctor.id}>
+                  {doctor.name}
+                </option>
+              ))
+            ) : (
+              <option value="">No active doctors</option>
+            )}
+          </select>
+        </FieldShell>
+        <FieldShell>
+          <label className="label" htmlFor="paymentMethod">
+            Payment method
+          </label>
+          <select
+            id="paymentMethod"
+            value={paymentMethod}
+            onChange={(event) => setPaymentMethod(event.target.value as typeof paymentMethod)}
+            className="field mt-2"
+          >
+            {paymentMethods.map((method) => (
+              <option key={method} value={method}>
+                {paymentLabels[method]}
+              </option>
+            ))}
+          </select>
+        </FieldShell>
+      </div>
+    );
+  }
+
+  function AdditionalChargesSection() {
+    return (
+      <div className="space-y-4">
+        <SectionHeading title="Additional Charges" />
+        {additionalChargeOptions.length ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {additionalChargeOptions.map((service) => (
+              <AdditionalChargeInput key={service.id} service={service} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+            No amount-only charge services are active.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  function InvoiceServicesSection() {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-[#efefef] pb-3">
+          <h3 className="font-semibold text-[#224770]">Invoice Services</h3>
+          <button
+            type="button"
+            onClick={addServiceLine}
+            disabled={!clinicalServiceOptions.length}
+            className={buttonClass(clinicalServiceOptions.length ? "primary" : "muted", "px-3 py-2")}
+          >
+            Add service
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {serviceLines.map((line) => {
+            const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
+            const unitPriceUsd = service?.sellingPrice ?? 0;
+            const lineTotalUsd = unitPriceUsd * line.quantity;
+
+            return (
+              <div
+                key={line.id}
+                className="grid gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/50 p-3 2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_88px]"
+              >
+                <FieldShell>
+                  <p className="label mb-2">Service</p>
+                  <select
+                    value={line.serviceId}
+                    onChange={(event) => updateServiceSelection(line.id, event.target.value)}
+                    className="field"
+                    aria-label="Doctor service"
+                  >
+                    {clinicalServiceOptions.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name} - {candidate.category}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+                <FieldShell>
+                  <p className="label mb-2">Quantity</p>
+                  <QuantityControl
+                    value={line.quantity}
+                    onChange={(quantity) => updateServiceLine(line.id, { quantity })}
+                  />
+                </FieldShell>
+                <FieldShell>
+                  <p className="label mb-2">Unit price USD</p>
+                  <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#224770]">
+                    {usd(unitPriceUsd)}
+                  </div>
+                </FieldShell>
+                <FieldShell>
+                  <p className="label mb-2">Subtotal USD</p>
+                  <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#224770]">
+                    {usd(lineTotalUsd)}
+                  </div>
+                </FieldShell>
+                <button
+                  type="button"
+                  onClick={() => removeServiceLine(line.id)}
+                  className={buttonClass("danger", "mt-6 h-10 px-3 py-0 text-xs")}
+                  aria-label="Remove service line"
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+          {!serviceLines.length ? (
+            <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+              No active clinical services are available.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function NotesSection() {
+    return (
+      <div className="space-y-4">
+        <SectionHeading title="Notes" />
+        <textarea
+          id="notes"
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          className="field min-h-28"
+          placeholder="Clinical or billing notes for the invoice"
+        />
+      </div>
+    );
+  }
+
+  function TotalsPanel() {
+    return (
+      <div className="rounded-xl border border-[#efefef] bg-[#efefef]/50 p-4">
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-[#46484a]">Subtotal USD</span>
+            <span className="font-semibold text-[#224770]">{usd(totals.subtotal)}</span>
+          </div>
+          <div>
+            <label className="label" htmlFor="discount">
+              Discount USD
+            </label>
+            <input
+              id="discount"
+              type="number"
+              min={0}
+              step="0.01"
+              value={discount}
+              onChange={(event) => setDiscount(Number(event.target.value))}
+              className="field mt-2"
+            />
+          </div>
+          <div className="flex justify-between border-t border-[#efefef] pt-3 text-base">
+            <span className="font-semibold text-[#224770]">Grand total USD</span>
+            <span className="font-bold text-[#0eb6ef]">{usd(totals.totalAmount)}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={saveInvoice}
+          disabled={!patientName.trim() || !doctorId || invoiceItems.length === 0}
+          className={buttonClass(
+            patientName.trim() && doctorId && invoiceItems.length > 0 ? "primary" : "muted",
+            "mt-4 w-full"
+          )}
+        >
+          Save invoice
+        </button>
+      </div>
+    );
+  }
+
+  function InvoiceHeader() {
+    return (
+      <div className="flex flex-col gap-5 border-b border-[#efefef] pb-5 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="label">Invoice POS</p>
+          <h2 className="mt-2 text-xl font-bold text-[#224770]">{invoiceNo}</h2>
+          <p className="mt-1 text-sm text-[#46484a]">
+            {invoiceDate} at {invoiceTime}
+          </p>
+        </div>
+        <div className="grid gap-4 lg:min-w-[420px]">
+          <InvoiceTimestampFields />
+          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+            <button
+              type="button"
+              onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
+              className={buttonClass("secondary", "px-3 py-2")}
+            >
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
+              disabled={!patientName.trim() && !lastSavedInvoice}
+              className={buttonClass(
+                patientName.trim() || lastSavedInvoice ? "secondary" : "muted",
+                "px-3 py-2"
+              )}
+            >
+              Download
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -405,381 +838,109 @@ export function InvoicePosForm({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="panel p-5">
-        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p className="label">Invoice POS</p>
-            <h2 className="mt-2 text-xl font-bold text-ink">{invoiceNo}</h2>
-            <p className="mt-1 text-sm text-slate-500">Date: {currentDate}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
-              className={buttonClass("secondary", "px-3 py-2")}
-            >
-              Print
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
-              disabled={!patientName.trim() && !lastSavedInvoice}
-              className={buttonClass(patientName.trim() || lastSavedInvoice ? "secondary" : "muted", "px-3 py-2")}
-            >
-              Download
-            </button>
-          </div>
-        </div>
+          <InvoiceHeader />
 
-        {savedInvoiceNo ? (
-          <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            Saved {savedInvoiceNo}. Mock recent invoices and payout queue were updated locally.
-          </div>
-        ) : null}
+          {savedInvoiceNo ? (
+            <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              Saved {savedInvoiceNo}. Recent invoices were updated locally.
+            </div>
+          ) : null}
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="patientName">
-              Patient name
-            </label>
-            <input
-              id="patientName"
-              value={patientName}
-              onChange={(event) => setPatientName(event.target.value)}
-              className="field mt-2"
-              placeholder="Patient full name"
-            />
+          <div className="mt-6 space-y-7">
+            <div className="space-y-4">
+              <SectionHeading title="Patient Information" />
+              <PatientInformationFields />
+            </div>
+
+            <div className="space-y-4">
+              <SectionHeading title="Clinical Information" />
+              <ClinicalInformationFields />
+            </div>
+
+            <InvoiceServicesSection />
+            <AdditionalChargesSection />
+
+            <div className="grid gap-4 md:grid-cols-[1fr_260px]">
+              <NotesSection />
+              <TotalsPanel />
+            </div>
           </div>
-          <div>
-            <label className="label" htmlFor="doctor">
-              Doctor who saw patient
-            </label>
-            <select
-              id="doctor"
-              value={doctorId}
-              onChange={(event) => setDoctorId(event.target.value)}
-              className="field mt-2"
-            >
-              {activeDoctors.length ? (
-                activeDoctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
-                    {doctor.name}
-                  </option>
-                ))
+        </section>
+
+        <aside className="space-y-6">
+          <section className="panel p-5">
+            <h3 className="font-semibold text-[#224770]">Invoice Preview</h3>
+            <p className="mt-1 text-sm text-[#46484a]">Patient invoice amounts remain in USD.</p>
+            <div className="mt-4 space-y-4">
+              <PreviewGroup title="Invoice items" items={invoiceItems} />
+              <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[#46484a]">Discount USD</span>
+                  <span className="font-semibold text-[#224770]">{usd(totals.discount)}</span>
+                </div>
+                <div className="mt-2 flex justify-between border-t border-[#efefef] pt-2 text-base">
+                  <span className="font-semibold text-[#224770]">Grand total USD</span>
+                  <span className="font-bold text-[#0eb6ef]">{usd(totals.totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel p-5">
+            <h3 className="font-semibold text-[#224770]">Doctor Payout Preview</h3>
+            <div className="mt-3 rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-[#46484a]">Active payment model</span>
+                <span className="font-semibold text-[#224770]">
+                  {paymentModelLabels[paymentSettings.activeModel]}
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {payoutPreview.length ? (
+                <>
+                  {payoutPreview.map((payout) => (
+                    <div key={payout.id} className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-semibold text-[#224770]">{payout.serviceName}</p>
+                        <p className="text-sm font-bold text-[#84bc3f]">{money(payout.payoutAmount)}</p>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-[#46484a]">{payout.paymentReason}</p>
+                    </div>
+                  ))}
+                  <div className="flex justify-between rounded-lg bg-[#84bc3f]/10 px-3 py-2 text-sm font-semibold text-[#4f7f22]">
+                    <span>Estimated total payout LKR</span>
+                    <span>{money(payoutPreviewTotal)}</span>
+                  </div>
+                </>
               ) : (
-                <option value="">No active doctors</option>
+                <p className="rounded-lg bg-[#efefef] p-3 text-sm text-[#46484a]">
+                  No doctor payout is estimated for the current invoice.
+                </p>
               )}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="passport">
-              Passport
-            </label>
-            <input
-              id="passport"
-              value={passport}
-              onChange={(event) => setPassport(event.target.value)}
-              className="field mt-2"
-              placeholder="Optional"
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="phone">
-              Phone
-            </label>
-            <input
-              id="phone"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              className="field mt-2"
-              placeholder="Optional"
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="nationality">
-              Nationality
-            </label>
-            <input
-              id="nationality"
-              value={nationality}
-              onChange={(event) => setNationality(event.target.value)}
-              className="field mt-2"
-              placeholder="Optional"
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="paymentMethod">
-              Payment method
-            </label>
-            <select
-              id="paymentMethod"
-              value={paymentMethod}
-              onChange={(event) => setPaymentMethod(event.target.value as typeof paymentMethod)}
-              className="field mt-2"
-            >
-              {paymentMethods.map((method) => (
-                <option key={method} value={method}>
-                  {paymentLabels[method]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-ink">Invoice services</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Select catalog services. Clinical services can generate doctor payout in LKR when payout rules apply.
-              </p>
             </div>
-            <button
-              type="button"
-              onClick={addServiceLine}
-              className={buttonClass("primary", "px-3 py-2")}
-            >
-              Add service
-            </button>
-          </div>
+          </section>
 
-          <div className="mt-3 space-y-3">
-            {serviceLines.map((line) => {
-              const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
-              const isAmountOnlyService = isAmountOnlyInvoiceServiceName(service?.name);
-              const unitPriceUsd = isAmountOnlyService
-                ? line.amountUsd
-                : service?.sellingPrice ?? 0;
-              const lineTotalUsd = isAmountOnlyService
-                ? line.amountUsd
-                : unitPriceUsd * line.quantity;
-
-              return (
-                <div
-                  key={line.id}
-                  className={cn(
-                    "grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3",
-                    isAmountOnlyService
-                      ? "2xl:grid-cols-[minmax(180px,1fr)_160px_88px]"
-                      : "2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_88px]"
-                  )}
-                >
-                  <div>
-                    <p className="label mb-2">Service</p>
-                    <select
-                      value={line.serviceId}
-                      onChange={(event) => updateServiceSelection(line.id, event.target.value)}
-                      className="field"
-                      aria-label="Doctor service"
-                    >
-                      {serviceOptions.map((candidate) => (
-                        <option key={candidate.id} value={candidate.id}>
-                          {candidate.name} - {candidate.category}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {isAmountOnlyService ? (
-                    <div>
-                      <label className="label mb-2 block" htmlFor={`amount-${line.id}`}>
-                        Amount USD
-                      </label>
-                      <input
-                        id={`amount-${line.id}`}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={line.amountUsd}
-                        onChange={(event) =>
-                          updateServiceLine(line.id, {
-                            amountUsd: Math.max(0, Number(event.target.value))
-                          })
-                        }
-                        className="field text-right font-semibold"
-                        aria-label="Amount USD"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <p className="label mb-2">Quantity</p>
-                        <QuantityControl
-                          value={line.quantity}
-                          onChange={(quantity) => updateServiceLine(line.id, { quantity })}
-                        />
-                      </div>
-                      <div>
-                        <p className="label mb-2">Unit price USD</p>
-                        <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
-                          {usd(unitPriceUsd)}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="label mb-2">Subtotal USD</p>
-                        <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink">
-                          {usd(lineTotalUsd)}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removeServiceLine(line.id)}
-                    className={buttonClass("danger", "mt-6 h-10 px-3 py-0 text-xs")}
-                    aria-label="Remove service line"
-                  >
-                    Remove
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-[1fr_260px]">
-          <div>
-            <label className="label" htmlFor="notes">
-              Notes
-            </label>
-            <textarea
-              id="notes"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              className="field mt-2 min-h-28"
-              placeholder="Clinical or billing notes for the invoice"
-            />
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Subtotal USD</span>
-                <span className="font-semibold text-ink">{usd(totals.subtotal)}</span>
-              </div>
-              <div>
-                <label className="label" htmlFor="discount">
-                  Discount USD
-                </label>
-                <input
-                  id="discount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={discount}
-                  onChange={(event) => setDiscount(Number(event.target.value))}
-                  className="field mt-2"
-                />
-              </div>
-              <div className="flex justify-between border-t border-slate-200 pt-3 text-base">
-                <span className="font-semibold text-ink">Grand total USD</span>
-                <span className="font-bold text-lagoon-700">{usd(totals.totalAmount)}</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={saveInvoice}
-              disabled={!patientName.trim() || !doctorId || invoiceItems.length === 0}
-              className={buttonClass(
-                patientName.trim() && doctorId && invoiceItems.length > 0 ? "primary" : "muted",
-                "mt-4 w-full"
-              )}
-            >
-              Save invoice
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <aside className="space-y-6">
-        <section className="panel p-5">
-          <h3 className="font-semibold text-ink">Invoice preview</h3>
-          <p className="mt-1 text-sm text-slate-500">Patient invoice remains USD only.</p>
-          <div className="mt-4 space-y-4">
-            <PreviewGroup title="Invoice items" items={invoiceItems} />
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Discount USD</span>
-                <span className="font-semibold text-ink">{usd(totals.discount)}</span>
-              </div>
-              <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 text-base">
-                <span className="font-semibold text-ink">Grand total USD</span>
-                <span className="font-bold text-lagoon-700">{usd(totals.totalAmount)}</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="panel p-5">
-          <div>
-            <h3 className="font-semibold text-ink">Doctor payout preview</h3>
-            <p className="text-sm text-slate-500">Internal payout in LKR</p>
-          </div>
-          <div className="mt-4 space-y-3">
-            {payoutPreview.length ? (
-              <>
-                {payoutPreview.map((payout) => (
-                  <div key={payout.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-ink">{payout.serviceName}</p>
-                      <p className="text-sm font-bold text-care-700">{money(payout.payoutAmount)}</p>
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{payout.paymentReason}</p>
-                  </div>
-                ))}
-                <div className="flex justify-between rounded-lg bg-care-50 px-3 py-2 text-sm font-semibold text-care-700">
-                  <span>Total payout</span>
-                  <span>{money(payoutPreviewTotal)}</span>
-                </div>
-              </>
-            ) : (
-              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-                No payout will be generated for the current service mix.
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section className="panel p-5">
-          <h3 className="font-semibold text-ink">Recent invoices</h3>
-          <div className="mt-4 space-y-3">
-            {invoices.slice(0, 5).map((invoice) => (
-              <div key={invoice.id} className="rounded-lg border border-slate-100 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{invoice.invoiceNo}</p>
-                    <p className="text-xs text-slate-500">{invoice.patientName}</p>
-                  </div>
-                  <span className="text-sm font-bold text-ink">{usd(invoice.totalAmount)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="panel p-5">
-          <h3 className="font-semibold text-ink">Payout queue</h3>
-          <p className="mt-1 text-sm text-slate-500">Mock unpaid payouts in LKR</p>
-          <div className="mt-4 space-y-3">
-            {payoutQueue.map((payout) => {
-              const doctor = doctorCatalog.find((candidate) => candidate.id === payout.doctorId);
-
-              return (
-                <div key={payout.id} className="rounded-lg border border-slate-100 p-3">
+          <section className="panel p-5">
+            <h3 className="font-semibold text-[#224770]">Recent Invoices</h3>
+            <div className="mt-4 space-y-3">
+              {invoices.slice(0, 5).map((invoice) => (
+                <div key={invoice.id} className="rounded-lg border border-[#efefef] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-ink">{payout.serviceName}</p>
-                      <p className="text-xs text-slate-500">
-                        {payout.invoiceNo} - {doctor?.name ?? "Unassigned"}
+                      <p className="text-sm font-semibold text-[#224770]">{invoice.invoiceNo}</p>
+                      <p className="text-xs text-[#46484a]">{invoice.patientName}</p>
+                      <p className="text-xs text-[#46484a]">
+                        {invoice.date} {invoice.time ?? ""}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-care-700">{money(payout.payoutAmount)}</span>
+                    <span className="text-sm font-bold text-[#224770]">{usd(invoice.totalAmount)}</span>
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{payout.paymentReason}</p>
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      </aside>
+              ))}
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

@@ -248,7 +248,7 @@ function invoice(seed: Omit<Invoice, "subtotal" | "totalAmount">): Invoice {
 export const demoInvoices: Invoice[] = [
   invoice({
     id: "inv-001",
-    invoiceNo: "HA-2026-0001",
+    invoiceNo: "HA-ABAY-2026-0001",
     date: today,
     time: "10:25",
     patientName: "Mia Carter",
@@ -264,7 +264,7 @@ export const demoInvoices: Invoice[] = [
   }),
   invoice({
     id: "inv-002",
-    invoiceNo: "HA-2026-0002",
+    invoiceNo: "HA-ABAY-2026-0002",
     date: today,
     time: "17:30",
     patientName: "Luka Weber",
@@ -280,7 +280,7 @@ export const demoInvoices: Invoice[] = [
   }),
   invoice({
     id: "inv-003",
-    invoiceNo: "HA-2026-0003",
+    invoiceNo: "HA-ABAY-2026-0003",
     date: monthStart,
     time: "23:15",
     patientName: "Chen Min",
@@ -329,7 +329,7 @@ export const demoAuditLogs: AuditLog[] = [
     entityType: "invoice",
     entityId: "inv-001",
     timestamp: `${today}T08:25:00+05:30`,
-    summary: "Created invoice HA-2026-0001 and generated doctor payouts."
+    summary: "Created invoice HA-ABAY-2026-0001 and generated doctor payouts."
   },
   {
     id: "audit-002",

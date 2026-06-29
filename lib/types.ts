@@ -141,6 +141,7 @@ export type Invoice = {
   patientName: string;
   passport?: string;
   phone?: string;
+  email?: string;
   nationality?: string;
   doctorId: string;
   items: InvoiceItem[];

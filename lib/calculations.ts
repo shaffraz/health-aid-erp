@@ -207,17 +207,22 @@ export function generatePayoutsForInvoices(
 }
 
 export function nextInvoiceNumber(lastInvoiceNo?: string) {
-  const currentYear = new Date().getFullYear();
-  const fallback = `HA-${currentYear}-0001`;
+  const currentYear = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Colombo",
+    year: "numeric"
+  }).format(new Date());
+  const fallback = `HA-ABAY-${currentYear}-0001`;
 
   if (!lastInvoiceNo) {
     return fallback;
   }
 
-  const match = lastInvoiceNo.match(/(\d+)$/);
-  if (!match) {
+  const match = lastInvoiceNo.match(/(\d{4})-(\d+)$/);
+  if (!match || match[1] !== currentYear) {
     return fallback;
   }
 
-  return lastInvoiceNo.replace(/\d+$/, (value) => String(Number(value) + 1).padStart(value.length, "0"));
+  const nextSequence = String(Number(match[2]) + 1).padStart(4, "0");
+
+  return `HA-ABAY-${currentYear}-${nextSequence}`;
 }
