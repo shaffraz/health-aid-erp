@@ -10,7 +10,9 @@ import {
   type Invoice,
   type InvoiceItem,
   type RuleType,
-  type Service
+  type Service,
+  isAmountOnlyInvoiceServiceName,
+  isPayoutEligibleCategory
 } from "@/lib/types";
 
 export function calculateInvoiceTotals(items: InvoiceItem[], discount: number) {
@@ -72,10 +74,22 @@ export function calculatePayoutAmount(
   return Math.round(ruleValue * quantity);
 }
 
+function hasEligibleClinicalService(invoice: Invoice) {
+  return invoice.items.some(
+    (item) =>
+      !isAmountOnlyInvoiceServiceName(item.serviceName) &&
+      isPayoutEligibleCategory(item.category)
+  );
+}
+
 export function generatePayoutsForInvoice(
   invoice: Invoice,
   paymentSettings: DoctorPaymentModel
 ): DoctorPayout[] {
+  if (!hasEligibleClinicalService(invoice)) {
+    return [];
+  }
+
   const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
   const invoiceTime = invoice.time ?? "12:00";
 
@@ -146,6 +160,7 @@ export function generateShiftPayoutSummaries(
 
   invoices
     .filter((invoice) =>
+      hasEligibleClinicalService(invoice) &&
       isTimeInWindow(invoice.time ?? "12:00", shift.shiftStartTime, shift.shiftEndTime)
     )
     .forEach((invoice) => {

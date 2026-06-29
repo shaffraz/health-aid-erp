@@ -1,7 +1,6 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { Minus, Plus } from "lucide-react";
 import { KpiCard, buttonClass } from "@/components/erp-ui";
 import {
   calculateInvoiceTotals,
@@ -18,6 +17,7 @@ import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
   isAmountOnlyInvoiceServiceName,
+  isPayoutEligibleCategory,
   paymentMethods,
   serviceStorageKey,
   type Doctor,
@@ -30,7 +30,6 @@ import {
 type DraftLine = {
   id: string;
   serviceId: string;
-  quantity: number;
   amountUsd: number;
 };
 
@@ -119,19 +118,19 @@ export function InvoicePosForm({
   const [patientName, setPatientName] = useState("");
   const [passport, setPassport] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [nationality, setNationality] = useState("");
   const [doctorId, setDoctorId] = useState(activeDoctors[0]?.id ?? "");
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethods)[number]>("cash");
   const [notes, setNotes] = useState("");
-  const [serviceLines, setServiceLines] = useState<DraftLine[]>([
-    { id: makeId(), serviceId: clinicalServiceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
-  ]);
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [serviceLines, setServiceLines] = useState<DraftLine[]>([]);
   const [chargeLines, setChargeLines] = useState<DraftLine[]>(() =>
     additionalChargeOptions.map((service) => ({
       id: makeId(),
       serviceId: service.id,
-      quantity: 1,
       amountUsd: 0
     }))
   );
@@ -194,24 +193,9 @@ export function InvoicePosForm({
 
   useEffect(() => {
     setServiceLines((current) => {
-      const validLines = current.filter((line) =>
+      return current.filter((line) =>
         clinicalServiceOptions.some((service) => service.id === line.serviceId)
       );
-
-      if (validLines.length) {
-        return validLines;
-      }
-
-      return clinicalServiceOptions[0]
-        ? [
-            {
-              id: makeId(),
-              serviceId: clinicalServiceOptions[0].id,
-              quantity: 1,
-              amountUsd: 0
-            }
-          ]
-        : [];
     });
 
     setChargeLines((current) =>
@@ -222,13 +206,30 @@ export function InvoicePosForm({
           existing ?? {
             id: makeId(),
             serviceId: service.id,
-            quantity: 1,
             amountUsd: 0
           }
         );
       })
     );
   }, [additionalChargeOptions, clinicalServiceOptions]);
+
+  const medicationChargeService = additionalChargeOptions.find((service) =>
+    service.name.toLowerCase().includes("medication")
+  );
+  const consumableChargeService = additionalChargeOptions.find((service) =>
+    service.name.toLowerCase().includes("consumable")
+  );
+  const filteredClinicalServiceOptions = useMemo(() => {
+    const searchTerm = serviceSearch.trim().toLowerCase();
+
+    if (!searchTerm) {
+      return clinicalServiceOptions;
+    }
+
+    return clinicalServiceOptions.filter((service) =>
+      `${service.name} ${service.category}`.toLowerCase().includes(searchTerm)
+    );
+  }, [clinicalServiceOptions, serviceSearch]);
 
   const currentDate = todayISO();
   const currentMonth = currentDate.slice(0, 7);
@@ -253,7 +254,7 @@ export function InvoicePosForm({
           }
 
           const isAmountOnlyService = isAmountOnlyInvoiceServiceName(service.name);
-          const quantity = isAmountOnlyService ? 1 : line.quantity;
+          const quantity = 1;
           const unitPrice = roundUsd(isAmountOnlyService ? line.amountUsd : service.sellingPrice);
 
           if (isAmountOnlyService && unitPrice <= 0) {
@@ -275,6 +276,18 @@ export function InvoicePosForm({
   );
 
   const invoiceItems = serviceItemsUsd;
+  const clinicalInvoiceItems = invoiceItems.filter(
+    (item) => !isAmountOnlyInvoiceServiceName(item.serviceName)
+  );
+  const medicationChargeItem = invoiceItems.find((item) =>
+    item.serviceName.toLowerCase().includes("medication")
+  );
+  const consumableChargeItem = invoiceItems.find((item) =>
+    item.serviceName.toLowerCase().includes("consumable")
+  );
+  const payoutEligibleItems = clinicalInvoiceItems.filter((item) =>
+    isPayoutEligibleCategory(item.category)
+  );
   const totals = calculateInvoiceTotals(invoiceItems, discount);
   const formReady =
     Boolean(patientName.trim()) &&
@@ -291,6 +304,7 @@ export function InvoicePosForm({
     patientName: patientName || "Draft patient",
     passport: passport || undefined,
     phone: phone || undefined,
+    email: email || undefined,
     nationality: nationality || undefined,
     doctorId,
     items: invoiceItems,
@@ -301,34 +315,30 @@ export function InvoicePosForm({
     totalAmount: totals.totalAmount,
     createdBy
   } satisfies Invoice;
-  const payoutPreview = generatePayoutsForInvoice(draftInvoice, paymentSettings);
+  const payoutInvoice = {
+    ...draftInvoice,
+    items: payoutEligibleItems
+  } satisfies Invoice;
+  const payoutPreview = payoutEligibleItems.length
+    ? generatePayoutsForInvoice(payoutInvoice, paymentSettings)
+    : [];
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
-  function addServiceLine() {
+  function addSelectedService(serviceId: string) {
+    if (!serviceId) {
+      return;
+    }
+
     setServiceLines((current) => [
       ...current,
-      { id: makeId(), serviceId: clinicalServiceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
+      { id: makeId(), serviceId, amountUsd: 0 }
     ]);
-  }
-
-  function updateServiceSelection(id: string, serviceId: string) {
-    setServiceLines((current) =>
-      current.map((line) =>
-        line.id === id ? { ...line, serviceId } : line
-      )
-    );
-  }
-
-  function updateServiceLine(id: string, patch: Partial<DraftLine>) {
-    setServiceLines((current) =>
-      current.map((line) => (line.id === id ? { ...line, ...patch } : line))
-    );
+    setSelectedServiceId("");
+    setServiceSearch("");
   }
 
   function removeServiceLine(id: string) {
-    setServiceLines((current) =>
-      current.length === 1 ? current : current.filter((line) => line.id !== id)
-    );
+    setServiceLines((current) => current.filter((line) => line.id !== id));
   }
 
   function buildInvoiceHtml(targetInvoice: Invoice) {
@@ -336,18 +346,8 @@ export function InvoicePosForm({
     const itemRows = targetInvoice.items
       .map(
         (item) =>
-          isAmountOnlyInvoiceServiceName(item.serviceName)
-            ? `
-          <tr>
-            <td colspan="4">${escapeHtml(item.serviceName)} - USD</td>
-            <td>${usdWhole(item.lineTotal)}</td>
-          </tr>`
-            : `
-          <tr>
+          `<tr>
             <td>${escapeHtml(item.serviceName)}</td>
-            <td>${escapeHtml(item.category)}</td>
-            <td>${item.quantity}</td>
-            <td>${usdWhole(item.unitPrice)}</td>
             <td>${usdWhole(item.lineTotal)}</td>
           </tr>`
       )
@@ -374,16 +374,16 @@ export function InvoicePosForm({
     <h1>Health Aid Arugambay</h1>
     <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)} ${escapeHtml(targetInvoice.time)}</p>
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
+    ${targetInvoice.email ? `<p><strong>Email:</strong> ${escapeHtml(targetInvoice.email)}</p>` : ""}
     <p><strong>Doctor:</strong> ${escapeHtml(invoiceDoctor?.name ?? "Unassigned")}</p>
     <h2>Invoice items</h2>
     <table>
       <thead>
-        <tr><th>Item</th><th>Category</th><th>Qty</th><th>Unit price (USD)</th><th>Subtotal (USD)</th></tr>
+        <tr><th>Item</th><th>Amount (USD)</th></tr>
       </thead>
-      <tbody>${itemRows || '<tr><td colspan="5">No invoice items</td></tr>'}</tbody>
+      <tbody>${itemRows || '<tr><td colspan="2">No invoice items</td></tr>'}</tbody>
     </table>
     <div class="totals">
-      <div><span>Subtotal</span><span>${usdWhole(targetInvoice.subtotal)}</span></div>
       <div><span>Discount</span><span>${usdWhole(targetInvoice.discount)}</span></div>
       <div class="grand"><span>Grand total</span><span>${usdWhole(targetInvoice.totalAmount)}</span></div>
     </div>
@@ -427,6 +427,7 @@ export function InvoicePosForm({
       patientName: patientName.trim(),
       passport: passport.trim(),
       phone: phone.trim(),
+      email: email.trim() || undefined,
       nationality: nationality.trim(),
       items: invoiceItems.map((item) => ({ ...item, id: makeId() }))
     };
@@ -440,18 +441,17 @@ export function InvoicePosForm({
     setPatientName("");
     setPassport("");
     setPhone("");
+    setEmail("");
     setNationality("");
     setDiscount(0);
     setPaymentMethod("cash");
     setNotes("");
-    setServiceLines([
-      { id: makeId(), serviceId: clinicalServiceOptions[0]?.id ?? "", quantity: 1, amountUsd: 0 }
-    ]);
+    setServiceSearch("");
+    setServiceLines([]);
     setChargeLines(
       additionalChargeOptions.map((service) => ({
         id: makeId(),
         serviceId: service.id,
-        quantity: 1,
         amountUsd: 0
       }))
     );
@@ -477,13 +477,27 @@ export function InvoicePosForm({
     return <div>{children}</div>;
   }
 
-  function AdditionalChargeInput({ service }: { service: Service }) {
+  function AdditionalChargeInput({
+    label,
+    service
+  }: {
+    label: string;
+    service?: Service;
+  }) {
+    if (!service) {
+      return (
+        <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+          Charge service is not active.
+        </p>
+      );
+    }
+
     const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
 
     return (
       <FieldShell>
         <label className="label" htmlFor={`charge-${service.id}`}>
-          {service.name} USD
+          {label}
         </label>
         <input
           id={`charge-${service.id}`}
@@ -493,7 +507,7 @@ export function InvoicePosForm({
           value={line?.amountUsd ?? 0}
           onChange={(event) => updateChargeLine(service.id, Number(event.target.value))}
           className="field mt-2 text-right font-semibold"
-          placeholder="0.00"
+          placeholder="0"
         />
       </FieldShell>
     );
@@ -574,6 +588,19 @@ export function InvoicePosForm({
           />
         </FieldShell>
         <FieldShell>
+          <label className="label" htmlFor="email">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="field mt-2"
+            placeholder="Optional"
+          />
+        </FieldShell>
+        <FieldShell>
           <label className="label" htmlFor="nationality">
             Nationality
           </label>
@@ -590,7 +617,7 @@ export function InvoicePosForm({
     );
   }
 
-  function ClinicalInformationFields() {
+  function BillingDetailsFields() {
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <FieldShell>
@@ -635,21 +662,19 @@ export function InvoicePosForm({
     );
   }
 
-  function AdditionalChargesSection() {
+  function ChargeSection({
+    title,
+    label,
+    service
+  }: {
+    title: string;
+    label: string;
+    service?: Service;
+  }) {
     return (
       <div className="space-y-4">
-        <SectionHeading title="Additional Charges" />
-        {additionalChargeOptions.length ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {additionalChargeOptions.map((service) => (
-              <AdditionalChargeInput key={service.id} service={service} />
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
-            No amount-only charge services are active.
-          </p>
-        )}
+        <SectionHeading title={title} />
+        <AdditionalChargeInput label={label} service={service} />
       </div>
     );
   }
@@ -657,67 +682,60 @@ export function InvoicePosForm({
   function InvoiceServicesSection() {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 border-b border-[#efefef] pb-3">
-          <h3 className="font-semibold text-[#224770]">Invoice Services</h3>
-          <button
-            type="button"
-            onClick={addServiceLine}
-            disabled={!clinicalServiceOptions.length}
-            className={buttonClass(clinicalServiceOptions.length ? "primary" : "muted", "px-3 py-2")}
-          >
-            Add service
-          </button>
-        </div>
+        <SectionHeading title="Clinical Services" />
+        <FieldShell>
+          <label className="label" htmlFor="service-selector">
+            Search / Select Service
+          </label>
+          <div className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
+            <input
+              id="service-search"
+              value={serviceSearch}
+              onChange={(event) => setServiceSearch(event.target.value)}
+              className="field"
+              placeholder="Search clinical services"
+            />
+            <select
+              id="service-selector"
+              value={selectedServiceId}
+              onChange={(event) => {
+                addSelectedService(event.target.value);
+              }}
+              disabled={!clinicalServiceOptions.length}
+              className="field"
+            >
+              <option value="">
+                {filteredClinicalServiceOptions.length
+                  ? "Select a service to add"
+                  : "No matching services"}
+              </option>
+              {filteredClinicalServiceOptions.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name} - {usdWhole(roundUsd(candidate.sellingPrice))}
+                </option>
+              ))}
+            </select>
+          </div>
+        </FieldShell>
 
         <div className="space-y-3">
           {serviceLines.map((line) => {
             const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
-            const unitPriceUsd = roundUsd(service?.sellingPrice ?? 0);
-            const lineTotalUsd = unitPriceUsd * line.quantity;
+            const lineTotalUsd = roundUsd(service?.sellingPrice ?? 0);
 
             return (
               <div
                 key={line.id}
-                className="grid gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/50 p-3 2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_88px]"
+                className="flex flex-col gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/50 p-3 sm:flex-row sm:items-center"
               >
-                <FieldShell>
-                  <p className="label mb-2">Service</p>
-                  <select
-                    value={line.serviceId}
-                    onChange={(event) => updateServiceSelection(line.id, event.target.value)}
-                    className="field"
-                    aria-label="Doctor service"
-                  >
-                    {clinicalServiceOptions.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.name} - {candidate.category}
-                      </option>
-                    ))}
-                  </select>
-                </FieldShell>
-                <FieldShell>
-                  <p className="label mb-2">Quantity</p>
-                  <QuantityControl
-                    value={line.quantity}
-                    onChange={(quantity) => updateServiceLine(line.id, { quantity })}
-                  />
-                </FieldShell>
-                <FieldShell>
-                  <p className="label mb-2">Unit price USD</p>
-                  <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#224770]">
-                    {usdWhole(unitPriceUsd)}
-                  </div>
-                </FieldShell>
-                <FieldShell>
-                  <p className="label mb-2">Subtotal USD</p>
-                  <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#224770]">
-                    {usdWhole(lineTotalUsd)}
-                  </div>
-                </FieldShell>
+                <p className="min-w-0 flex-1 text-sm font-semibold text-[#224770]">
+                  {service?.name ?? "Unknown service"}
+                </p>
+                <span className="text-sm font-bold text-[#224770]">{usdWhole(lineTotalUsd)}</span>
                 <button
                   type="button"
                   onClick={() => removeServiceLine(line.id)}
-                  className={buttonClass("danger", "mt-6 h-10 px-3 py-0 text-xs")}
+                  className={buttonClass("danger", "h-10 px-3 py-0 text-xs")}
                   aria-label="Remove service line"
                 >
                   Remove
@@ -727,7 +745,9 @@ export function InvoicePosForm({
           })}
           {!serviceLines.length ? (
             <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
-              No active clinical services are available.
+              {clinicalServiceOptions.length
+                ? "No clinical services selected."
+                : "No active clinical services are available."}
             </p>
           ) : null}
         </div>
@@ -754,10 +774,6 @@ export function InvoicePosForm({
     return (
       <div className="rounded-xl border border-[#efefef] bg-[#efefef]/50 p-4">
         <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-[#46484a]">Subtotal USD</span>
-            <span className="font-semibold text-[#224770]">{usdWhole(totals.subtotal)}</span>
-          </div>
           <div>
             <label className="label" htmlFor="discount">
               Discount USD
@@ -796,7 +812,7 @@ export function InvoicePosForm({
     return (
       <div className="flex flex-col gap-5 border-b border-[#efefef] pb-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
-          <p className="label">Invoice POS</p>
+          <p className="label">Invoice Information</p>
           <h2 className="mt-2 whitespace-nowrap text-lg font-bold tracking-tight text-[#224770] sm:text-xl lg:text-2xl">
             {invoiceNo}
           </h2>
@@ -855,12 +871,21 @@ export function InvoicePosForm({
             </div>
 
             <div className="space-y-4">
-              <SectionHeading title="Clinical Information" />
-              <ClinicalInformationFields />
+              <SectionHeading title="Billing Details" />
+              <BillingDetailsFields />
             </div>
 
             <InvoiceServicesSection />
-            <AdditionalChargesSection />
+            <ChargeSection
+              title="Medication Charges"
+              label="Medication Charges USD"
+              service={medicationChargeService}
+            />
+            <ChargeSection
+              title="Consumable Charges"
+              label="Consumable Charges USD"
+              service={consumableChargeService}
+            />
 
             <div className="grid gap-4 md:grid-cols-[1fr_260px]">
               <NotesSection />
@@ -874,9 +899,21 @@ export function InvoicePosForm({
             <h3 className="font-semibold text-[#224770]">Invoice Preview</h3>
             <p className="mt-1 text-sm text-[#46484a]">Patient invoice amounts remain in USD.</p>
             <div className="mt-4 space-y-4">
-              <PreviewGroup title="Invoice items" items={invoiceItems} />
+              <PreviewGroup title="Clinical Services" items={clinicalInvoiceItems} />
               <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
                 <div className="flex justify-between">
+                  <span className="text-[#46484a]">Medication Charges</span>
+                  <span className="font-semibold text-[#224770]">
+                    {usdWhole(medicationChargeItem?.lineTotal ?? 0)}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between">
+                  <span className="text-[#46484a]">Consumable Charges</span>
+                  <span className="font-semibold text-[#224770]">
+                    {usdWhole(consumableChargeItem?.lineTotal ?? 0)}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between">
                   <span className="text-[#46484a]">Discount USD</span>
                   <span className="font-semibold text-[#224770]">{usdWhole(totals.discount)}</span>
                 </div>
@@ -948,43 +985,6 @@ export function InvoicePosForm({
   );
 }
 
-function QuantityControl({
-  value,
-  onChange
-}: {
-  value: number;
-  onChange: (quantity: number) => void;
-}) {
-  return (
-    <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <button
-        type="button"
-        className="focus-ring p-2 text-slate-500"
-        onClick={() => onChange(Math.max(1, value - 1))}
-        aria-label="Decrease quantity"
-      >
-        <Minus className="h-4 w-4" aria-hidden="true" />
-      </button>
-      <input
-        value={value}
-        min={1}
-        type="number"
-        onChange={(event) => onChange(Math.max(1, Number(event.target.value)))}
-        className="w-full border-0 bg-white px-2 py-2 text-center text-sm font-semibold outline-none"
-        aria-label="Quantity"
-      />
-      <button
-        type="button"
-        className="focus-ring p-2 text-slate-500"
-        onClick={() => onChange(value + 1)}
-        aria-label="Increase quantity"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
-
 function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] }) {
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
@@ -999,9 +999,7 @@ function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] })
           {items.map((item) => (
             <div key={item.id} className="flex items-start justify-between gap-3 text-xs text-slate-500">
               <span>
-                {isAmountOnlyInvoiceServiceName(item.serviceName)
-                  ? `${item.serviceName} - USD`
-                  : `${item.serviceName} - ${item.category} x ${item.quantity}`}
+                {item.serviceName}
               </span>
               <span className="font-semibold text-slate-700">{usdWhole(item.lineTotal)}</span>
             </div>
