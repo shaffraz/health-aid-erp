@@ -27,8 +27,10 @@ export default async function DashboardPage() {
 
       <DashboardOverview
         initialDoctors={data.doctors}
+        initialServices={data.services}
         invoices={data.invoices}
         payouts={data.payouts}
+        insuranceReceivables={data.insuranceReceivables}
       />
     </div>
   );

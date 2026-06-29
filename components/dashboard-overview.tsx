@@ -7,49 +7,66 @@ import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money, monthKey, todayISO, usd } from "@/lib/format";
+import { money, monthKey, todayISO, usdWhole } from "@/lib/format";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
+  serviceStorageKey,
   type Doctor,
   type DoctorPaymentModel,
   type DoctorPaymentModelType,
   type DoctorPayout,
+  type InsuranceReceivable,
   type Invoice,
   type InvoiceItem,
+  type PaymentMethod,
+  type Service,
   type ServiceCategory
 } from "@/lib/types";
 
 type DashboardOverviewProps = {
   initialDoctors: Doctor[];
+  initialServices: Service[];
   invoices: Invoice[];
   payouts: DoctorPayout[];
+  insuranceReceivables: InsuranceReceivable[];
 };
+
+type PeriodCategory =
+  | "Consultations"
+  | "Procedures"
+  | "Day Care"
+  | "Laboratory"
+  | "Vaccinations"
+  | "Home / Hotel Visits"
+  | "Other Services";
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
   low_season: "On-Call Mode",
   peak_season: "Clinic Shift Mode"
 };
 
-const clinicalProcedureCategories: ServiceCategory[] = [
+const paymentMethodLabels: Record<Extract<PaymentMethod, "cash" | "card" | "insurance">, string> = {
+  cash: "Cash",
+  card: "Card",
+  insurance: "Insurance"
+};
+
+const periodCategories: PeriodCategory[] = [
+  "Consultations",
   "Procedures",
-  "IV Therapy",
-  "Wound Care",
-  "Vaccines / ARV"
+  "Day Care",
+  "Laboratory",
+  "Vaccinations",
+  "Home / Hotel Visits",
+  "Other Services"
 ];
 
-const monthlyServiceLabels = [
-  "New consultations",
-  "Reviews",
-  "Day care admissions",
-  "Suturing",
-  "IV normal saline infusion",
-  "ARV injections",
-  "Wound dressing",
-  "Lab services"
-] as const;
-
-type MonthlyServiceLabel = (typeof monthlyServiceLabels)[number];
+const procedureCategories: ServiceCategory[] = [
+  "Procedures",
+  "IV Therapy",
+  "Wound Care"
+];
 
 function normalizeDoctor(doctor: Doctor): Doctor {
   const legacyDoctor = doctor as Doctor & { specialty?: string };
@@ -61,46 +78,42 @@ function normalizeDoctor(doctor: Doctor): Doctor {
   };
 }
 
-function serviceMetricLabel(item: InvoiceItem): MonthlyServiceLabel | null {
+function itemQuantity(item: InvoiceItem) {
+  return Math.max(1, item.quantity);
+}
+
+function periodCategoryForItem(item: InvoiceItem): PeriodCategory {
   const serviceName = item.serviceName.toLowerCase();
 
   if (item.category === "Consultation") {
-    return serviceName.includes("review") ? "Reviews" : "New consultations";
+    return "Consultations";
+  }
+
+  if (procedureCategories.includes(item.category)) {
+    return "Procedures";
   }
 
   if (item.category === "Day Care Admissions") {
-    return "Day care admissions";
-  }
-
-  if (serviceName.includes("sutur")) {
-    return "Suturing";
-  }
-
-  if (item.category === "IV Therapy") {
-    return "IV normal saline infusion";
-  }
-
-  if (item.category === "Vaccines / ARV") {
-    return "ARV injections";
-  }
-
-  if (item.category === "Wound Care") {
-    return "Wound dressing";
+    return "Day Care";
   }
 
   if (item.category === "Lab Services") {
-    return "Lab services";
+    return "Laboratory";
   }
 
-  return null;
+  if (item.category === "Vaccines / ARV") {
+    return "Vaccinations";
+  }
+
+  if (serviceName.includes("home") || serviceName.includes("hotel") || serviceName.includes("visit")) {
+    return "Home / Hotel Visits";
+  }
+
+  return "Other Services";
 }
 
-function isProcedureItem(item: InvoiceItem) {
-  return clinicalProcedureCategories.includes(item.category);
-}
-
-function itemQuantity(item: InvoiceItem) {
-  return Math.max(1, item.quantity);
+function receivableOutstanding(receivable: InsuranceReceivable) {
+  return Math.max(0, receivable.totalBilled - receivable.paidAmount);
 }
 
 function SectionTitle({ title }: { title: string }) {
@@ -111,12 +124,42 @@ function SectionTitle({ title }: { title: string }) {
   );
 }
 
+function SummaryCard({
+  label,
+  value,
+  helper,
+  warning = false
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  warning?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-xl border p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
+        warning ? "border-rose-200 bg-rose-50/60" : "border-[#efefef] bg-white"
+      ].join(" ")}
+    >
+      <p className={warning ? "label text-rose-700" : "label text-[#46484a]"}>{label}</p>
+      <p className={warning ? "mt-3 break-words text-xl font-bold text-rose-700" : "mt-3 break-words text-xl font-bold text-[#224770]"}>
+        {value}
+      </p>
+      {helper ? <p className="mt-1 text-sm font-medium text-[#46484a]">{helper}</p> : null}
+    </div>
+  );
+}
+
 export function DashboardOverview({
   initialDoctors,
+  initialServices,
   invoices,
-  payouts
+  payouts,
+  insuranceReceivables
 }: DashboardOverviewProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
+  const [services, setServices] = useState(initialServices);
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
     defaultDoctorPaymentModel
   );
@@ -132,6 +175,14 @@ export function DashboardOverview({
         const parsed = JSON.parse(storedDoctors);
         if (Array.isArray(parsed)) {
           setDoctors((parsed as Doctor[]).map(normalizeDoctor));
+        }
+      }
+
+      const storedServices = window.localStorage.getItem(serviceStorageKey);
+      if (storedServices) {
+        const parsed = JSON.parse(storedServices);
+        if (Array.isArray(parsed)) {
+          setServices(parsed as Service[]);
         }
       }
 
@@ -185,85 +236,77 @@ export function DashboardOverview({
     (payout) => monthKey(payout.date) === selectedMonth
   );
   const activeDoctors = doctors.filter((doctor) => doctor.active);
-  const todaySales = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-  const consultationsToday = todayInvoices.reduce(
-    (sum, invoice) =>
-      sum +
-      invoice.items
-        .filter((item) => item.category === "Consultation")
-        .reduce((itemSum, item) => itemSum + itemQuantity(item), 0),
-    0
-  );
-
-  const monthlyServiceSummary = useMemo(() => {
-    const totals = new Map<MonthlyServiceLabel, { count: number; value: number }>();
-
-    monthlyInvoices.forEach((invoice) => {
-      invoice.items.forEach((item) => {
-        const label = serviceMetricLabel(item);
-
-        if (!label || item.lineTotal <= 0) {
-          return;
-        }
-
-        const current = totals.get(label) ?? { count: 0, value: 0 };
-        current.count += itemQuantity(item);
-        current.value += item.lineTotal;
-        totals.set(label, current);
-      });
-    });
-
-    return monthlyServiceLabels
-      .map((label) => ({ label, ...(totals.get(label) ?? { count: 0, value: 0 }) }))
-      .filter((item) => item.value > 0);
-  }, [monthlyInvoices]);
-
-  const seasonItems = invoices.flatMap((invoice) => invoice.items);
-  const seasonConsultations = seasonItems
-    .filter((item) => item.category === "Consultation")
-    .reduce((sum, item) => sum + itemQuantity(item), 0);
-  const seasonProcedures = seasonItems
-    .filter(isProcedureItem)
-    .reduce((sum, item) => sum + itemQuantity(item), 0);
-  const seasonOtherServices = seasonItems
-    .filter((item) => item.category !== "Consultation" && !isProcedureItem(item))
-    .reduce((sum, item) => sum + itemQuantity(item), 0);
-
-  const yearlyComparison = comparisonYears.map((year) => {
-    const yearInvoices = invoices.filter((invoice) => invoice.date.startsWith(year));
-    const yearItems = yearInvoices.flatMap((invoice) => invoice.items);
-    const yearPayouts = visiblePayouts.filter((payout) => payout.date.startsWith(year));
-    const consultations = yearItems
-      .filter((item) => item.category === "Consultation")
-      .reduce((sum, item) => sum + itemQuantity(item), 0);
-
-    return {
-      year,
-      totalSales: yearInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
-      consultations,
-      doctorPayouts: yearPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0)
-    };
-  });
-
+  const activeServices = services.filter((service) => service.active);
+  const todayRevenue = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const patientsSeenToday = todayInvoices.length;
+  const monthlyRevenue = monthlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
   const monthlyPendingPayouts = monthlyPayouts
     .filter((payout) => payout.status === "unpaid")
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
-  const payoutsByDoctor = doctors
-    .map((doctor) => {
-      const doctorMonthlyPayouts = monthlyPayouts.filter(
-        (payout) => payout.doctorId === doctor.id
-      );
-      const pending = doctorMonthlyPayouts
-        .filter((payout) => payout.status === "unpaid")
-        .reduce((sum, payout) => sum + payout.payoutAmount, 0);
-      const paid = doctorMonthlyPayouts
-        .filter((payout) => payout.status === "paid")
-        .reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
-      return { doctor, pending, paid };
-    })
-    .filter((item) => item.pending > 0 || item.paid > 0)
-    .sort((a, b) => b.pending + b.paid - (a.pending + a.paid));
+  const monthlyServiceSummary = useMemo(() => {
+    const totals = new Map<string, { serviceName: string; count: number; revenue: number }>();
+
+    monthlyInvoices.forEach((invoice) => {
+      invoice.items.forEach((item) => {
+        if (item.lineTotal <= 0) {
+          return;
+        }
+
+        const current = totals.get(item.serviceName) ?? {
+          serviceName: item.serviceName,
+          count: 0,
+          revenue: 0
+        };
+        current.count += itemQuantity(item);
+        current.revenue += item.lineTotal;
+        totals.set(item.serviceName, current);
+      });
+    });
+
+    return [...totals.values()].sort(
+      (a, b) => b.count - a.count || b.revenue - a.revenue
+    );
+  }, [monthlyInvoices]);
+
+  const currentPeriodSummary = useMemo(() => {
+    const totals = new Map<PeriodCategory, { cases: number; revenue: number }>();
+
+    periodCategories.forEach((category) => {
+      totals.set(category, { cases: 0, revenue: 0 });
+    });
+
+    monthlyInvoices.forEach((invoice) => {
+      invoice.items.forEach((item) => {
+        if (item.lineTotal <= 0) {
+          return;
+        }
+
+        const category = periodCategoryForItem(item);
+        const current = totals.get(category) ?? { cases: 0, revenue: 0 };
+        current.cases += itemQuantity(item);
+        current.revenue += item.lineTotal;
+        totals.set(category, current);
+      });
+    });
+
+    return periodCategories.map((category) => ({
+      category,
+      ...(totals.get(category) ?? { cases: 0, revenue: 0 })
+    }));
+  }, [monthlyInvoices]);
+
+  const yearlyComparison = comparisonYears.map((year) => {
+    const yearInvoices = invoices.filter((invoice) => invoice.date.startsWith(year));
+    const yearPayouts = visiblePayouts.filter((payout) => payout.date.startsWith(year));
+
+    return {
+      year,
+      revenue: yearInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
+      patients: yearInvoices.length,
+      doctorPayouts: yearPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0)
+    };
+  });
 
   function savePaymentMode() {
     setPaymentSettings((current) =>
@@ -274,46 +317,86 @@ export function DashboardOverview({
     );
   }
 
+  function paymentTotal(method: Extract<PaymentMethod, "cash" | "card" | "insurance">) {
+    return monthlyInvoices
+      .filter((invoice) => invoice.paymentMethod === method)
+      .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  }
+
   const paymentModeChanged = draftPaymentMode !== paymentSettings.activeModel;
+  const highestRevenueService = [...monthlyServiceSummary].sort(
+    (a, b) => b.revenue - a.revenue
+  )[0];
+  const mostUsedService = monthlyServiceSummary[0];
+  const averageRevenuePerPatient = monthlyInvoices.length
+    ? monthlyRevenue / monthlyInvoices.length
+    : 0;
+  const insuranceRevenue = paymentTotal("insurance");
+  const insuranceShare = monthlyRevenue
+    ? Math.round((insuranceRevenue / monthlyRevenue) * 100)
+    : 0;
+  const outstandingInsuranceReceivables = insuranceReceivables
+    .filter((receivable) => receivable.status !== "Paid")
+    .reduce((sum, receivable) => sum + receivableOutstanding(receivable), 0);
+  const paymentDistribution = (["cash", "card", "insurance"] as const)
+    .map((method) => `${paymentMethodLabels[method]} ${usdWhole(paymentTotal(method))}`)
+    .join(" / ");
 
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Operations Control" />
-        <div className="p-6">
-          <div className="rounded-xl border border-[#efefef] bg-white p-6 shadow-sm">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-end">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-                  Doctor Payment Mode
-                </p>
-                <p className="mt-3 text-4xl font-bold tracking-tight text-[#224770]">
-                  {paymentModeLabels[paymentSettings.activeModel]}
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <select
-                  id="dashboard-payment-mode"
-                  value={draftPaymentMode}
-                  onChange={(event) =>
-                    setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
-                  }
-                  className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
-                  aria-label="Doctor payment mode"
-                >
-                  <option value="low_season">{paymentModeLabels.low_season}</option>
-                  <option value="peak_season">{paymentModeLabels.peak_season}</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={savePaymentMode}
-                  disabled={!paymentModeChanged}
-                  className={buttonClass(paymentModeChanged ? "primary" : "muted", "min-h-11")}
-                >
-                  Save Payment Mode
-                </button>
-              </div>
+        <SectionTitle title="Operations" />
+        <div className="grid gap-4 p-5 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
+          <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+            <p className="label">Current Payment Mode</p>
+            <p className="mt-3 text-2xl font-bold tracking-tight text-[#224770]">
+              {paymentModeLabels[paymentSettings.activeModel]}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-[#efefef] px-3 py-1 text-[#46484a]">
+                On-Call Mode
+              </span>
+              <span className="rounded-full bg-[#efefef] px-3 py-1 text-[#46484a]">
+                Clinic Shift Mode
+              </span>
             </div>
+          </div>
+          <KpiCard
+            label="Active Doctors"
+            value={String(activeDoctors.length)}
+            tone="primary"
+            className="min-h-full"
+          />
+          <KpiCard
+            label="Active Services"
+            value={String(activeServices.length)}
+            tone="success"
+            className="min-h-full"
+          />
+          <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+            <label className="label" htmlFor="dashboard-payment-mode">
+              Payment Mode
+            </label>
+            <select
+              id="dashboard-payment-mode"
+              value={draftPaymentMode}
+              onChange={(event) =>
+                setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
+              }
+              className="field mt-3 min-h-11 border-[#224770]/20 bg-white"
+              aria-label="Doctor payment mode"
+            >
+              <option value="low_season">{paymentModeLabels.low_season}</option>
+              <option value="peak_season">{paymentModeLabels.peak_season}</option>
+            </select>
+            <button
+              type="button"
+              onClick={savePaymentMode}
+              disabled={!paymentModeChanged}
+              className={buttonClass(paymentModeChanged ? "primary" : "muted", "mt-3 w-full min-h-11")}
+            >
+              Save Mode
+            </button>
           </div>
         </div>
       </section>
@@ -321,8 +404,8 @@ export function DashboardOverview({
       <section className="panel overflow-hidden border-[#efefef] bg-white">
         <SectionTitle title="Business Performance" />
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Today's Sales (USD)" value={usd(todaySales)} tone="info" />
-          <KpiCard label="New Consultations Today" value={String(consultationsToday)} />
+          <KpiCard label="Today's Revenue (USD)" value={usdWhole(todayRevenue)} tone="info" />
+          <KpiCard label="Patients Seen Today" value={String(patientsSeenToday)} />
           <KpiCard label="Active Doctors" value={String(activeDoctors.length)} tone="primary" />
           <KpiCard
             label="Pending Doctor Payouts (LKR)"
@@ -332,72 +415,66 @@ export function DashboardOverview({
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <section className="panel overflow-hidden border-[#efefef] bg-white">
-          <SectionTitle title="Monthly Services Summary" />
-          <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="panel overflow-hidden border-[#efefef] bg-white">
+        <SectionTitle title="Monthly Services Summary" />
+        <div className="overflow-x-auto p-5">
+          <div className="flex min-w-full gap-4 pb-1">
             {monthlyServiceSummary.map((item) => (
-              <KpiCard
-                key={item.label}
-                label={item.label}
-                value={String(item.count)}
-                helper={usd(item.value)}
-              />
+              <div
+                key={item.serviceName}
+                className="min-w-[220px] rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <p className="text-sm font-semibold text-[#224770]">{item.serviceName}</p>
+                <p className="mt-4 text-2xl font-bold text-[#224770]">{item.count}</p>
+                <p className="mt-1 text-sm font-medium text-[#46484a]">
+                  {usdWhole(item.revenue)}
+                </p>
+              </div>
             ))}
             {!monthlyServiceSummary.length ? (
-              <div className="rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a] transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+              <div className="min-w-[260px] rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a]">
                 No services with recorded value this month.
               </div>
             ) : null}
           </div>
-        </section>
-
-        <section className="panel overflow-hidden border-[#efefef] bg-white">
-          <SectionTitle title="Operational Summary" />
-          <div className="grid gap-3 p-5 sm:grid-cols-2">
-            <KpiCard
-              label="New consultations"
-              value={String(seasonConsultations)}
-            />
-            <KpiCard
-              label="Total patients"
-              value={String(invoices.length)}
-            />
-            <KpiCard
-              label="Procedures"
-              value={String(seasonProcedures)}
-            />
-            <KpiCard
-              label="Other services"
-              value={String(seasonOtherServices)}
-            />
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Yearly Summary" />
+        <SectionTitle title="Current Period Summary" />
+        <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+          {currentPeriodSummary.map((item) => (
+            <SummaryCard
+              key={item.category}
+              label={item.category}
+              value={String(item.cases)}
+              helper={usdWhole(item.revenue)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden border-[#efefef] bg-white">
+        <SectionTitle title="Yearly Performance" />
         <div className={tableStyles.wrapper}>
           <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Year</th>
-                <th className={tableStyles.numericHeaderCell}>New consultations</th>
-                <th className={tableStyles.numericHeaderCell}>Total Sales (USD)</th>
-                <th className={tableStyles.numericHeaderCell}>Total Doctor Payouts (LKR)</th>
+                <th className={tableStyles.numericHeaderCell}>Revenue (USD)</th>
+                <th className={tableStyles.numericHeaderCell}>Patients</th>
+                <th className={tableStyles.numericHeaderCell}>Doctor Payouts (LKR)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
               {yearlyComparison.map((item) => (
                 <tr key={item.year} className={tableStyles.row}>
                   <td className="px-5 py-4 text-lg font-bold text-[#224770]">{item.year}</td>
-                  <td className="px-5 py-4 text-right text-[#46484a]">{item.consultations}</td>
-                  <td className={tableStyles.numericCell}>
-                    {usd(item.totalSales)}
+                  <td className={tableStyles.numericCell}>{usdWhole(item.revenue)}</td>
+                  <td className="px-5 py-4 text-right font-semibold text-[#224770]">
+                    {item.patients}
                   </td>
-                  <td className={tableStyles.numericCell}>
-                    {money(item.doctorPayouts)}
-                  </td>
+                  <td className={tableStyles.numericCell}>{money(item.doctorPayouts)}</td>
                 </tr>
               ))}
             </tbody>
@@ -406,44 +483,36 @@ export function DashboardOverview({
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Doctor Payout Summary" />
-        <div className="p-5">
-          <div className="overflow-hidden rounded-xl border border-[#efefef]">
-            <div className="bg-[#efefef] px-4 py-3">
-              <h3 className="text-sm font-semibold text-[#224770]">Doctor Payout Summary</h3>
-            </div>
-            <table className={tableStyles.table}>
-              <thead className={tableStyles.head}>
-                <tr>
-                  <th className={tableStyles.headerCell}>Doctor</th>
-                  <th className={tableStyles.numericHeaderCell}>Pending LKR</th>
-                  <th className={tableStyles.numericHeaderCell}>Paid this month LKR</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#efefef]">
-                {payoutsByDoctor.map(({ doctor, pending, paid }) => (
-                  <tr key={doctor.id} className={tableStyles.row}>
-                    <td className={tableStyles.strongCell}>
-                      <p className="font-semibold text-[#224770]">{doctor.name}</p>
-                    </td>
-                    <td className={tableStyles.numericCell}>
-                      {money(pending)}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#46484a]">
-                      {money(paid)}
-                    </td>
-                  </tr>
-                ))}
-                {!payoutsByDoctor.length ? (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-sm font-semibold text-[#46484a]">
-                      No doctor payout records for this month.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+        <SectionTitle title="Business Insights" />
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+          <SummaryCard
+            label="Highest Revenue Service This Month"
+            value={highestRevenueService?.serviceName ?? "N/A"}
+            helper={highestRevenueService ? usdWhole(highestRevenueService.revenue) : undefined}
+          />
+          <SummaryCard
+            label="Most Used Service This Month"
+            value={mostUsedService?.serviceName ?? "N/A"}
+            helper={mostUsedService ? `${mostUsedService.count} cases` : undefined}
+          />
+          <SummaryCard
+            label="Average Revenue Per Patient"
+            value={usdWhole(averageRevenuePerPatient)}
+          />
+          <SummaryCard
+            label="Insurance Share of Revenue"
+            value={`${insuranceShare}%`}
+            helper={usdWhole(insuranceRevenue)}
+          />
+          <SummaryCard
+            label="Cash / Card / Insurance Distribution"
+            value={paymentDistribution}
+          />
+          <SummaryCard
+            label="Outstanding Insurance Receivables"
+            value={usdWhole(outstandingInsuranceReceivables)}
+            warning={outstandingInsuranceReceivables > 0}
+          />
         </div>
       </section>
     </div>
