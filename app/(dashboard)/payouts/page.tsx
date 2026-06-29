@@ -16,8 +16,7 @@ export default async function PayoutsPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Finance"
-        title="Doctor payout management"
-        description="Filter payouts by doctor and month, generate vouchers, mark payments, add references, and export voucher PDFs."
+        title="Payout Management"
       />
       <PayoutManagement
         doctors={data.doctors}

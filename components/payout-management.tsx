@@ -1,13 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FileCheck2, Filter, ReceiptText, RotateCcw } from "lucide-react";
 import { generatePayoutVoucherAction, updateVoucherStatusAction } from "@/lib/actions";
-import { MetricCard } from "@/components/metric-card";
+import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
 import type { Doctor, DoctorPayout, PayoutVoucher } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type PayoutManagementProps = {
   doctors: Doctor[];
@@ -31,6 +29,7 @@ export function PayoutManagement({
   const [notes, setNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const currentMonth = todayISO().slice(0, 7);
 
   const filteredPayouts = useMemo(
     () =>
@@ -46,6 +45,16 @@ export function PayoutManagement({
 
   const unpaidFiltered = filteredPayouts.filter((payout) => payout.status === "unpaid");
   const selectedVoucher = vouchers.find((voucher) => voucher.id === selectedVoucherId);
+  const visiblePayouts = payouts.filter((payout) => payout.payoutMode !== "pending_shift");
+  const unpaidPayouts = visiblePayouts.filter((payout) => payout.status === "unpaid");
+  const pendingPayoutAmount = unpaidPayouts.reduce(
+    (sum, payout) => sum + payout.payoutAmount,
+    0
+  );
+  const paidThisMonth = visiblePayouts
+    .filter((payout) => payout.status === "paid" && monthKey(payout.date) === currentMonth)
+    .reduce((sum, payout) => sum + payout.payoutAmount, 0);
+  const doctorsAwaitingPayout = new Set(unpaidPayouts.map((payout) => payout.doctorId)).size;
 
   async function generateVoucher() {
     const eligible = unpaidFiltered.filter((payout) => doctorId !== "all" && payout.doctorId === doctorId);
@@ -219,37 +228,22 @@ export function PayoutManagement({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Filtered payouts"
-          value={money(filteredPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0))}
-          helper={`${filteredPayouts.length} records in current filter`}
-          icon={Filter}
-          tone="lagoon"
+        <KpiCard
+          label="Pending Payout Amount LKR"
+          value={money(pendingPayoutAmount)}
+          tone="danger"
         />
-        <MetricCard
-          label="Unpaid in filter"
-          value={money(unpaidFiltered.reduce((sum, payout) => sum + payout.payoutAmount, 0))}
-          helper="Available for voucher generation"
-          icon={ReceiptText}
-          tone="amber"
+        <KpiCard label="Paid This Month LKR" value={money(paidThisMonth)} tone="success" />
+        <KpiCard
+          label="Doctors Awaiting Payout"
+          value={String(doctorsAwaitingPayout)}
+          tone="warning"
         />
-        <MetricCard
-          label="Vouchers"
-          value={String(vouchers.length)}
-          helper="Generated doctor payment batches"
-          icon={FileCheck2}
-          tone="care"
-        />
-        <MetricCard
-          label="Paid vouchers"
-          value={money(vouchers.filter((voucher) => voucher.status === "paid").reduce((sum, voucher) => sum + voucher.totalAmount, 0))}
-          helper="Settled by admin or accountant"
-          icon={Download}
-          tone="ink"
-        />
+        <KpiCard label="Generated Vouchers" value={String(vouchers.length)} tone="primary" />
       </div>
 
       <section className="panel p-5">
+        <h2 className="mb-4 font-semibold text-[#224770]">Payout Filters</h2>
         {error ? (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             {error}
@@ -306,14 +300,11 @@ export function PayoutManagement({
               type="button"
               onClick={generateVoucher}
               disabled={pending || doctorId === "all" || unpaidFiltered.length === 0}
-              className={cn(
-                "focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
-                !pending && doctorId !== "all" && unpaidFiltered.length
-                  ? "bg-lagoon-600 hover:bg-lagoon-700"
-                  : "bg-slate-300"
+              className={buttonClass(
+                !pending && doctorId !== "all" && unpaidFiltered.length ? "primary" : "muted",
+                "w-full"
               )}
             >
-              <ReceiptText className="h-4 w-4" aria-hidden="true" />
               {pending ? "Working..." : "Generate voucher"}
             </button>
           </div>
@@ -323,39 +314,36 @@ export function PayoutManagement({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className="panel overflow-hidden">
           <div className="border-b border-slate-100 p-5">
-            <h2 className="font-semibold text-ink">Doctor payout records</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Low season appears as invoice-based payouts. Peak season appears as shift-based vouchers.
-            </p>
+            <h2 className="font-semibold text-[#224770]">Doctor Payout Records</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <div className={tableStyles.wrapper}>
+            <table className={tableStyles.table}>
+              <thead className={tableStyles.head}>
                 <tr>
-                  <th className="px-5 py-3">Doctor</th>
-                  <th className="px-5 py-3">Invoice / Shift</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Reason</th>
-                  <th className="px-5 py-3 text-right">Amount</th>
-                  <th className="px-5 py-3">Status</th>
+                  <th className={tableStyles.headerCell}>Doctor</th>
+                  <th className={tableStyles.headerCell}>Invoice / Shift</th>
+                  <th className={tableStyles.headerCell}>Type</th>
+                  <th className={tableStyles.headerCell}>Reason</th>
+                  <th className={tableStyles.numericHeaderCell}>Amount LKR</th>
+                  <th className={tableStyles.headerCell}>Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#efefef]">
                 {filteredPayouts.map((payout) => {
                   const doctor = doctors.find((candidate) => candidate.id === payout.doctorId);
 
                   return (
-                    <tr key={payout.id}>
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-600">{doctor?.name}</td>
-                      <td className="whitespace-nowrap px-5 py-4 font-semibold text-ink">
+                    <tr key={payout.id} className={tableStyles.row}>
+                      <td className={tableStyles.cell}>{doctor?.name}</td>
+                      <td className={tableStyles.strongCell}>
                         <p>{payout.invoiceNo}</p>
                         <p className="text-xs font-normal text-slate-500">{shortDate(payout.date)}</p>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className={tableStyles.cell}>
                         {payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"}
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{payout.paymentReason}</td>
-                      <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
+                      <td className={tableStyles.cell}>{payout.paymentReason}</td>
+                      <td className={tableStyles.numericCell}>
                         {money(payout.payoutAmount)}
                       </td>
                       <td className="px-5 py-4">
@@ -372,10 +360,7 @@ export function PayoutManagement({
         </section>
 
         <section className="panel p-5">
-          <h2 className="font-semibold text-ink">Voucher management</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Mark vouchers as paid or unpaid, record reference data, and export a PDF voucher.
-          </p>
+          <h2 className="font-semibold text-[#224770]">Voucher Management</h2>
 
           <div className="mt-5 space-y-4">
             <div>
@@ -454,26 +439,23 @@ export function PayoutManagement({
                     type="button"
                     onClick={() => markVoucher("paid")}
                     disabled={pending}
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-care-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-care-700"
+                    className={buttonClass("success", "px-3 py-2")}
                   >
-                    <FileCheck2 className="h-4 w-4" aria-hidden="true" />
                     Paid
                   </button>
                   <button
                     type="button"
                     onClick={() => markVoucher("unpaid")}
                     disabled={pending}
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                    className={buttonClass("secondary", "px-3 py-2")}
                   >
-                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
                     Unpaid
                   </button>
                   <button
                     type="button"
                     onClick={downloadVoucherPdf}
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className={buttonClass("primary", "px-3 py-2")}
                   >
-                    <Download className="h-4 w-4" aria-hidden="true" />
                     PDF
                   </button>
                 </div>

@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CirclePlus, Edit3, Save, Search, Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
+import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { money, usd } from "@/lib/format";
 import {
   isPayoutEligibleCategory,
   serviceCategories,
   serviceStorageKey,
+  type Invoice,
   type Service,
   type ServiceCategory
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type ServicesAdminProps = {
   initialServices: Service[];
+  invoices: Invoice[];
   canEdit: boolean;
 };
 
@@ -46,7 +48,7 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
-export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) {
+export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAdminProps) {
   const [services, setServices] = useState(initialServices);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
@@ -87,6 +89,48 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
           .includes(search))
     );
   }, [categoryFilter, query, services]);
+
+  const activeServices = services.filter((service) => service.active).length;
+  const inactiveServices = services.length - activeServices;
+  const serviceMetrics = useMemo(() => {
+    const revenueByService = new Map<string, number>();
+    const usageByService = new Map<string, number>();
+
+    invoices.forEach((invoice) => {
+      invoice.items.forEach((item) => {
+        revenueByService.set(
+          item.serviceId,
+          (revenueByService.get(item.serviceId) ?? 0) + item.lineTotal
+        );
+        usageByService.set(
+          item.serviceId,
+          (usageByService.get(item.serviceId) ?? 0) + Math.max(1, item.quantity)
+        );
+      });
+    });
+
+    const highestRevenueService = services
+      .map((service) => ({
+        service,
+        value: revenueByService.get(service.id) ?? 0
+      }))
+      .sort((a, b) => b.value - a.value)[0];
+    const mostUsedService = services
+      .map((service) => ({
+        service,
+        value: usageByService.get(service.id) ?? 0
+      }))
+      .sort((a, b) => b.value - a.value)[0];
+
+    return {
+      highestRevenueService:
+        highestRevenueService && highestRevenueService.value > 0
+          ? highestRevenueService
+          : null,
+      mostUsedService:
+        mostUsedService && mostUsedService.value > 0 ? mostUsedService : null
+    };
+  }, [invoices, services]);
 
   const editing = Boolean(form.id);
   const categoryCanPayout = isPayoutEligibleCategory(form.category);
@@ -171,15 +215,41 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
 
   return (
     <>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Active Services" value={String(activeServices)} tone="primary" />
+        <KpiCard label="Inactive Services" value={String(inactiveServices)} />
+        <KpiCard
+          label="Highest Revenue Service"
+          value={serviceMetrics.highestRevenueService?.service.name ?? "-"}
+          helper={
+            serviceMetrics.highestRevenueService
+              ? usd(serviceMetrics.highestRevenueService.value)
+              : "No invoice revenue"
+          }
+          tone="success"
+        />
+        <KpiCard
+          label="Most Used Service"
+          value={serviceMetrics.mostUsedService?.service.name ?? "-"}
+          helper={
+            serviceMetrics.mostUsedService
+              ? `${serviceMetrics.mostUsedService.value} invoice item${
+                  serviceMetrics.mostUsedService.value === 1 ? "" : "s"
+                }`
+              : "No service usage"
+          }
+          tone="info"
+        />
+      </div>
+
       <section className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
           <label className="relative block w-full lg:max-w-sm">
             <span className="sr-only">Search services</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="field pl-9"
+              className="field"
               placeholder="Search services"
             />
           </label>
@@ -200,37 +270,36 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
             type="button"
             onClick={openAddForm}
             disabled={!canEdit}
-            className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-lagoon-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-lagoon-700 disabled:bg-slate-300 lg:ml-auto"
+            className={buttonClass("primary", "lg:ml-auto")}
           >
-            <CirclePlus className="h-4 w-4" aria-hidden="true" />
             Add Service
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className={tableStyles.wrapper}>
+          <table className={tableStyles.table}>
+            <thead className={tableStyles.head}>
               <tr>
-                <th className="px-5 py-3">Service name</th>
-                <th className="px-5 py-3">Category</th>
-                <th className="px-5 py-3 text-right">Selling price USD</th>
-                <th className="px-5 py-3 text-right">Doctor payout amount LKR</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th className={tableStyles.headerCell}>Service name</th>
+                <th className={tableStyles.headerCell}>Category</th>
+                <th className={tableStyles.numericHeaderCell}>Selling price USD</th>
+                <th className={tableStyles.numericHeaderCell}>Doctor payout amount LKR</th>
+                <th className={tableStyles.numericHeaderCell}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#efefef]">
               {filteredServices.map((service) => (
-                <tr key={service.id}>
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-ink">{service.name}</p>
+                <tr key={service.id} className={tableStyles.row}>
+                  <td className={tableStyles.strongCell}>
+                    <p>{service.name}</p>
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                  <td className={tableStyles.cell}>
                     {service.category}
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
+                  <td className={tableStyles.numericCell}>
                     {usd(service.sellingPrice)}
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
+                  <td className={tableStyles.numericCell}>
                     {formatPayout(service)}
                   </td>
                   <td className="px-5 py-4">
@@ -239,9 +308,8 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
                         type="button"
                         onClick={() => editService(service)}
                         disabled={!canEdit}
-                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
                       >
-                        <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
                         Edit
                       </button>
                       <button
@@ -249,9 +317,8 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
                         onClick={() => deleteService(service.id)}
                         disabled={!canEdit}
                         title="Delete service"
-                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        className={buttonClass("danger", "px-3 py-2 text-xs")}
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         Delete
                       </button>
                     </div>
@@ -260,7 +327,7 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
               ))}
               {!filteredServices.length ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-[#46484a]">
                     No services match your search.
                   </td>
                 </tr>
@@ -383,7 +450,7 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
               <button
                 type="button"
                 onClick={resetForm}
-                className="focus-ring inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className={buttonClass("secondary")}
               >
                 Cancel
               </button>
@@ -391,14 +458,8 @@ export function ServicesAdmin({ initialServices, canEdit }: ServicesAdminProps) 
                 type="button"
                 onClick={saveService}
                 disabled={!canEdit || !form.name.trim()}
-                className={cn(
-                  "focus-ring inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
-                  canEdit && form.name.trim()
-                    ? "bg-lagoon-600 hover:bg-lagoon-700"
-                    : "bg-slate-300"
-                )}
+                className={buttonClass(canEdit && form.name.trim() ? "primary" : "muted")}
               >
-                <Save className="h-4 w-4" aria-hidden="true" />
                 {editing ? "Update service" : "Save service"}
               </button>
             </div>

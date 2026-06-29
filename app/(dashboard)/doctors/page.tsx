@@ -16,8 +16,7 @@ export default async function DoctorsPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Admin setup"
-        title="Doctors"
-        description="Manage doctor records, active status, and unpaid payout visibility for the mock ERP workflow."
+        title="Doctors Management"
       />
       <DoctorsAdmin
         initialDoctors={data.doctors}

@@ -1,16 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  CirclePlus,
-  Download,
-  FileCheck2,
-  Minus,
-  Plus,
-  Printer,
-  ReceiptText,
-  Trash2
-} from "lucide-react";
+import { Minus, Plus } from "lucide-react";
+import { KpiCard, buttonClass } from "@/components/erp-ui";
 import {
   calculateInvoiceTotals,
   generatePayoutsForInvoice,
@@ -22,7 +14,7 @@ import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money, todayISO, usd } from "@/lib/format";
+import { money, monthKey, todayISO, usd } from "@/lib/format";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
@@ -185,6 +177,15 @@ export function InvoicePosForm({
     );
   }, [invoices, paymentSettings]);
 
+  const currentDate = todayISO();
+  const currentMonth = currentDate.slice(0, 7);
+  const todayInvoices = invoices.filter((invoice) => invoice.date === currentDate);
+  const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === currentMonth);
+  const todayRevenue = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const monthlyRevenue = monthlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const averageInvoiceValue = monthlyInvoices.length
+    ? monthlyRevenue / monthlyInvoices.length
+    : 0;
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
   const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
   const selectedDoctor = doctorCatalog.find((doctor) => doctor.id === doctorId);
@@ -227,7 +228,7 @@ export function InvoicePosForm({
   const draftInvoice = {
     id: "draft",
     invoiceNo,
-    date: todayISO(),
+    date: currentDate,
     time: invoiceTime,
     patientName: patientName || "Draft patient",
     passport: passport || undefined,
@@ -394,35 +395,36 @@ export function InvoicePosForm({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <section className="panel p-5">
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Today's Invoices" value={String(todayInvoices.length)} tone="primary" />
+        <KpiCard label="Today's Revenue USD" value={usd(todayRevenue)} tone="info" />
+        <KpiCard label="Monthly Revenue USD" value={usd(monthlyRevenue)} tone="success" />
+        <KpiCard label="Average Invoice Value USD" value={usd(averageInvoiceValue)} />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="panel p-5">
         <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="label">Invoice POS</p>
             <h2 className="mt-2 text-xl font-bold text-ink">{invoiceNo}</h2>
-            <p className="mt-1 text-sm text-slate-500">Date: {todayISO()}</p>
+            <p className="mt-1 text-sm text-slate-500">Date: {currentDate}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
-              className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              className={buttonClass("secondary", "px-3 py-2")}
             >
-              <Printer className="h-4 w-4" aria-hidden="true" />
               Print
             </button>
             <button
               type="button"
               onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
               disabled={!patientName.trim() && !lastSavedInvoice}
-              className={cn(
-                "focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition",
-                patientName.trim() || lastSavedInvoice
-                  ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  : "border-slate-200 bg-slate-100 text-slate-400"
-              )}
+              className={buttonClass(patientName.trim() || lastSavedInvoice ? "secondary" : "muted", "px-3 py-2")}
             >
-              <Download className="h-4 w-4" aria-hidden="true" />
               Download
             </button>
           </div>
@@ -534,9 +536,8 @@ export function InvoicePosForm({
             <button
               type="button"
               onClick={addServiceLine}
-              className="focus-ring inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className={buttonClass("primary", "px-3 py-2")}
             >
-              <CirclePlus className="h-4 w-4" aria-hidden="true" />
               Add service
             </button>
           </div>
@@ -558,8 +559,8 @@ export function InvoicePosForm({
                   className={cn(
                     "grid gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3",
                     isAmountOnlyService
-                      ? "2xl:grid-cols-[minmax(180px,1fr)_160px_44px]"
-                      : "2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px]"
+                      ? "2xl:grid-cols-[minmax(180px,1fr)_160px_88px]"
+                      : "2xl:grid-cols-[minmax(180px,1fr)_120px_120px_120px_88px]"
                   )}
                 >
                   <div>
@@ -624,10 +625,10 @@ export function InvoicePosForm({
                   <button
                     type="button"
                     onClick={() => removeServiceLine(line.id)}
-                    className="focus-ring mt-6 flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-rose-600"
+                    className={buttonClass("danger", "mt-6 h-10 px-3 py-0 text-xs")}
                     aria-label="Remove service line"
                   >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Remove
                   </button>
                 </div>
               );
@@ -677,14 +678,11 @@ export function InvoicePosForm({
               type="button"
               onClick={saveInvoice}
               disabled={!patientName.trim() || !doctorId || invoiceItems.length === 0}
-              className={cn(
-                "focus-ring mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
-                patientName.trim() && doctorId && invoiceItems.length > 0
-                  ? "bg-lagoon-600 hover:bg-lagoon-700"
-                  : "bg-slate-300"
+              className={buttonClass(
+                patientName.trim() && doctorId && invoiceItems.length > 0 ? "primary" : "muted",
+                "mt-4 w-full"
               )}
             >
-              <FileCheck2 className="h-4 w-4" aria-hidden="true" />
               Save invoice
             </button>
           </div>
@@ -711,14 +709,9 @@ export function InvoicePosForm({
         </section>
 
         <section className="panel p-5">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-care-50 p-2 text-care-700">
-              <ReceiptText className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-ink">Doctor payout preview</h3>
-              <p className="text-sm text-slate-500">Internal payout in LKR</p>
-            </div>
+          <div>
+            <h3 className="font-semibold text-ink">Doctor payout preview</h3>
+            <p className="text-sm text-slate-500">Internal payout in LKR</p>
           </div>
           <div className="mt-4 space-y-3">
             {payoutPreview.length ? (
@@ -787,6 +780,7 @@ export function InvoicePosForm({
           </div>
         </section>
       </aside>
+      </div>
     </div>
   );
 }

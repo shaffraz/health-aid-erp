@@ -16,11 +16,11 @@ export default async function ServicesPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Admin setup"
-        title="Service catalog"
-        description="Create billable healthcare services with category, selling price, and default doctor payment configuration."
+        title="Services Management"
       />
       <ServicesAdmin
         initialServices={data.services}
+        invoices={data.invoices}
         canEdit={hasPermission(user.role, "manageServices")}
       />
     </div>

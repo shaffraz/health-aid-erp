@@ -16,8 +16,7 @@ export default async function NewInvoicePage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Point of sale"
-        title="Create invoice"
-        description="Record patient details only inside the invoice, select the doctor who saw the patient, add services, and preview automatic doctor payouts before saving."
+        title="Invoice POS"
       />
       <InvoicePosForm
         doctors={data.doctors}

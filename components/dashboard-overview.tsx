@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
 import {
   defaultDoctorPaymentModel,
@@ -10,37 +11,25 @@ import { money, monthKey, todayISO, usd } from "@/lib/format";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
-  serviceStorageKey,
   type Doctor,
   type DoctorPaymentModel,
   type DoctorPaymentModelType,
   type DoctorPayout,
   type Invoice,
   type InvoiceItem,
-  type Service,
   type ServiceCategory
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type DashboardOverviewProps = {
   initialDoctors: Doctor[];
-  initialServices: Service[];
   invoices: Invoice[];
   payouts: DoctorPayout[];
 };
-
-type CardVariant = "default" | "muted" | "info" | "positive" | "danger";
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
   low_season: "Low Season",
   peak_season: "Peak Season"
 };
-
-const roleCountsBase = [
-  { label: "Admin", count: 1 },
-  { label: "Staff", count: 2 },
-  { label: "Accountant", count: 1 }
-];
 
 const clinicalProcedureCategories: ServiceCategory[] = [
   "Procedures",
@@ -61,47 +50,6 @@ const monthlyServiceLabels = [
 ] as const;
 
 type MonthlyServiceLabel = (typeof monthlyServiceLabels)[number];
-
-const cardVariants: Record<
-  CardVariant,
-  {
-    panel: string;
-    label: string;
-    value: string;
-    detail: string;
-  }
-> = {
-  default: {
-    panel: "border-[#efefef] bg-white",
-    label: "text-[#46484a]",
-    value: "text-[#224770]",
-    detail: "text-[#46484a]"
-  },
-  muted: {
-    panel: "border-[#efefef] bg-[#efefef]",
-    label: "text-[#46484a]",
-    value: "text-[#224770]",
-    detail: "text-[#46484a]"
-  },
-  info: {
-    panel: "border-[#d8edf7] bg-white",
-    label: "text-[#46484a]",
-    value: "text-[#224770]",
-    detail: "text-[#46484a]"
-  },
-  positive: {
-    panel: "border-[#dceccd] bg-white",
-    label: "text-[#46484a]",
-    value: "text-[#4f7f22]",
-    detail: "text-[#46484a]"
-  },
-  danger: {
-    panel: "border-[#f4c7c7] bg-[#fff8f8]",
-    label: "text-[#8f1d1d]",
-    value: "text-[#b42318]",
-    detail: "text-[#8f1d1d]"
-  }
-};
 
 function normalizeDoctor(doctor: Doctor): Doctor {
   const legacyDoctor = doctor as Doctor & { specialty?: string };
@@ -155,41 +103,6 @@ function itemQuantity(item: InvoiceItem) {
   return Math.max(1, item.quantity);
 }
 
-function SummaryCard({
-  label,
-  value,
-  detail,
-  variant = "default"
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-  variant?: CardVariant;
-}) {
-  const styles = cardVariants[variant];
-
-  return (
-    <div
-      className={cn(
-        "group min-h-32 rounded-xl border p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
-        styles.panel
-      )}
-    >
-      <div className="flex h-full flex-col justify-between gap-4">
-        <p className={cn("text-xs font-semibold uppercase tracking-[0.14em]", styles.label)}>
-          {label}
-        </p>
-        <div>
-          <p className={cn("text-2xl font-bold tracking-tight", styles.value)}>{value}</p>
-          {detail ? (
-            <p className={cn("mt-1 text-sm font-semibold", styles.detail)}>{detail}</p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SectionTitle({ title }: { title: string }) {
   return (
     <div className="border-b border-[#efefef] px-5 py-4">
@@ -200,12 +113,10 @@ function SectionTitle({ title }: { title: string }) {
 
 export function DashboardOverview({
   initialDoctors,
-  initialServices,
   invoices,
   payouts
 }: DashboardOverviewProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
-  const [services, setServices] = useState(initialServices);
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
     defaultDoctorPaymentModel
   );
@@ -221,14 +132,6 @@ export function DashboardOverview({
         const parsed = JSON.parse(storedDoctors);
         if (Array.isArray(parsed)) {
           setDoctors((parsed as Doctor[]).map(normalizeDoctor));
-        }
-      }
-
-      const storedServices = window.localStorage.getItem(serviceStorageKey);
-      if (storedServices) {
-        const parsed = JSON.parse(storedServices);
-        if (Array.isArray(parsed)) {
-          setServices(parsed as Service[]);
         }
       }
 
@@ -281,15 +184,6 @@ export function DashboardOverview({
   const monthlyPayouts = visiblePayouts.filter(
     (payout) => monthKey(payout.date) === selectedMonth
   );
-  const activeDoctors = doctors.filter((doctor) => doctor.active);
-  const activeServices = services.filter((service) => service.active);
-  const teamDirectory = [
-    { label: "Administrators", count: roleCountsBase[0].count },
-    { label: "Doctors", count: doctors.length },
-    { label: "Staff", count: roleCountsBase[1].count },
-    { label: "Accountants", count: roleCountsBase[2].count }
-  ];
-
   const todaySales = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
   const consultationsToday = todayInvoices.reduce(
     (sum, invoice) =>
@@ -387,98 +281,48 @@ export function DashboardOverview({
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Operating Control" />
-        <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="grid gap-4 lg:grid-cols-[minmax(280px,1.35fr)_minmax(150px,0.6fr)_minmax(150px,0.6fr)]">
-            <div className="min-h-36 rounded-xl border border-[#efefef] bg-white p-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex h-full flex-col justify-between gap-6">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-                    Operating Mode
-                  </p>
-                  <h3 className="mt-3 text-3xl font-bold text-[#224770]">
-                    {paymentModeLabels[paymentSettings.activeModel]}
-                  </h3>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <select
-                    id="dashboard-payment-mode"
-                    value={draftPaymentMode}
-                    onChange={(event) =>
-                      setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
-                    }
-                    className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
-                    aria-label="Operating mode"
-                  >
-                    <option value="low_season">{paymentModeLabels.low_season}</option>
-                    <option value="peak_season">{paymentModeLabels.peak_season}</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={savePaymentMode}
-                    disabled={!paymentModeChanged}
-                    className={cn(
-                      "focus-ring min-h-11 rounded-lg px-5 text-sm font-semibold transition",
-                      paymentModeChanged
-                        ? "bg-[#224770] text-white hover:bg-[#224770]/90"
-                        : "bg-[#efefef] text-[#46484a]"
-                    )}
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
+        <SectionTitle title="Operational KPIs" />
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-5">
+          <KpiCard
+            label="Operating Mode"
+            value={paymentModeLabels[paymentSettings.activeModel]}
+            tone="primary"
+            className="xl:col-span-2"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <select
+                id="dashboard-payment-mode"
+                value={draftPaymentMode}
+                onChange={(event) =>
+                  setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
+                }
+                className="field min-h-11 flex-1 border-[#224770]/20 bg-white"
+                aria-label="Operating mode"
+              >
+                <option value="low_season">{paymentModeLabels.low_season}</option>
+                <option value="peak_season">{paymentModeLabels.peak_season}</option>
+              </select>
+              <button
+                type="button"
+                onClick={savePaymentMode}
+                disabled={!paymentModeChanged}
+                className={buttonClass(paymentModeChanged ? "primary" : "muted", "min-h-11")}
+              >
+                Save
+              </button>
             </div>
-
-            <SummaryCard
-              label="Active doctors"
-              value={String(activeDoctors.length)}
-            />
-            <SummaryCard
-              label="Active services"
-              value={String(activeServices.length)}
-            />
-          </div>
-
-          <div className="rounded-xl border border-[#efefef] bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-              Team Directory
-            </p>
-            <div className="mt-4 space-y-3">
-              {teamDirectory.map((memberGroup) => (
-                <div key={memberGroup.label} className="flex items-center gap-3 text-sm">
-                  <span className="font-medium text-[#46484a]">{memberGroup.label}</span>
-                  <span className="ml-auto min-w-8 text-right font-bold text-[#224770]">
-                    {memberGroup.count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Key Operational KPIs" />
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            label="Today's sales"
-            value={usd(todaySales)}
-            variant="info"
-          />
-          <SummaryCard
-            label="New consultations today"
-            value={String(consultationsToday)}
-          />
-          <SummaryCard
-            label="Pending Doctor Payouts"
+          </KpiCard>
+          <KpiCard label="Today's Sales USD" value={usd(todaySales)} tone="info" />
+          <KpiCard label="New Consultations Today" value={String(consultationsToday)} />
+          <KpiCard
+            label="Pending Doctor Payouts LKR"
             value={money(monthlyPendingPayouts)}
-            variant="danger"
+            tone="danger"
           />
-          <SummaryCard
-            label="Monthly payouts paid"
+          <KpiCard
+            label="Monthly Payouts Paid LKR"
             value={money(monthlyPaidPayouts)}
-            variant="positive"
+            tone="success"
           />
         </div>
       </section>
@@ -488,11 +332,11 @@ export function DashboardOverview({
           <SectionTitle title="Monthly Services Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
             {monthlyServiceSummary.map((item) => (
-              <SummaryCard
+              <KpiCard
                 key={item.label}
                 label={item.label}
                 value={String(item.count)}
-                detail={usd(item.value)}
+                helper={usd(item.value)}
               />
             ))}
             {!monthlyServiceSummary.length ? (
@@ -506,19 +350,19 @@ export function DashboardOverview({
         <section className="panel overflow-hidden border-[#efefef] bg-white">
           <SectionTitle title="Season Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2">
-            <SummaryCard
+            <KpiCard
               label="New consultations"
               value={String(seasonConsultations)}
             />
-            <SummaryCard
+            <KpiCard
               label="Total patients"
               value={String(invoices.length)}
             />
-            <SummaryCard
+            <KpiCard
               label="Procedures"
               value={String(seasonProcedures)}
             />
-            <SummaryCard
+            <KpiCard
               label="Other services"
               value={String(seasonOtherServices)}
             />
@@ -528,25 +372,25 @@ export function DashboardOverview({
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
         <SectionTitle title="Yearly Summary" />
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#efefef] text-sm">
-            <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+        <div className={tableStyles.wrapper}>
+          <table className={tableStyles.table}>
+            <thead className={tableStyles.head}>
               <tr>
-                <th className="px-5 py-3">Year</th>
-                <th className="px-5 py-3 text-right">New consultations</th>
-                <th className="px-5 py-3 text-right">Total Sales (USD)</th>
-                <th className="px-5 py-3 text-right">Total Doctor Payouts (LKR)</th>
+                <th className={tableStyles.headerCell}>Year</th>
+                <th className={tableStyles.numericHeaderCell}>New consultations</th>
+                <th className={tableStyles.numericHeaderCell}>Total Sales (USD)</th>
+                <th className={tableStyles.numericHeaderCell}>Total Doctor Payouts (LKR)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
               {yearlyComparison.map((item) => (
-                <tr key={item.year}>
+                <tr key={item.year} className={tableStyles.row}>
                   <td className="px-5 py-4 text-lg font-bold text-[#224770]">{item.year}</td>
                   <td className="px-5 py-4 text-right text-[#46484a]">{item.consultations}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]">
+                  <td className={tableStyles.numericCell}>
                     {usd(item.totalSales)}
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]">
+                  <td className={tableStyles.numericCell}>
                     {money(item.doctorPayouts)}
                   </td>
                 </tr>
@@ -563,24 +407,24 @@ export function DashboardOverview({
             <div className="bg-[#efefef] px-4 py-3">
               <h3 className="text-sm font-semibold text-[#224770]">Doctor Payout Summary</h3>
             </div>
-            <table className="min-w-full divide-y divide-[#efefef] text-sm">
-              <thead className="bg-white text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+            <table className={tableStyles.table}>
+              <thead className={tableStyles.head}>
                 <tr>
-                  <th className="px-4 py-3">Doctor</th>
-                  <th className="px-4 py-3 text-right">Pending LKR</th>
-                  <th className="px-4 py-3 text-right">Paid this month LKR</th>
+                  <th className={tableStyles.headerCell}>Doctor</th>
+                  <th className={tableStyles.numericHeaderCell}>Pending LKR</th>
+                  <th className={tableStyles.numericHeaderCell}>Paid this month LKR</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efefef]">
                 {payoutsByDoctor.map(({ doctor, pending, paid }) => (
-                  <tr key={doctor.id}>
-                    <td className="px-4 py-3">
+                  <tr key={doctor.id} className={tableStyles.row}>
+                    <td className={tableStyles.strongCell}>
                       <p className="font-semibold text-[#224770]">{doctor.name}</p>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-[#224770]">
+                    <td className={tableStyles.numericCell}>
                       {money(pending)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-[#46484a]">
+                    <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#46484a]">
                       {money(paid)}
                     </td>
                   </tr>
