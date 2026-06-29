@@ -29,7 +29,7 @@ type DashboardOverviewProps = {
   payouts: DoctorPayout[];
 };
 
-type MetricTone = "blue" | "sky" | "green" | "dark";
+type CardVariant = "default" | "muted" | "blue" | "sky" | "green";
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
   low_season: "Low Season",
@@ -62,11 +62,45 @@ const monthlyServiceLabels = [
 
 type MonthlyServiceLabel = (typeof monthlyServiceLabels)[number];
 
-const accentColors: Record<MetricTone, string> = {
-  blue: "bg-[#224770]",
-  sky: "bg-[#0eb6ef]",
-  green: "bg-[#84bc3f]",
-  dark: "bg-[#46484a]"
+const cardVariants: Record<
+  CardVariant,
+  {
+    panel: string;
+    label: string;
+    value: string;
+    detail: string;
+  }
+> = {
+  default: {
+    panel: "border-[#efefef] bg-white",
+    label: "text-[#46484a]",
+    value: "text-[#224770]",
+    detail: "text-[#46484a]"
+  },
+  muted: {
+    panel: "border-[#efefef] bg-[#efefef]",
+    label: "text-[#46484a]",
+    value: "text-[#224770]",
+    detail: "text-[#46484a]"
+  },
+  blue: {
+    panel: "border-[#224770] bg-[#224770]",
+    label: "text-white/80",
+    value: "text-white",
+    detail: "text-white/85"
+  },
+  sky: {
+    panel: "border-[#0eb6ef] bg-[#0eb6ef]",
+    label: "text-white/85",
+    value: "text-white",
+    detail: "text-white/90"
+  },
+  green: {
+    panel: "border-[#84bc3f] bg-[#84bc3f]",
+    label: "text-white/85",
+    value: "text-white",
+    detail: "text-white/90"
+  }
 };
 
 function normalizeDoctor(doctor: Doctor): Doctor {
@@ -125,24 +159,30 @@ function SummaryCard({
   label,
   value,
   detail,
-  tone = "blue"
+  variant = "default"
 }: {
   label: string;
   value: string;
   detail?: string;
-  tone?: MetricTone;
+  variant?: CardVariant;
 }) {
+  const styles = cardVariants[variant];
+
   return (
-    <div className="group relative min-h-32 overflow-hidden rounded-xl border border-[#efefef] bg-white p-4 pl-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-      <div className={cn("absolute left-0 top-0 h-full w-1.5", accentColors[tone])} />
+    <div
+      className={cn(
+        "group min-h-32 rounded-xl border p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
+        styles.panel
+      )}
+    >
       <div className="flex h-full flex-col justify-between gap-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+        <p className={cn("text-xs font-semibold uppercase tracking-[0.14em]", styles.label)}>
           {label}
         </p>
         <div>
-          <p className="text-2xl font-bold tracking-tight text-[#224770]">{value}</p>
+          <p className={cn("text-2xl font-bold tracking-tight", styles.value)}>{value}</p>
           {detail ? (
-            <p className="mt-1 text-sm font-semibold text-[#46484a]">{detail}</p>
+            <p className={cn("mt-1 text-sm font-semibold", styles.detail)}>{detail}</p>
           ) : null}
         </div>
       </div>
@@ -150,16 +190,9 @@ function SummaryCard({
   );
 }
 
-function SectionTitle({
-  title,
-  tone = "blue"
-}: {
-  title: string;
-  tone?: MetricTone;
-}) {
+function SectionTitle({ title }: { title: string }) {
   return (
-    <div className="relative border-b border-[#efefef] px-5 py-4 pl-6">
-      <div className={cn("absolute left-0 top-0 h-full w-1.5", accentColors[tone])} />
+    <div className="border-b border-[#efefef] px-5 py-4">
       <h2 className="font-semibold text-[#224770]">{title}</h2>
     </div>
   );
@@ -353,23 +386,22 @@ export function DashboardOverview({
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Operations Setup" tone="blue" />
+        <SectionTitle title="Operations Setup" />
         <div className="grid gap-4 p-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="relative min-h-32 overflow-hidden rounded-xl border border-[#efefef] bg-[#efefef] p-4 pl-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-            <div className="absolute left-0 top-0 h-full w-1.5 bg-[#224770]" />
+          <div className="min-h-32 rounded-xl border border-[#224770] bg-[#224770] p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
                   Active Doctor Payment Mode
                 </p>
-                <h3 className="mt-2 text-2xl font-bold text-[#224770]">
+                <h3 className="mt-2 text-2xl font-bold text-white">
                   {paymentModeLabels[paymentSettings.activeModel]}
                 </h3>
               </div>
               <div className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <label
-                    className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]"
+                    className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80"
                     htmlFor="dashboard-payment-mode"
                   >
                     Select mode
@@ -391,10 +423,10 @@ export function DashboardOverview({
                   onClick={savePaymentMode}
                   disabled={!paymentModeChanged}
                   className={cn(
-                    "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition",
+                    "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold transition",
                     paymentModeChanged
-                      ? "bg-[#224770] hover:bg-[#224770]/90"
-                      : "bg-[#46484a]/35"
+                      ? "bg-white text-[#224770] hover:bg-[#efefef]"
+                      : "bg-white/35 text-white/70"
                   )}
                 >
                   Save mode
@@ -407,12 +439,10 @@ export function DashboardOverview({
             <SummaryCard
               label="Active doctors"
               value={String(activeDoctors.length)}
-              tone="blue"
             />
             <SummaryCard
               label="Active services"
               value={String(activeServices.length)}
-              tone="blue"
             />
           </div>
         </div>
@@ -423,7 +453,6 @@ export function DashboardOverview({
                 key={role.label}
                 label={role.label}
                 value={String(role.count)}
-                tone="blue"
               />
             ))}
           </div>
@@ -431,56 +460,34 @@ export function DashboardOverview({
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Today's Summary" tone="sky" />
+        <SectionTitle title="Today's Summary" />
         <div className="grid gap-4 p-5 md:grid-cols-2">
           <SummaryCard
             label="Today's sales"
             value={usd(todaySales)}
-            tone="sky"
+            variant="sky"
           />
           <SummaryCard
             label="New consultations today"
             value={String(consultationsToday)}
-            tone="sky"
           />
         </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="panel overflow-hidden border-[#efefef] bg-white">
-          <SectionTitle title="Monthly Services Summary" tone="green" />
+          <SectionTitle title="Monthly Services Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
             {monthlyServiceSummary.map((item) => (
-              <div
+              <SummaryCard
                 key={item.label}
-                className={cn(
-                  "group relative min-h-32 overflow-hidden rounded-xl border border-[#efefef] bg-white p-4 pl-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
-                )}
-              >
-                <div
-                  className={cn(
-                    "absolute left-0 top-0 h-full w-1.5",
-                    accentColors.green
-                  )}
-                />
-                <div className="flex h-full flex-col justify-between gap-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-                    {item.label}
-                  </p>
-                  <div>
-                    <p className="text-2xl font-bold tracking-tight text-[#224770]">
-                      {item.count}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-[#46484a]">
-                      {usd(item.value)}
-                    </p>
-                  </div>
-                </div>
-              </div>
+                label={item.label}
+                value={String(item.count)}
+                detail={usd(item.value)}
+              />
             ))}
             {!monthlyServiceSummary.length ? (
-              <div className="relative overflow-hidden rounded-xl border border-[#efefef] bg-[#efefef] p-5 pl-6 text-sm font-semibold text-[#46484a] transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-                <div className="absolute left-0 top-0 h-full w-1.5 bg-[#84bc3f]" />
+              <div className="rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a] transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
                 No services with recorded value this month.
               </div>
             ) : null}
@@ -488,34 +495,30 @@ export function DashboardOverview({
         </section>
 
         <section className="panel overflow-hidden border-[#efefef] bg-white">
-          <SectionTitle title="Season Summary" tone="blue" />
+          <SectionTitle title="Season Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             <SummaryCard
               label="New consultations"
               value={String(seasonConsultations)}
-              tone="blue"
             />
             <SummaryCard
               label="Total patients"
               value={String(invoices.length)}
-              tone="blue"
             />
             <SummaryCard
               label="Procedures"
               value={String(seasonProcedures)}
-              tone="blue"
             />
             <SummaryCard
               label="Other services"
               value={String(seasonOtherServices)}
-              tone="blue"
             />
           </div>
         </section>
       </div>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Yearly Summary" tone="dark" />
+        <SectionTitle title="Yearly Summary" />
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[#efefef] text-sm">
             <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
@@ -545,18 +548,17 @@ export function DashboardOverview({
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Doctor Payout Summary" tone="sky" />
+        <SectionTitle title="Doctor Payout Summary" />
         <div className="grid gap-4 p-5 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <SummaryCard
               label="Monthly payouts paid"
               value={money(monthlyPaidPayouts)}
-              tone="sky"
             />
             <SummaryCard
-              label="Pending payouts"
+              label="Pending Doctor Payouts"
               value={money(monthlyPendingPayouts)}
-              tone="sky"
+              variant="green"
             />
           </div>
           <div className="overflow-hidden rounded-xl border border-[#efefef]">
