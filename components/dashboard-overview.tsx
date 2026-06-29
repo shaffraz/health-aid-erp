@@ -33,13 +33,13 @@ type DashboardOverviewProps = {
 };
 
 type PeriodCategory =
-  | "Consultations"
+  | "New Consultations"
+  | "Review Consultations"
   | "Procedures"
-  | "Day Care"
+  | "Day Care Admissions"
   | "Laboratory"
-  | "Vaccinations"
-  | "Home / Hotel Visits"
-  | "Other Services";
+  | "Medication Charges"
+  | "Consumable Charges";
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
   low_season: "On-Call Mode",
@@ -53,19 +53,20 @@ const paymentMethodLabels: Record<Extract<PaymentMethod, "cash" | "card" | "insu
 };
 
 const periodCategories: PeriodCategory[] = [
-  "Consultations",
+  "New Consultations",
+  "Review Consultations",
   "Procedures",
-  "Day Care",
+  "Day Care Admissions",
   "Laboratory",
-  "Vaccinations",
-  "Home / Hotel Visits",
-  "Other Services"
+  "Medication Charges",
+  "Consumable Charges"
 ];
 
 const procedureCategories: ServiceCategory[] = [
   "Procedures",
   "IV Therapy",
-  "Wound Care"
+  "Wound Care",
+  "Vaccines / ARV"
 ];
 
 function normalizeDoctor(doctor: Doctor): Doctor {
@@ -82,11 +83,21 @@ function itemQuantity(item: InvoiceItem) {
   return Math.max(1, item.quantity);
 }
 
-function periodCategoryForItem(item: InvoiceItem): PeriodCategory {
-  const serviceName = item.serviceName.toLowerCase();
+function isReviewConsultation(item: InvoiceItem) {
+  return item.category === "Consultation" && item.serviceName.toLowerCase().includes("review");
+}
 
-  if (item.category === "Consultation") {
-    return "Consultations";
+function isNewConsultation(item: InvoiceItem) {
+  return item.category === "Consultation" && !isReviewConsultation(item);
+}
+
+function periodCategoryForItem(item: InvoiceItem): PeriodCategory | null {
+  if (isNewConsultation(item)) {
+    return "New Consultations";
+  }
+
+  if (isReviewConsultation(item)) {
+    return "Review Consultations";
   }
 
   if (procedureCategories.includes(item.category)) {
@@ -94,22 +105,22 @@ function periodCategoryForItem(item: InvoiceItem): PeriodCategory {
   }
 
   if (item.category === "Day Care Admissions") {
-    return "Day Care";
+    return "Day Care Admissions";
   }
 
   if (item.category === "Lab Services") {
     return "Laboratory";
   }
 
-  if (item.category === "Vaccines / ARV") {
-    return "Vaccinations";
+  if (item.category === "Medication Charges") {
+    return "Medication Charges";
   }
 
-  if (serviceName.includes("home") || serviceName.includes("hotel") || serviceName.includes("visit")) {
-    return "Home / Hotel Visits";
+  if (item.category === "Consumables Charges") {
+    return "Consumable Charges";
   }
 
-  return "Other Services";
+  return null;
 }
 
 function receivableOutstanding(receivable: InsuranceReceivable) {
@@ -215,6 +226,7 @@ export function DashboardOverview({
   const comparisonYears = ["2025", "2026"];
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === selectedMonth);
   const todayInvoices = invoices.filter((invoice) => invoice.date === today);
+  const currentSeasonInvoices = invoices;
 
   const visiblePayouts = useMemo(() => {
     const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
@@ -240,6 +252,10 @@ export function DashboardOverview({
   const todayRevenue = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
   const patientsSeenToday = todayInvoices.length;
   const monthlyRevenue = monthlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const currentSeasonRevenue = currentSeasonInvoices.reduce(
+    (sum, invoice) => sum + invoice.totalAmount,
+    0
+  );
   const monthlyPendingPayouts = monthlyPayouts
     .filter((payout) => payout.status === "unpaid")
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
@@ -269,20 +285,24 @@ export function DashboardOverview({
     );
   }, [monthlyInvoices]);
 
-  const currentPeriodSummary = useMemo(() => {
+  const currentSeasonSummary = useMemo(() => {
     const totals = new Map<PeriodCategory, { cases: number; revenue: number }>();
 
     periodCategories.forEach((category) => {
       totals.set(category, { cases: 0, revenue: 0 });
     });
 
-    monthlyInvoices.forEach((invoice) => {
+    currentSeasonInvoices.forEach((invoice) => {
       invoice.items.forEach((item) => {
         if (item.lineTotal <= 0) {
           return;
         }
 
         const category = periodCategoryForItem(item);
+        if (!category) {
+          return;
+        }
+
         const current = totals.get(category) ?? { cases: 0, revenue: 0 };
         current.cases += itemQuantity(item);
         current.revenue += item.lineTotal;
@@ -294,16 +314,19 @@ export function DashboardOverview({
       category,
       ...(totals.get(category) ?? { cases: 0, revenue: 0 })
     }));
-  }, [monthlyInvoices]);
+  }, [currentSeasonInvoices]);
 
   const yearlyComparison = comparisonYears.map((year) => {
     const yearInvoices = invoices.filter((invoice) => invoice.date.startsWith(year));
+    const yearItems = yearInvoices.flatMap((invoice) => invoice.items);
     const yearPayouts = visiblePayouts.filter((payout) => payout.date.startsWith(year));
 
     return {
       year,
       revenue: yearInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
-      patients: yearInvoices.length,
+      newConsultations: yearItems
+        .filter(isNewConsultation)
+        .reduce((sum, item) => sum + itemQuantity(item), 0),
       doctorPayouts: yearPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0)
     };
   });
@@ -324,16 +347,8 @@ export function DashboardOverview({
   }
 
   const paymentModeChanged = draftPaymentMode !== paymentSettings.activeModel;
-  const highestRevenueService = [...monthlyServiceSummary].sort(
-    (a, b) => b.revenue - a.revenue
-  )[0];
-  const mostUsedService = monthlyServiceSummary[0];
-  const averageRevenuePerPatient = monthlyInvoices.length
+  const averageInvoiceValue = monthlyInvoices.length
     ? monthlyRevenue / monthlyInvoices.length
-    : 0;
-  const insuranceRevenue = paymentTotal("insurance");
-  const insuranceShare = monthlyRevenue
-    ? Math.round((insuranceRevenue / monthlyRevenue) * 100)
     : 0;
   const outstandingInsuranceReceivables = insuranceReceivables
     .filter((receivable) => receivable.status !== "Paid")
@@ -406,11 +421,15 @@ export function DashboardOverview({
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="Today's Revenue (USD)" value={usdWhole(todayRevenue)} tone="info" />
           <KpiCard label="Patients Seen Today" value={String(patientsSeenToday)} />
-          <KpiCard label="Active Doctors" value={String(activeDoctors.length)} tone="primary" />
           <KpiCard
-            label="Pending Doctor Payouts (LKR)"
-            value={money(monthlyPendingPayouts)}
-            tone="danger"
+            label="This Month Revenue (USD)"
+            value={usdWhole(monthlyRevenue)}
+            tone="success"
+          />
+          <KpiCard
+            label="Current Season Revenue (USD)"
+            value={usdWhole(currentSeasonRevenue)}
+            tone="primary"
           />
         </div>
       </section>
@@ -426,8 +445,11 @@ export function DashboardOverview({
               >
                 <p className="text-sm font-semibold text-[#224770]">{item.serviceName}</p>
                 <p className="mt-4 text-2xl font-bold text-[#224770]">{item.count}</p>
-                <p className="mt-1 text-sm font-medium text-[#46484a]">
-                  {usdWhole(item.revenue)}
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+                  Performed this month
+                </p>
+                <p className="mt-3 text-sm font-medium text-[#46484a]">
+                  Revenue {usdWhole(item.revenue)}
                 </p>
               </div>
             ))}
@@ -441,28 +463,28 @@ export function DashboardOverview({
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Current Period Summary" />
+        <SectionTitle title="Current Season Summary" />
         <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
-          {currentPeriodSummary.map((item) => (
+          {currentSeasonSummary.map((item) => (
             <SummaryCard
               key={item.category}
               label={item.category}
-              value={String(item.cases)}
-              helper={usdWhole(item.revenue)}
+              value={`${item.cases} cases`}
+              helper={`Revenue ${usdWhole(item.revenue)}`}
             />
           ))}
         </div>
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Yearly Performance" />
+        <SectionTitle title="Yearly Summary" />
         <div className={tableStyles.wrapper}>
           <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Year</th>
                 <th className={tableStyles.numericHeaderCell}>Revenue (USD)</th>
-                <th className={tableStyles.numericHeaderCell}>Patients</th>
+                <th className={tableStyles.numericHeaderCell}>New Consultations</th>
                 <th className={tableStyles.numericHeaderCell}>Doctor Payouts (LKR)</th>
               </tr>
             </thead>
@@ -472,7 +494,7 @@ export function DashboardOverview({
                   <td className="px-5 py-4 text-lg font-bold text-[#224770]">{item.year}</td>
                   <td className={tableStyles.numericCell}>{usdWhole(item.revenue)}</td>
                   <td className="px-5 py-4 text-right font-semibold text-[#224770]">
-                    {item.patients}
+                    {item.newConsultations}
                   </td>
                   <td className={tableStyles.numericCell}>{money(item.doctorPayouts)}</td>
                 </tr>
@@ -486,32 +508,22 @@ export function DashboardOverview({
         <SectionTitle title="Business Insights" />
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
           <SummaryCard
-            label="Highest Revenue Service This Month"
-            value={highestRevenueService?.serviceName ?? "N/A"}
-            helper={highestRevenueService ? usdWhole(highestRevenueService.revenue) : undefined}
-          />
-          <SummaryCard
-            label="Most Used Service This Month"
-            value={mostUsedService?.serviceName ?? "N/A"}
-            helper={mostUsedService ? `${mostUsedService.count} cases` : undefined}
-          />
-          <SummaryCard
-            label="Average Revenue Per Patient"
-            value={usdWhole(averageRevenuePerPatient)}
-          />
-          <SummaryCard
-            label="Insurance Share of Revenue"
-            value={`${insuranceShare}%`}
-            helper={usdWhole(insuranceRevenue)}
-          />
-          <SummaryCard
             label="Cash / Card / Insurance Distribution"
             value={paymentDistribution}
           />
           <SummaryCard
-            label="Outstanding Insurance Receivables"
+            label="Pending Doctor Payouts (LKR)"
+            value={money(monthlyPendingPayouts)}
+            warning={monthlyPendingPayouts > 0}
+          />
+          <SummaryCard
+            label="Outstanding Insurance Receivables (USD)"
             value={usdWhole(outstandingInsuranceReceivables)}
             warning={outstandingInsuranceReceivables > 0}
+          />
+          <SummaryCard
+            label="Average Invoice Value (USD)"
+            value={usdWhole(averageInvoiceValue)}
           />
         </div>
       </section>
