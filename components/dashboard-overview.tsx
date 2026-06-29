@@ -179,7 +179,7 @@ function PaymentDistributionPanel({
   total: number;
 }) {
   return (
-    <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md xl:col-span-3">
+    <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md md:col-span-2 xl:col-span-3">
       <p className="label text-[#46484a]">Cash / Card / Insurance Distribution</p>
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {rows.map((row) => {
@@ -564,6 +564,10 @@ export function DashboardOverview({
         <SectionTitle title="Business Insights" />
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
           <SummaryCard
+            label="Average Invoice Value (USD)"
+            value={usdWhole(averageInvoiceValue)}
+          />
+          <SummaryCard
             label="Pending Doctor Payouts (LKR)"
             value={money(monthlyPendingPayouts)}
             warning={monthlyPendingPayouts > 0}
@@ -572,10 +576,6 @@ export function DashboardOverview({
             label="Outstanding Insurance Receivables (USD)"
             value={usdWhole(outstandingInsuranceReceivables)}
             warning={outstandingInsuranceReceivables > 0}
-          />
-          <SummaryCard
-            label="Average Invoice Value (USD)"
-            value={usdWhole(averageInvoiceValue)}
           />
           <PaymentDistributionPanel
             rows={paymentDistributionRows}
