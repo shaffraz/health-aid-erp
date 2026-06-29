@@ -12,8 +12,7 @@ import { SectionHeader } from "@/components/section-header";
 import { StatusPill } from "@/components/status-pill";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkspaceData } from "@/lib/data";
-import { demoSettings } from "@/lib/demo-data";
-import { convertLkrToUsd, money, todayISO, usd } from "@/lib/format";
+import { money, todayISO, usd } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 
 export default async function DashboardPage() {
@@ -39,8 +38,7 @@ export default async function DashboardPage() {
 
   const recentInvoices = user.role === "doctor" ? [] : data.invoices.slice(0, 5);
   const recentPayouts = visiblePayouts.slice(0, 5);
-  const invoiceUsd = (value: number) =>
-    usd(convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd));
+  const invoiceUsd = (value: number) => usd(value);
 
   return (
     <div className="space-y-6">

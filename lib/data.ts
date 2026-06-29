@@ -1,5 +1,4 @@
 import { demoWorkspaceData } from "@/lib/demo-data";
-import { defaultDoctorPaymentModel } from "@/lib/doctor-payment";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import type {
   Doctor,
@@ -80,7 +79,6 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
       registrationNo: doctor.registration_no ?? undefined,
       phone: doctor.phone ?? undefined,
       notes: undefined,
-      paymentModel: defaultDoctorPaymentModel,
       active: doctor.active
     })) satisfies Doctor[],
     services: (services.data ?? []).map((service) => ({

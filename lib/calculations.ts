@@ -4,9 +4,9 @@ import {
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
 import {
-  type Doctor,
   type DoctorPaymentRule,
   type DoctorPayout,
+  type DoctorPaymentModel,
   type Invoice,
   type InvoiceItem,
   type RuleType,
@@ -74,15 +74,9 @@ export function calculatePayoutAmount(
 
 export function generatePayoutsForInvoice(
   invoice: Invoice,
-  doctors: Doctor[]
+  paymentSettings: DoctorPaymentModel
 ): DoctorPayout[] {
-  const doctor = doctors.find((candidate) => candidate.id === invoice.doctorId);
-
-  if (!doctor) {
-    return [];
-  }
-
-  const paymentModel = normalizeDoctorPaymentModel(doctor.paymentModel);
+  const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
   const invoiceTime = invoice.time ?? "12:00";
 
   if (paymentModel.activeModel === "peak_season") {
@@ -134,60 +128,60 @@ export function generatePayoutsForInvoice(
   ];
 }
 
-export function generateShiftPayoutSummaries(invoices: Invoice[], doctors: Doctor[]) {
+export function generateShiftPayoutSummaries(
+  invoices: Invoice[],
+  paymentSettings: DoctorPaymentModel
+) {
   const summaries: DoctorPayout[] = [];
+  const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
 
-  doctors.forEach((doctor) => {
-    const paymentModel = normalizeDoctorPaymentModel(doctor.paymentModel);
+  if (paymentModel.activeModel !== "peak_season") {
+    return summaries;
+  }
 
-    if (paymentModel.activeModel !== "peak_season") {
-      return;
-    }
+  const shift = paymentModel.peakSeason;
+  const shiftHours = hoursBetween(shift.shiftStartTime, shift.shiftEndTime);
+  const basePay = Math.round(shiftHours * shift.hourlyRate);
+  const invoicesByDoctorAndDate = new Map<string, Invoice[]>();
 
-    const shift = paymentModel.peakSeason;
-    const shiftHours = hoursBetween(shift.shiftStartTime, shift.shiftEndTime);
-    const basePay = Math.round(shiftHours * shift.hourlyRate);
-    const invoicesByDate = new Map<string, Invoice[]>();
+  invoices
+    .filter((invoice) =>
+      isTimeInWindow(invoice.time ?? "12:00", shift.shiftStartTime, shift.shiftEndTime)
+    )
+    .forEach((invoice) => {
+      const key = `${invoice.doctorId}::${invoice.date}`;
+      const shiftInvoices = invoicesByDoctorAndDate.get(key) ?? [];
+      shiftInvoices.push(invoice);
+      invoicesByDoctorAndDate.set(key, shiftInvoices);
+    });
 
-    invoices
-      .filter(
-        (invoice) =>
-          invoice.doctorId === doctor.id &&
-          isTimeInWindow(invoice.time ?? "12:00", shift.shiftStartTime, shift.shiftEndTime)
-      )
-      .forEach((invoice) => {
-        const dateInvoices = invoicesByDate.get(invoice.date) ?? [];
-        dateInvoices.push(invoice);
-        invoicesByDate.set(invoice.date, dateInvoices);
-      });
+  invoicesByDoctorAndDate.forEach((shiftInvoices, key) => {
+    const [doctorId, date] = key.split("::");
+    const patientCount = shiftInvoices.length;
+    const bonus =
+      patientCount >= shift.bonusThresholdPatients
+        ? patientCount * shift.bonusPerPatient
+        : 0;
+    const payoutAmount = basePay + bonus;
 
-    invoicesByDate.forEach((shiftInvoices, date) => {
-      const patientCount = shiftInvoices.length;
-      const bonus =
-        patientCount >= shift.bonusThresholdPatients
-          ? patientCount * shift.bonusPerPatient
-          : 0;
-      const payoutAmount = basePay + bonus;
-
-      summaries.push({
-        id: `${doctor.id}-${date}-${shift.shiftStartTime}-${shift.shiftEndTime}-shift`,
-        doctorId: doctor.id,
-        invoiceId: `shift-${doctor.id}-${date}`,
-        invoiceNo: `Shift ${shift.shiftStartTime}-${shift.shiftEndTime}`,
-        date,
-        time: shift.shiftEndTime,
-        serviceName: "Peak season shift voucher",
-        paymentReason:
-          bonus > 0
-            ? `${shiftHours}h base pay + ${patientCount} patient bonus`
-            : `${shiftHours}h base pay; ${patientCount} patients below bonus threshold`,
-        payoutAmount,
-        status: "unpaid",
-        payoutMode: "shift",
-        shiftStartTime: shift.shiftStartTime,
-        shiftEndTime: shift.shiftEndTime,
-        patientCount
-      });
+    summaries.push({
+      id: `${doctorId}-${date}-${shift.shiftStartTime}-${shift.shiftEndTime}-shift`,
+      doctorId,
+      invoiceId: `shift-${doctorId}-${date}`,
+      invoiceNo: `Shift ${shift.shiftStartTime}-${shift.shiftEndTime}`,
+      date,
+      time: shift.shiftEndTime,
+      serviceName: "Peak season shift voucher",
+      paymentReason:
+        bonus > 0
+          ? `${shiftHours}h base pay + ${patientCount} patient bonus`
+          : `${shiftHours}h base pay; ${patientCount} patients below bonus threshold`,
+      payoutAmount,
+      status: "unpaid",
+      payoutMode: "shift",
+      shiftStartTime: shift.shiftStartTime,
+      shiftEndTime: shift.shiftEndTime,
+      patientCount
     });
   });
 
@@ -196,17 +190,20 @@ export function generateShiftPayoutSummaries(invoices: Invoice[], doctors: Docto
 
 export function generatePayoutsForInvoices(
   invoices: Invoice[],
-  doctors: Doctor[],
+  paymentSettings: DoctorPaymentModel,
   options: { includePendingShiftRecords?: boolean } = {}
 ) {
   const invoicePayouts = invoices.flatMap((invoice) =>
-    generatePayoutsForInvoice(invoice, doctors)
+    generatePayoutsForInvoice(invoice, paymentSettings)
   );
   const visibleInvoicePayouts = options.includePendingShiftRecords
     ? invoicePayouts
     : invoicePayouts.filter((payout) => payout.payoutMode !== "pending_shift");
 
-  return [...visibleInvoicePayouts, ...generateShiftPayoutSummaries(invoices, doctors)];
+  return [
+    ...visibleInvoicePayouts,
+    ...generateShiftPayoutSummaries(invoices, paymentSettings)
+  ];
 }
 
 export function nextInvoiceNumber(lastInvoiceNo?: string) {

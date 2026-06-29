@@ -17,14 +17,20 @@ import {
   generatePayoutsForInvoices,
   nextInvoiceNumber
 } from "@/lib/calculations";
-import { currentTimeHHMM, normalizeDoctorPaymentModel } from "@/lib/doctor-payment";
+import {
+  currentTimeHHMM,
+  defaultDoctorPaymentModel,
+  normalizeDoctorPaymentModel
+} from "@/lib/doctor-payment";
 import { money, todayISO, usd } from "@/lib/format";
 import {
+  doctorPaymentSettingsStorageKey,
   doctorStorageKey,
   isAmountOnlyInvoiceServiceName,
   paymentMethods,
   serviceStorageKey,
   type Doctor,
+  type DoctorPaymentModel,
   type DoctorPayout,
   type Invoice,
   type InvoiceItem,
@@ -64,7 +70,7 @@ function normalizeDoctorCatalog(doctor: Doctor): Doctor {
   return {
     ...doctor,
     designation: doctor.designation ?? legacyDoctor.specialty ?? "General practice",
-    paymentModel: normalizeDoctorPaymentModel(doctor.paymentModel)
+    notes: doctor.notes ?? ""
   };
 }
 
@@ -95,8 +101,11 @@ export function InvoicePosForm({
   const serviceOptions = invoiceServices.filter((service) => service.active);
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+  const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
+    defaultDoctorPaymentModel
+  );
   const [payoutQueue, setPayoutQueue] = useState<DoctorPayout[]>(() =>
-    generatePayoutsForInvoices(initialInvoices, doctors.map(normalizeDoctorCatalog), {
+    generatePayoutsForInvoices(initialInvoices, defaultDoctorPaymentModel, {
       includePendingShiftRecords: true
     }).slice(0, 8)
   );
@@ -157,6 +166,25 @@ export function InvoicePosForm({
     }
   }, [services]);
 
+  useEffect(() => {
+    try {
+      const storedSettings = window.localStorage.getItem(doctorPaymentSettingsStorageKey);
+      if (storedSettings) {
+        setPaymentSettings(normalizeDoctorPaymentModel(JSON.parse(storedSettings)));
+      }
+    } catch {
+      setPaymentSettings(defaultDoctorPaymentModel);
+    }
+  }, []);
+
+  useEffect(() => {
+    setPayoutQueue(
+      generatePayoutsForInvoices(invoices, paymentSettings, {
+        includePendingShiftRecords: true
+      }).slice(0, 8)
+    );
+  }, [invoices, paymentSettings]);
+
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
   const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
   const selectedDoctor = doctorCatalog.find((doctor) => doctor.id === doctorId);
@@ -214,7 +242,7 @@ export function InvoicePosForm({
     totalAmount: totals.totalAmount,
     createdBy
   } satisfies Invoice;
-  const payoutPreview = generatePayoutsForInvoice(draftInvoice, doctorCatalog);
+  const payoutPreview = generatePayoutsForInvoice(draftInvoice, paymentSettings);
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
   function addServiceLine() {
@@ -345,7 +373,7 @@ export function InvoicePosForm({
       items: invoiceItems.map((item) => ({ ...item, id: makeId() }))
     };
     const nextInvoices = [createdInvoice, ...invoices];
-    const nextPayouts = generatePayoutsForInvoices(nextInvoices, doctorCatalog, {
+    const nextPayouts = generatePayoutsForInvoices(nextInvoices, paymentSettings, {
       includePendingShiftRecords: true
     });
 
@@ -739,7 +767,7 @@ export function InvoicePosForm({
           <p className="mt-1 text-sm text-slate-500">Mock unpaid payouts in LKR</p>
           <div className="mt-4 space-y-3">
             {payoutQueue.map((payout) => {
-              const doctor = doctors.find((candidate) => candidate.id === payout.doctorId);
+              const doctor = doctorCatalog.find((candidate) => candidate.id === payout.doctorId);
 
               return (
                 <div key={payout.id} className="rounded-lg border border-slate-100 p-3">

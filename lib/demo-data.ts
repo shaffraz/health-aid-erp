@@ -30,7 +30,6 @@ export const demoDoctors: Doctor[] = [
     registrationNo: "SLMC 48291",
     phone: "+94 77 412 1098",
     notes: "Handles urgent travel medicine consultations.",
-    paymentModel: defaultDoctorPaymentModel,
     active: true
   },
   {
@@ -40,7 +39,6 @@ export const demoDoctors: Doctor[] = [
     registrationNo: "SLMC 51904",
     phone: "+94 76 203 7712",
     notes: "Low season per-patient consultation model.",
-    paymentModel: defaultDoctorPaymentModel,
     active: true
   },
   {
@@ -50,10 +48,6 @@ export const demoDoctors: Doctor[] = [
     registrationNo: "SLMC 46702",
     phone: "+94 75 889 6440",
     notes: "Peak season shift model for evening procedure cover.",
-    paymentModel: {
-      ...defaultDoctorPaymentModel,
-      activeModel: "peak_season"
-    },
     active: true
   }
 ];
@@ -301,7 +295,7 @@ export const demoInvoices: Invoice[] = [
   })
 ];
 
-const generatedPayouts = generatePayoutsForInvoices(demoInvoices, demoDoctors);
+const generatedPayouts = generatePayoutsForInvoices(demoInvoices, defaultDoctorPaymentModel);
 
 export const demoPayouts = generatedPayouts.map((payout, index) => ({
   ...payout,

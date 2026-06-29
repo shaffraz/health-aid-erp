@@ -2,29 +2,38 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Banknote,
+  CalendarDays,
   CirclePlus,
   Edit3,
   Save,
   Trash2,
   UserCheck,
+  UsersRound,
   UserX,
   X
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { generatePayoutsForInvoices } from "@/lib/calculations";
 import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money } from "@/lib/format";
+import { money, shortDate } from "@/lib/format";
 import {
+  doctorPaymentSettingsStorageKey,
   doctorStorageKey,
   type Doctor,
+  type DoctorPaymentModel,
   type DoctorPaymentModelType,
-  type DoctorPayout
+  type DoctorPayout,
+  type Invoice
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type DoctorsAdminProps = {
   initialDoctors: Doctor[];
+  initialInvoices: Invoice[];
   payouts: DoctorPayout[];
   canEdit: boolean;
 };
@@ -36,16 +45,6 @@ type DoctorForm = {
   phone: string;
   active: boolean;
   notes: string;
-  activeModel: DoctorPaymentModelType;
-  dayConsultationPayout: string;
-  nightConsultationPayout: string;
-  nightStartTime: string;
-  nightEndTime: string;
-  shiftStartTime: string;
-  shiftEndTime: string;
-  hourlyRate: string;
-  bonusThresholdPatients: string;
-  bonusPerPatient: string;
 };
 
 const emptyForm: DoctorForm = {
@@ -53,17 +52,7 @@ const emptyForm: DoctorForm = {
   designation: "",
   phone: "",
   active: true,
-  notes: "",
-  activeModel: defaultDoctorPaymentModel.activeModel,
-  dayConsultationPayout: String(defaultDoctorPaymentModel.lowSeason.dayConsultationPayout),
-  nightConsultationPayout: String(defaultDoctorPaymentModel.lowSeason.nightConsultationPayout),
-  nightStartTime: defaultDoctorPaymentModel.lowSeason.nightStartTime,
-  nightEndTime: defaultDoctorPaymentModel.lowSeason.nightEndTime,
-  shiftStartTime: defaultDoctorPaymentModel.peakSeason.shiftStartTime,
-  shiftEndTime: defaultDoctorPaymentModel.peakSeason.shiftEndTime,
-  hourlyRate: String(defaultDoctorPaymentModel.peakSeason.hourlyRate),
-  bonusThresholdPatients: String(defaultDoctorPaymentModel.peakSeason.bonusThresholdPatients),
-  bonusPerPatient: String(defaultDoctorPaymentModel.peakSeason.bonusPerPatient)
+  notes: ""
 };
 
 const modelLabels: Record<DoctorPaymentModelType, string> = {
@@ -71,7 +60,7 @@ const modelLabels: Record<DoctorPaymentModelType, string> = {
   peak_season: "Peak Season / Shift Based"
 };
 
-function toAmount(value: string, fallback: number) {
+function toAmount(value: string | number, fallback: number) {
   const amount = Number(value);
 
   return Number.isFinite(amount) ? Math.max(0, amount) : fallback;
@@ -83,14 +72,12 @@ function normalizeDoctor(doctor: Doctor): Doctor {
   return {
     ...doctor,
     designation: doctor.designation ?? legacyDoctor.specialty ?? "General practice",
-    notes: doctor.notes ?? "",
-    paymentModel: normalizeDoctorPaymentModel(doctor.paymentModel)
+    notes: doctor.notes ?? ""
   };
 }
 
 function doctorToForm(doctor: Doctor): DoctorForm {
   const normalized = normalizeDoctor(doctor);
-  const paymentModel = normalizeDoctorPaymentModel(normalized.paymentModel);
 
   return {
     id: normalized.id,
@@ -98,17 +85,7 @@ function doctorToForm(doctor: Doctor): DoctorForm {
     designation: normalized.designation,
     phone: normalized.phone ?? "",
     active: normalized.active,
-    notes: normalized.notes ?? "",
-    activeModel: paymentModel.activeModel,
-    dayConsultationPayout: String(paymentModel.lowSeason.dayConsultationPayout),
-    nightConsultationPayout: String(paymentModel.lowSeason.nightConsultationPayout),
-    nightStartTime: paymentModel.lowSeason.nightStartTime,
-    nightEndTime: paymentModel.lowSeason.nightEndTime,
-    shiftStartTime: paymentModel.peakSeason.shiftStartTime,
-    shiftEndTime: paymentModel.peakSeason.shiftEndTime,
-    hourlyRate: String(paymentModel.peakSeason.hourlyRate),
-    bonusThresholdPatients: String(paymentModel.peakSeason.bonusThresholdPatients),
-    bonusPerPatient: String(paymentModel.peakSeason.bonusPerPatient)
+    notes: normalized.notes ?? ""
   };
 }
 
@@ -119,40 +96,49 @@ function formToDoctor(form: DoctorForm): Doctor {
     designation: form.designation.trim() || "General practice",
     phone: form.phone.trim() || undefined,
     notes: form.notes.trim() || undefined,
-    active: form.active,
-    paymentModel: {
-      activeModel: form.activeModel,
-      lowSeason: {
-        dayConsultationPayout: toAmount(
-          form.dayConsultationPayout,
-          defaultDoctorPaymentModel.lowSeason.dayConsultationPayout
-        ),
-        nightConsultationPayout: toAmount(
-          form.nightConsultationPayout,
-          defaultDoctorPaymentModel.lowSeason.nightConsultationPayout
-        ),
-        nightStartTime: form.nightStartTime || defaultDoctorPaymentModel.lowSeason.nightStartTime,
-        nightEndTime: form.nightEndTime || defaultDoctorPaymentModel.lowSeason.nightEndTime
-      },
-      peakSeason: {
-        shiftStartTime: form.shiftStartTime || defaultDoctorPaymentModel.peakSeason.shiftStartTime,
-        shiftEndTime: form.shiftEndTime || defaultDoctorPaymentModel.peakSeason.shiftEndTime,
-        hourlyRate: toAmount(form.hourlyRate, defaultDoctorPaymentModel.peakSeason.hourlyRate),
-        bonusThresholdPatients: toAmount(
-          form.bonusThresholdPatients,
-          defaultDoctorPaymentModel.peakSeason.bonusThresholdPatients
-        ),
-        bonusPerPatient: toAmount(
-          form.bonusPerPatient,
-          defaultDoctorPaymentModel.peakSeason.bonusPerPatient
-        )
-      }
-    }
+    active: form.active
   };
 }
 
-export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminProps) {
+function MetricTile({
+  label,
+  value,
+  helper,
+  icon: Icon
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 text-2xl font-bold text-ink">{value}</p>
+          <p className="mt-1 text-sm text-slate-500">{helper}</p>
+        </div>
+        <div className="rounded-lg bg-lagoon-50 p-2 text-lagoon-700">
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function DoctorsAdmin({
+  initialDoctors,
+  initialInvoices,
+  payouts,
+  canEdit
+}: DoctorsAdminProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
+  const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
+    defaultDoctorPaymentModel
+  );
   const [form, setForm] = useState<DoctorForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState("");
@@ -167,6 +153,11 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
           setDoctors((parsed as Doctor[]).map(normalizeDoctor));
         }
       }
+
+      const storedSettings = window.localStorage.getItem(doctorPaymentSettingsStorageKey);
+      if (storedSettings) {
+        setPaymentSettings(normalizeDoctorPaymentModel(JSON.parse(storedSettings)));
+      }
     } finally {
       setHydrated(true);
     }
@@ -175,19 +166,60 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
   useEffect(() => {
     if (hydrated) {
       window.localStorage.setItem(doctorStorageKey, JSON.stringify(doctors));
+      window.localStorage.setItem(
+        doctorPaymentSettingsStorageKey,
+        JSON.stringify(paymentSettings)
+      );
     }
-  }, [doctors, hydrated]);
+  }, [doctors, hydrated, paymentSettings]);
 
-  const unpaidPayoutByDoctor = useMemo(() => {
-    return payouts.reduce<Map<string, number>>((totals, payout) => {
-      if (payout.status === "unpaid" && payout.payoutMode !== "pending_shift") {
-        totals.set(payout.doctorId, (totals.get(payout.doctorId) ?? 0) + payout.payoutAmount);
+  const visiblePayouts = useMemo(() => {
+    const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
+
+    return generatePayoutsForInvoices(initialInvoices, paymentSettings)
+      .map((payout) => {
+        const existing = existingPayoutsById.get(payout.id);
+
+        return {
+          ...payout,
+          status: existing?.status ?? payout.status,
+          voucherNo: existing?.voucherNo ?? payout.voucherNo
+        };
+      })
+      .filter((payout) => payout.payoutMode !== "pending_shift");
+  }, [initialInvoices, paymentSettings, payouts]);
+
+  const payoutSummaryByDoctor = useMemo(() => {
+    return visiblePayouts.reduce<
+      Map<string, { pending: number; lastPaidDate?: string }>
+    >((totals, payout) => {
+      const summary = totals.get(payout.doctorId) ?? { pending: 0 };
+
+      if (payout.status === "unpaid") {
+        summary.pending += payout.payoutAmount;
       }
 
+      if (
+        payout.status === "paid" &&
+        (!summary.lastPaidDate || payout.date > summary.lastPaidDate)
+      ) {
+        summary.lastPaidDate = payout.date;
+      }
+
+      totals.set(payout.doctorId, summary);
       return totals;
     }, new Map());
-  }, [payouts]);
+  }, [visiblePayouts]);
 
+  const activeCount = doctors.filter((doctor) => doctor.active).length;
+  const inactiveCount = doctors.length - activeCount;
+  const totalPending = [...payoutSummaryByDoctor.values()].reduce(
+    (sum, summary) => sum + summary.pending,
+    0
+  );
+  const lastPaidPayout = [...visiblePayouts]
+    .filter((payout) => payout.status === "paid")
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
   const editing = Boolean(form.id);
 
   function resetForm() {
@@ -251,14 +283,301 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
     }
   }
 
+  function updatePaymentSettings(patch: Partial<DoctorPaymentModel>) {
+    setPaymentSettings((current) => normalizeDoctorPaymentModel({ ...current, ...patch }));
+  }
+
   return (
-    <>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricTile
+          label="Directory"
+          value={String(doctors.length)}
+          helper="Doctors in mock setup"
+          icon={UsersRound}
+        />
+        <MetricTile
+          label="Active"
+          value={String(activeCount)}
+          helper="Available in Invoice POS"
+          icon={UserCheck}
+        />
+        <MetricTile
+          label="Inactive"
+          value={String(inactiveCount)}
+          helper="Hidden from Invoice POS"
+          icon={UserX}
+        />
+        <MetricTile
+          label="Pending"
+          value={money(totalPending)}
+          helper="Total pending payout"
+          icon={Banknote}
+        />
+        <MetricTile
+          label="Last paid"
+          value={lastPaidPayout ? shortDate(lastPaidPayout.date) : "-"}
+          helper={lastPaidPayout ? money(lastPaidPayout.payoutAmount) : "No paid payout yet"}
+          icon={CalendarDays}
+        />
+      </div>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-slate-100 p-5">
+          <h2 className="font-semibold text-ink">Pending payouts doctor-wise</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Mock pending payout totals from invoice payouts and shift vouchers.
+          </p>
+        </div>
+        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+          {doctors.map((doctor) => {
+            const pending = payoutSummaryByDoctor.get(doctor.id)?.pending ?? 0;
+
+            return (
+              <div key={doctor.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <p className="font-semibold text-ink">{doctor.name}</p>
+                <p className="mt-1 text-sm text-slate-500">{doctor.designation}</p>
+                <p className="mt-3 text-lg font-bold text-amber-700">{money(pending)}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-slate-100 p-5">
+          <h2 className="font-semibold text-ink">Doctor Payment Settings</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Internal admin setup. This global model is used for all doctors in Invoice POS.
+          </p>
+        </div>
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="xl:col-span-3">
+            <label className="label" htmlFor="global-payment-model">
+              Current active payment model
+            </label>
+            <select
+              id="global-payment-model"
+              value={paymentSettings.activeModel}
+              onChange={(event) =>
+                updatePaymentSettings({
+                  activeModel: event.target.value as DoctorPaymentModelType
+                })
+              }
+              disabled={!canEdit}
+              className="field mt-2 max-w-md disabled:bg-slate-100"
+            >
+              <option value="low_season">{modelLabels.low_season}</option>
+              <option value="peak_season">{modelLabels.peak_season}</option>
+            </select>
+          </div>
+
+          {paymentSettings.activeModel === "low_season" ? (
+            <>
+              <div>
+                <label className="label" htmlFor="day-payout">
+                  Day consultation payout LKR
+                </label>
+                <input
+                  id="day-payout"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={paymentSettings.lowSeason.dayConsultationPayout}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      lowSeason: {
+                        ...paymentSettings.lowSeason,
+                        dayConsultationPayout: toAmount(event.target.value, 2500)
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="night-payout">
+                  Night consultation payout LKR
+                </label>
+                <input
+                  id="night-payout"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={paymentSettings.lowSeason.nightConsultationPayout}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      lowSeason: {
+                        ...paymentSettings.lowSeason,
+                        nightConsultationPayout: toAmount(event.target.value, 3500)
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="night-start">
+                  Night start
+                </label>
+                <input
+                  id="night-start"
+                  type="time"
+                  value={paymentSettings.lowSeason.nightStartTime}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      lowSeason: {
+                        ...paymentSettings.lowSeason,
+                        nightStartTime: event.target.value
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="night-end">
+                  Night end
+                </label>
+                <input
+                  id="night-end"
+                  type="time"
+                  value={paymentSettings.lowSeason.nightEndTime}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      lowSeason: {
+                        ...paymentSettings.lowSeason,
+                        nightEndTime: event.target.value
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="label" htmlFor="shift-start">
+                  Shift start
+                </label>
+                <input
+                  id="shift-start"
+                  type="time"
+                  value={paymentSettings.peakSeason.shiftStartTime}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      peakSeason: {
+                        ...paymentSettings.peakSeason,
+                        shiftStartTime: event.target.value
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="shift-end">
+                  Shift end
+                </label>
+                <input
+                  id="shift-end"
+                  type="time"
+                  value={paymentSettings.peakSeason.shiftEndTime}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      peakSeason: {
+                        ...paymentSettings.peakSeason,
+                        shiftEndTime: event.target.value
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="hourly-rate">
+                  Hourly rate LKR
+                </label>
+                <input
+                  id="hourly-rate"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={paymentSettings.peakSeason.hourlyRate}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      peakSeason: {
+                        ...paymentSettings.peakSeason,
+                        hourlyRate: toAmount(event.target.value, 1000)
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="bonus-threshold">
+                  Bonus threshold patients
+                </label>
+                <input
+                  id="bonus-threshold"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={paymentSettings.peakSeason.bonusThresholdPatients}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      peakSeason: {
+                        ...paymentSettings.peakSeason,
+                        bonusThresholdPatients: toAmount(event.target.value, 5)
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="bonus-per-patient">
+                  Bonus per patient LKR
+                </label>
+                <input
+                  id="bonus-per-patient"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={paymentSettings.peakSeason.bonusPerPatient}
+                  onChange={(event) =>
+                    updatePaymentSettings({
+                      peakSeason: {
+                        ...paymentSettings.peakSeason,
+                        bonusPerPatient: toAmount(event.target.value, 1000)
+                      }
+                    })
+                  }
+                  disabled={!canEdit}
+                  className="field mt-2 disabled:bg-slate-100"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
       <section className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-semibold text-ink">Doctors</h2>
+            <h2 className="font-semibold text-ink">Doctor directory</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {doctors.length} doctors in the mock directory
+              Add, edit, deactivate, reactivate, and delete mock doctor records.
             </p>
           </div>
           <button
@@ -276,91 +595,84 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
           <table className="min-w-full divide-y divide-slate-100 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               <tr>
-                <th className="px-5 py-3">Doctor name</th>
+                <th className="px-5 py-3">Name</th>
                 <th className="px-5 py-3">Designation</th>
                 <th className="px-5 py-3">Phone</th>
-                <th className="px-5 py-3">Active status</th>
-                <th className="px-5 py-3">Active model</th>
-                <th className="px-5 py-3 text-right">Total unpaid payout LKR</th>
+                <th className="px-5 py-3">Active / Inactive</th>
+                <th className="px-5 py-3 text-right">Pending payout LKR</th>
+                <th className="px-5 py-3">Last payout date</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {doctors.map((doctor) => (
-                <tr
-                  key={doctor.id}
-                  className={cn(
-                    "border-l-4",
-                    doctor.active ? "border-l-emerald-500" : "border-l-rose-500"
-                  )}
-                >
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-ink">{doctor.name}</p>
-                    {doctor.notes ? (
-                      <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
-                        {doctor.notes}
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                    {doctor.designation}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                    {doctor.phone ?? "-"}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={cn(
-                        "font-semibold",
-                        doctor.active ? "text-emerald-700" : "text-rose-700"
-                      )}
-                    >
-                      {doctor.active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                    {modelLabels[normalizeDoctorPaymentModel(doctor.paymentModel).activeModel]}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
-                    {money(unpaidPayoutByDoctor.get(doctor.id) ?? 0)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editDoctor(doctor)}
-                        disabled={!canEdit}
-                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleDoctorActive(doctor.id)}
-                        disabled={!canEdit}
-                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        {doctor.active ? (
-                          <UserX className="h-3.5 w-3.5" aria-hidden="true" />
-                        ) : (
-                          <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              {doctors.map((doctor) => {
+                const summary = payoutSummaryByDoctor.get(doctor.id);
+
+                return (
+                  <tr key={doctor.id}>
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-ink">{doctor.name}</p>
+                      {doctor.notes ? (
+                        <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
+                          {doctor.notes}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                      {doctor.designation}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                      {doctor.phone ?? "-"}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          doctor.active ? "text-emerald-700" : "text-rose-700"
                         )}
-                        {doctor.active ? "Deactivate" : "Reactivate"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteDoctor(doctor.id)}
-                        disabled={!canEdit}
-                        className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {doctor.active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
+                      {money(summary?.pending ?? 0)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                      {summary?.lastPaidDate ? shortDate(summary.lastPaidDate) : "-"}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editDoctor(doctor)}
+                          disabled={!canEdit}
+                          className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleDoctorActive(doctor.id)}
+                          disabled={!canEdit}
+                          className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          {doctor.active ? "Deactivate" : "Reactivate"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteDoctor(doctor.id)}
+                          disabled={!canEdit}
+                          className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {!doctors.length ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">
@@ -380,7 +692,7 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
           aria-modal="true"
           aria-labelledby="doctor-form-title"
         >
-          <section className="w-full max-w-3xl rounded-xl bg-white shadow-xl">
+          <section className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <h2 id="doctor-form-title" className="font-semibold text-ink">
                 {editing ? "Edit doctor" : "Add doctor"}
@@ -395,7 +707,7 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
               </button>
             </div>
 
-            <div className="max-h-[75vh] space-y-5 overflow-y-auto p-5">
+            <div className="space-y-4 p-5">
               {!canEdit ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
                   Doctor setup is admin-only.
@@ -490,195 +802,6 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
                   />
                 </div>
               </div>
-
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <h3 className="font-semibold text-ink">Doctor Payment Model</h3>
-                <div className="mt-4">
-                  <label className="label" htmlFor="active-payment-model">
-                    Active model
-                  </label>
-                  <select
-                    id="active-payment-model"
-                    value={form.activeModel}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        activeModel: event.target.value as DoctorPaymentModelType
-                      }))
-                    }
-                    disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
-                  >
-                    <option value="low_season">{modelLabels.low_season}</option>
-                    <option value="peak_season">{modelLabels.peak_season}</option>
-                  </select>
-                </div>
-
-                {form.activeModel === "low_season" ? (
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="label" htmlFor="day-payout">
-                        Day consultation payout LKR
-                      </label>
-                      <input
-                        id="day-payout"
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={form.dayConsultationPayout}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            dayConsultationPayout: event.target.value
-                          }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="night-payout">
-                        Night consultation payout LKR
-                      </label>
-                      <input
-                        id="night-payout"
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={form.nightConsultationPayout}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            nightConsultationPayout: event.target.value
-                          }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="night-start">
-                        Night start time
-                      </label>
-                      <input
-                        id="night-start"
-                        type="time"
-                        value={form.nightStartTime}
-                        onChange={(event) =>
-                          setForm((current) => ({ ...current, nightStartTime: event.target.value }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="night-end">
-                        Night end time
-                      </label>
-                      <input
-                        id="night-end"
-                        type="time"
-                        value={form.nightEndTime}
-                        onChange={(event) =>
-                          setForm((current) => ({ ...current, nightEndTime: event.target.value }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="label" htmlFor="shift-start">
-                        Shift start time
-                      </label>
-                      <input
-                        id="shift-start"
-                        type="time"
-                        value={form.shiftStartTime}
-                        onChange={(event) =>
-                          setForm((current) => ({ ...current, shiftStartTime: event.target.value }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="shift-end">
-                        Shift end time
-                      </label>
-                      <input
-                        id="shift-end"
-                        type="time"
-                        value={form.shiftEndTime}
-                        onChange={(event) =>
-                          setForm((current) => ({ ...current, shiftEndTime: event.target.value }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="hourly-rate">
-                        Hourly rate LKR
-                      </label>
-                      <input
-                        id="hourly-rate"
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={form.hourlyRate}
-                        onChange={(event) =>
-                          setForm((current) => ({ ...current, hourlyRate: event.target.value }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="bonus-threshold">
-                        Bonus threshold patients
-                      </label>
-                      <input
-                        id="bonus-threshold"
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={form.bonusThresholdPatients}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            bonusThresholdPatients: event.target.value
-                          }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="bonus-per-patient">
-                        Bonus per patient LKR
-                      </label>
-                      <input
-                        id="bonus-per-patient"
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={form.bonusPerPatient}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            bonusPerPatient: event.target.value
-                          }))
-                        }
-                        disabled={!canEdit}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
@@ -707,6 +830,6 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
           </section>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -4,8 +4,7 @@ import { useMemo, useState } from "react";
 import { BarChart3, CalendarDays, Download, ReceiptText, Stethoscope } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
-import { demoSettings } from "@/lib/demo-data";
-import { convertLkrToUsd, money, monthKey, shortDate, todayISO, usd } from "@/lib/format";
+import { money, monthKey, shortDate, todayISO, usd } from "@/lib/format";
 import type { Doctor, DoctorPayout, Invoice, ServiceCategory } from "@/lib/types";
 
 type ReportsDashboardProps = {
@@ -32,8 +31,7 @@ function downloadCsv(fileName: string, rows: string[][]) {
 export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboardProps) {
   const [date, setDate] = useState(todayISO());
   const [month, setMonth] = useState(todayISO().slice(0, 7));
-  const invoiceUsd = (value: number) =>
-    usd(convertLkrToUsd(value, demoSettings.exchangeRateLkrPerUsd));
+  const invoiceUsd = (value: number) => usd(value);
 
   const dailyInvoices = invoices.filter((invoice) => invoice.date === date);
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === month);

@@ -21,6 +21,7 @@ export default async function DoctorsPage() {
       />
       <DoctorsAdmin
         initialDoctors={data.doctors}
+        initialInvoices={data.invoices}
         payouts={data.payouts}
         canEdit={hasPermission(user.role, "manageDoctors")}
       />
