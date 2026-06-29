@@ -13,7 +13,7 @@ import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money, monthKey, todayISO, usd } from "@/lib/format";
+import { money, monthKey, todayISO, usdWhole } from "@/lib/format";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
@@ -53,6 +53,10 @@ const paymentModelLabels = {
   low_season: "Low Season",
   peak_season: "Peak Season"
 } satisfies Record<DoctorPaymentModel["activeModel"], string>;
+
+function roundUsd(value: number) {
+  return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+}
 
 function makeId() {
   return crypto.randomUUID();
@@ -115,7 +119,6 @@ export function InvoicePosForm({
   const [patientName, setPatientName] = useState("");
   const [passport, setPassport] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [nationality, setNationality] = useState("");
   const [doctorId, setDoctorId] = useState(activeDoctors[0]?.id ?? "");
   const [discount, setDiscount] = useState(0);
@@ -251,7 +254,7 @@ export function InvoicePosForm({
 
           const isAmountOnlyService = isAmountOnlyInvoiceServiceName(service.name);
           const quantity = isAmountOnlyService ? 1 : line.quantity;
-          const unitPrice = isAmountOnlyService ? line.amountUsd : service.sellingPrice;
+          const unitPrice = roundUsd(isAmountOnlyService ? line.amountUsd : service.sellingPrice);
 
           if (isAmountOnlyService && unitPrice <= 0) {
             return null;
@@ -264,7 +267,7 @@ export function InvoicePosForm({
             category: service.category,
             quantity,
             unitPrice,
-            lineTotal: Number((unitPrice * quantity).toFixed(2))
+            lineTotal: unitPrice * quantity
           } satisfies InvoiceItem;
         })
         .filter((item): item is InvoiceItem => Boolean(item)),
@@ -273,6 +276,13 @@ export function InvoicePosForm({
 
   const invoiceItems = serviceItemsUsd;
   const totals = calculateInvoiceTotals(invoiceItems, discount);
+  const formReady =
+    Boolean(patientName.trim()) &&
+    Boolean(passport.trim()) &&
+    Boolean(phone.trim()) &&
+    Boolean(nationality.trim()) &&
+    Boolean(doctorId) &&
+    invoiceItems.length > 0;
   const draftInvoice = {
     id: "draft",
     invoiceNo,
@@ -281,7 +291,6 @@ export function InvoicePosForm({
     patientName: patientName || "Draft patient",
     passport: passport || undefined,
     phone: phone || undefined,
-    email: email || undefined,
     nationality: nationality || undefined,
     doctorId,
     items: invoiceItems,
@@ -331,15 +340,15 @@ export function InvoicePosForm({
             ? `
           <tr>
             <td colspan="4">${escapeHtml(item.serviceName)} - USD</td>
-            <td>${usd(item.lineTotal)}</td>
+            <td>${usdWhole(item.lineTotal)}</td>
           </tr>`
             : `
           <tr>
             <td>${escapeHtml(item.serviceName)}</td>
             <td>${escapeHtml(item.category)}</td>
             <td>${item.quantity}</td>
-            <td>${usd(item.unitPrice)}</td>
-            <td>${usd(item.lineTotal)}</td>
+            <td>${usdWhole(item.unitPrice)}</td>
+            <td>${usdWhole(item.lineTotal)}</td>
           </tr>`
       )
       .join("");
@@ -365,7 +374,6 @@ export function InvoicePosForm({
     <h1>Health Aid Arugambay</h1>
     <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)} ${escapeHtml(targetInvoice.time)}</p>
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
-    ${targetInvoice.email ? `<p><strong>Email:</strong> ${escapeHtml(targetInvoice.email)}</p>` : ""}
     <p><strong>Doctor:</strong> ${escapeHtml(invoiceDoctor?.name ?? "Unassigned")}</p>
     <h2>Invoice items</h2>
     <table>
@@ -375,9 +383,9 @@ export function InvoicePosForm({
       <tbody>${itemRows || '<tr><td colspan="5">No invoice items</td></tr>'}</tbody>
     </table>
     <div class="totals">
-      <div><span>Subtotal</span><span>${usd(targetInvoice.subtotal)}</span></div>
-      <div><span>Discount</span><span>${usd(targetInvoice.discount)}</span></div>
-      <div class="grand"><span>Grand total</span><span>${usd(targetInvoice.totalAmount)}</span></div>
+      <div><span>Subtotal</span><span>${usdWhole(targetInvoice.subtotal)}</span></div>
+      <div><span>Discount</span><span>${usdWhole(targetInvoice.discount)}</span></div>
+      <div class="grand"><span>Grand total</span><span>${usdWhole(targetInvoice.totalAmount)}</span></div>
     </div>
   </body>
 </html>`;
@@ -408,7 +416,7 @@ export function InvoicePosForm({
   }
 
   function saveInvoice() {
-    if (!patientName.trim() || !doctorId || invoiceItems.length === 0) {
+    if (!formReady) {
       return;
     }
 
@@ -417,6 +425,9 @@ export function InvoicePosForm({
       ...draftInvoice,
       id: invoiceId,
       patientName: patientName.trim(),
+      passport: passport.trim(),
+      phone: phone.trim(),
+      nationality: nationality.trim(),
       items: invoiceItems.map((item) => ({ ...item, id: makeId() }))
     };
     const nextInvoices = [createdInvoice, ...invoices];
@@ -429,7 +440,6 @@ export function InvoicePosForm({
     setPatientName("");
     setPassport("");
     setPhone("");
-    setEmail("");
     setNationality("");
     setDiscount(0);
     setPaymentMethod("cash");
@@ -450,7 +460,7 @@ export function InvoicePosForm({
   function updateChargeLine(serviceId: string, amountUsd: number) {
     setChargeLines((current) =>
       current.map((line) =>
-        line.serviceId === serviceId ? { ...line, amountUsd: Math.max(0, amountUsd) } : line
+        line.serviceId === serviceId ? { ...line, amountUsd: roundUsd(amountUsd) } : line
       )
     );
   }
@@ -479,7 +489,7 @@ export function InvoicePosForm({
           id={`charge-${service.id}`}
           type="number"
           min={0}
-          step="0.01"
+          step="1"
           value={line?.amountUsd ?? 0}
           onChange={(event) => updateChargeLine(service.id, Number(event.target.value))}
           className="field mt-2 text-right font-semibold"
@@ -491,7 +501,7 @@ export function InvoicePosForm({
 
   function InvoiceTimestampFields() {
     return (
-      <div className="grid gap-3 sm:grid-cols-2">
+      <>
         <FieldShell>
           <label className="label" htmlFor="invoice-date">
             Invoice date
@@ -516,7 +526,7 @@ export function InvoicePosForm({
             className="field mt-2"
           />
         </FieldShell>
-      </div>
+      </>
     );
   }
 
@@ -533,43 +543,34 @@ export function InvoicePosForm({
             onChange={(event) => setPatientName(event.target.value)}
             className="field mt-2"
             placeholder="Patient full name"
+            required
           />
         </FieldShell>
         <FieldShell>
           <label className="label" htmlFor="passport">
-            Passport
+            Passport / ID
           </label>
           <input
             id="passport"
             value={passport}
             onChange={(event) => setPassport(event.target.value)}
             className="field mt-2"
-            placeholder="Optional"
+            placeholder="Required"
+            required
           />
         </FieldShell>
         <FieldShell>
           <label className="label" htmlFor="phone">
-            Phone
+            Mobile Number
           </label>
           <input
             id="phone"
+            type="tel"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             className="field mt-2"
-            placeholder="Optional"
-          />
-        </FieldShell>
-        <FieldShell>
-          <label className="label" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="field mt-2"
-            placeholder="Optional"
+            placeholder="Required"
+            required
           />
         </FieldShell>
         <FieldShell>
@@ -581,7 +582,8 @@ export function InvoicePosForm({
             value={nationality}
             onChange={(event) => setNationality(event.target.value)}
             className="field mt-2"
-            placeholder="Optional"
+            placeholder="Required"
+            required
           />
         </FieldShell>
       </div>
@@ -670,7 +672,7 @@ export function InvoicePosForm({
         <div className="space-y-3">
           {serviceLines.map((line) => {
             const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
-            const unitPriceUsd = service?.sellingPrice ?? 0;
+            const unitPriceUsd = roundUsd(service?.sellingPrice ?? 0);
             const lineTotalUsd = unitPriceUsd * line.quantity;
 
             return (
@@ -703,13 +705,13 @@ export function InvoicePosForm({
                 <FieldShell>
                   <p className="label mb-2">Unit price USD</p>
                   <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#224770]">
-                    {usd(unitPriceUsd)}
+                    {usdWhole(unitPriceUsd)}
                   </div>
                 </FieldShell>
                 <FieldShell>
                   <p className="label mb-2">Subtotal USD</p>
                   <div className="flex h-10 items-center justify-end rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#224770]">
-                    {usd(lineTotalUsd)}
+                    {usdWhole(lineTotalUsd)}
                   </div>
                 </FieldShell>
                 <button
@@ -754,7 +756,7 @@ export function InvoicePosForm({
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-[#46484a]">Subtotal USD</span>
-            <span className="font-semibold text-[#224770]">{usd(totals.subtotal)}</span>
+            <span className="font-semibold text-[#224770]">{usdWhole(totals.subtotal)}</span>
           </div>
           <div>
             <label className="label" htmlFor="discount">
@@ -764,23 +766,23 @@ export function InvoicePosForm({
               id="discount"
               type="number"
               min={0}
-              step="0.01"
+              step="1"
               value={discount}
-              onChange={(event) => setDiscount(Number(event.target.value))}
+              onChange={(event) => setDiscount(roundUsd(Number(event.target.value)))}
               className="field mt-2"
             />
           </div>
           <div className="flex justify-between border-t border-[#efefef] pt-3 text-base">
             <span className="font-semibold text-[#224770]">Grand total USD</span>
-            <span className="font-bold text-[#0eb6ef]">{usd(totals.totalAmount)}</span>
+            <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
           </div>
         </div>
         <button
           type="button"
           onClick={saveInvoice}
-          disabled={!patientName.trim() || !doctorId || invoiceItems.length === 0}
+          disabled={!formReady}
           className={buttonClass(
-            patientName.trim() && doctorId && invoiceItems.length > 0 ? "primary" : "muted",
+            formReady ? "primary" : "muted",
             "mt-4 w-full"
           )}
         >
@@ -792,36 +794,36 @@ export function InvoicePosForm({
 
   function InvoiceHeader() {
     return (
-      <div className="flex flex-col gap-5 border-b border-[#efefef] pb-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+      <div className="flex flex-col gap-5 border-b border-[#efefef] pb-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0">
           <p className="label">Invoice POS</p>
-          <h2 className="mt-2 text-xl font-bold text-[#224770]">{invoiceNo}</h2>
-          <p className="mt-1 text-sm text-[#46484a]">
+          <h2 className="mt-2 whitespace-nowrap text-lg font-bold tracking-tight text-[#224770] sm:text-xl lg:text-2xl">
+            {invoiceNo}
+          </h2>
+          <p className="mt-1 whitespace-nowrap text-sm text-[#46484a]">
             {invoiceDate} at {invoiceTime}
           </p>
         </div>
-        <div className="grid gap-4 lg:min-w-[420px]">
+        <div className="grid gap-3 sm:grid-cols-[minmax(140px,1fr)_minmax(120px,0.8fr)_auto_auto] sm:items-end xl:min-w-[560px]">
           <InvoiceTimestampFields />
-          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-            <button
-              type="button"
-              onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
-              className={buttonClass("secondary", "px-3 py-2")}
-            >
-              Print
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
-              disabled={!patientName.trim() && !lastSavedInvoice}
-              className={buttonClass(
-                patientName.trim() || lastSavedInvoice ? "secondary" : "muted",
-                "px-3 py-2"
-              )}
-            >
-              Download
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
+            className={buttonClass("secondary", "h-10 px-3 py-2")}
+          >
+            Print
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
+            disabled={!formReady && !lastSavedInvoice}
+            className={buttonClass(
+              formReady || lastSavedInvoice ? "secondary" : "muted",
+              "h-10 px-3 py-2"
+            )}
+          >
+            Download
+          </button>
         </div>
       </div>
     );
@@ -831,9 +833,9 @@ export function InvoicePosForm({
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Today's Invoices" value={String(todayInvoices.length)} tone="primary" />
-        <KpiCard label="Today's Revenue USD" value={usd(todayRevenue)} tone="info" />
-        <KpiCard label="Monthly Revenue USD" value={usd(monthlyRevenue)} tone="success" />
-        <KpiCard label="Average Invoice Value USD" value={usd(averageInvoiceValue)} />
+        <KpiCard label="Today's Revenue USD" value={usdWhole(todayRevenue)} tone="info" />
+        <KpiCard label="Monthly Revenue USD" value={usdWhole(monthlyRevenue)} tone="success" />
+        <KpiCard label="Average Invoice Value USD" value={usdWhole(averageInvoiceValue)} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -876,11 +878,11 @@ export function InvoicePosForm({
               <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[#46484a]">Discount USD</span>
-                  <span className="font-semibold text-[#224770]">{usd(totals.discount)}</span>
+                  <span className="font-semibold text-[#224770]">{usdWhole(totals.discount)}</span>
                 </div>
                 <div className="mt-2 flex justify-between border-t border-[#efefef] pt-2 text-base">
                   <span className="font-semibold text-[#224770]">Grand total USD</span>
-                  <span className="font-bold text-[#0eb6ef]">{usd(totals.totalAmount)}</span>
+                  <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
                 </div>
               </div>
             </div>
@@ -934,7 +936,7 @@ export function InvoicePosForm({
                         {invoice.date} {invoice.time ?? ""}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-[#224770]">{usd(invoice.totalAmount)}</span>
+                    <span className="text-sm font-bold text-[#224770]">{usdWhole(invoice.totalAmount)}</span>
                   </div>
                 </div>
               ))}
@@ -989,7 +991,7 @@ function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] })
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-ink">{title}</p>
         <p className="text-sm font-bold text-ink">
-          {usd(items.reduce((sum, item) => sum + item.lineTotal, 0))}
+          {usdWhole(items.reduce((sum, item) => sum + item.lineTotal, 0))}
         </p>
       </div>
       {items.length ? (
@@ -1001,7 +1003,7 @@ function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] })
                   ? `${item.serviceName} - USD`
                   : `${item.serviceName} - ${item.category} x ${item.quantity}`}
               </span>
-              <span className="font-semibold text-slate-700">{usd(item.lineTotal)}</span>
+              <span className="font-semibold text-slate-700">{usdWhole(item.lineTotal)}</span>
             </div>
           ))}
         </div>

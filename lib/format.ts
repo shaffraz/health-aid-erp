@@ -11,12 +11,22 @@ export const usdCurrencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2
 });
 
+export const wholeUsdCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0
+});
+
 export function money(value: number) {
   return currencyFormatter.format(value);
 }
 
 export function usd(value: number) {
   return usdCurrencyFormatter.format(value);
+}
+
+export function usdWhole(value: number) {
+  return wholeUsdCurrencyFormatter.format(Math.round(value));
 }
 
 export function convertLkrToUsd(value: number, exchangeRate: number) {
