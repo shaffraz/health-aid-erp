@@ -11,14 +11,13 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Command center"
-        title={`Good to see you, ${user.name.split(" ")[0]}`}
-        description="A clean operational dashboard for setup, sales, service activity, and doctor payout exposure."
+        eyebrow="Command Center"
+        title="Operations Dashboard"
         action={
           hasPermission(user.role, "createInvoices") ? (
             <Link
               href="/invoices/new"
-              className="focus-ring inline-flex items-center justify-center rounded-lg bg-lagoon-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-lagoon-700"
+              className="focus-ring inline-flex items-center justify-center rounded-lg bg-[#224770] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0eb6ef]"
             >
               New invoice
             </Link>

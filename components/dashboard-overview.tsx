@@ -16,7 +16,7 @@ import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money, monthKey, shortDate, todayISO, usd } from "@/lib/format";
+import { money, monthKey, todayISO, usd } from "@/lib/format";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
@@ -30,6 +30,7 @@ import {
   type Service,
   type ServiceCategory
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type DashboardOverviewProps = {
   initialDoctors: Doctor[];
@@ -38,11 +39,11 @@ type DashboardOverviewProps = {
   payouts: DoctorPayout[];
 };
 
-type MetricTone = "lagoon" | "care" | "amber" | "ink";
+type MetricTone = "blue" | "sky" | "green" | "dark";
 
 const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
-  low_season: "Low Season / Per Patient",
-  peak_season: "Peak Season / Shift Based"
+  low_season: "Low Season",
+  peak_season: "Peak Season"
 };
 
 const roleCountsBase = [
@@ -70,6 +71,43 @@ const monthlyServiceLabels = [
 ] as const;
 
 type MonthlyServiceLabel = (typeof monthlyServiceLabels)[number];
+
+const metricTones: Record<
+  MetricTone,
+  {
+    panel: string;
+    icon: string;
+    value: string;
+  }
+> = {
+  blue: {
+    panel: "border-[#224770]/15 bg-white",
+    icon: "bg-[#224770] text-white",
+    value: "text-[#224770]"
+  },
+  sky: {
+    panel: "border-[#0eb6ef]/20 bg-white",
+    icon: "bg-[#0eb6ef] text-white",
+    value: "text-[#224770]"
+  },
+  green: {
+    panel: "border-[#84bc3f]/25 bg-white",
+    icon: "bg-[#84bc3f] text-white",
+    value: "text-[#224770]"
+  },
+  dark: {
+    panel: "border-[#46484a]/15 bg-white",
+    icon: "bg-[#46484a] text-white",
+    value: "text-[#46484a]"
+  }
+};
+
+const serviceCardTones = [
+  "border-[#224770]/15 bg-[#224770] text-white",
+  "border-[#0eb6ef]/20 bg-white text-[#224770]",
+  "border-[#84bc3f]/25 bg-white text-[#224770]",
+  "border-[#46484a]/15 bg-[#efefef] text-[#46484a]"
+];
 
 function normalizeDoctor(doctor: Doctor): Doctor {
   const legacyDoctor = doctor as Doctor & { specialty?: string };
@@ -123,59 +161,42 @@ function itemQuantity(item: InvoiceItem) {
   return Math.max(1, item.quantity);
 }
 
-function currentYear() {
-  return todayISO().slice(0, 4);
-}
-
 function StatCard({
   label,
   value,
-  helper,
   icon: Icon,
-  tone = "lagoon"
+  tone = "blue"
 }: {
   label: string;
   value: string;
-  helper?: string;
   icon: LucideIcon;
   tone?: MetricTone;
 }) {
-  const tones: Record<MetricTone, string> = {
-    lagoon: "bg-lagoon-50 text-lagoon-700",
-    care: "bg-care-50 text-care-700",
-    amber: "bg-amber-50 text-amber-700",
-    ink: "bg-slate-100 text-ink"
-  };
+  const toneClasses = metricTones[tone];
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+    <div className={cn("rounded-xl border p-4 shadow-sm", toneClasses.panel)}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
             {label}
           </p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-ink">{value}</p>
+          <p className={cn("mt-2 text-2xl font-bold tracking-tight", toneClasses.value)}>
+            {value}
+          </p>
         </div>
-        <span className={`rounded-lg p-2.5 ${tones[tone]}`}>
+        <span className={cn("rounded-lg p-2.5", toneClasses.icon)}>
           <Icon className="h-5 w-5" aria-hidden="true" />
         </span>
       </div>
-      {helper ? <p className="mt-3 text-sm text-slate-500">{helper}</p> : null}
     </div>
   );
 }
 
-function SectionTitle({
-  title,
-  helper
-}: {
-  title: string;
-  helper?: string;
-}) {
+function SectionTitle({ title }: { title: string }) {
   return (
-    <div className="border-b border-slate-100 px-5 py-4">
-      <h2 className="font-semibold text-ink">{title}</h2>
-      {helper ? <p className="mt-1 text-sm text-slate-500">{helper}</p> : null}
+    <div className="border-b border-[#efefef] px-5 py-4">
+      <h2 className="font-semibold text-[#224770]">{title}</h2>
     </div>
   );
 }
@@ -190,6 +211,9 @@ export function DashboardOverview({
   const [services, setServices] = useState(initialServices);
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
     defaultDoctorPaymentModel
+  );
+  const [draftPaymentMode, setDraftPaymentMode] = useState<DoctorPaymentModelType>(
+    defaultDoctorPaymentModel.activeModel
   );
   const [hydrated, setHydrated] = useState(false);
 
@@ -215,7 +239,9 @@ export function DashboardOverview({
         doctorPaymentSettingsStorageKey
       );
       if (storedPaymentSettings) {
-        setPaymentSettings(normalizeDoctorPaymentModel(JSON.parse(storedPaymentSettings)));
+        const normalizedSettings = normalizeDoctorPaymentModel(JSON.parse(storedPaymentSettings));
+        setPaymentSettings(normalizedSettings);
+        setDraftPaymentMode(normalizedSettings.activeModel);
       }
     } finally {
       setHydrated(true);
@@ -235,10 +261,9 @@ export function DashboardOverview({
 
   const today = todayISO();
   const selectedMonth = today.slice(0, 7);
-  const selectedYear = currentYear();
+  const comparisonYears = ["2025", "2026"];
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === selectedMonth);
   const todayInvoices = invoices.filter((invoice) => invoice.date === today);
-  const yearlyInvoices = invoices.filter((invoice) => invoice.date.startsWith(selectedYear));
 
   const visiblePayouts = useMemo(() => {
     const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
@@ -259,8 +284,6 @@ export function DashboardOverview({
   const monthlyPayouts = visiblePayouts.filter(
     (payout) => monthKey(payout.date) === selectedMonth
   );
-  const yearlyPayouts = visiblePayouts.filter((payout) => payout.date.startsWith(selectedYear));
-
   const activeDoctors = doctors.filter((doctor) => doctor.active);
   const activeServices = services.filter((service) => service.active);
   const roleCounts = [
@@ -303,7 +326,6 @@ export function DashboardOverview({
   }, [monthlyInvoices]);
 
   const seasonItems = invoices.flatMap((invoice) => invoice.items);
-  const yearlyItems = yearlyInvoices.flatMap((invoice) => invoice.items);
   const seasonConsultations = seasonItems
     .filter((item) => item.category === "Consultation")
     .reduce((sum, item) => sum + itemQuantity(item), 0);
@@ -314,18 +336,29 @@ export function DashboardOverview({
     .filter((item) => item.category !== "Consultation" && !isProcedureItem(item))
     .reduce((sum, item) => sum + itemQuantity(item), 0);
 
-  const yearlySales = yearlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-  const yearlyConsultations = yearlyItems
-    .filter((item) => item.category === "Consultation")
-    .reduce((sum, item) => sum + itemQuantity(item), 0);
-  const yearlyProcedures = yearlyItems
-    .filter(isProcedureItem)
-    .reduce((sum, item) => sum + itemQuantity(item), 0);
-  const yearlyServices = yearlyItems.reduce((sum, item) => sum + itemQuantity(item), 0);
-  const yearlyDoctorPayouts = yearlyPayouts.reduce(
-    (sum, payout) => sum + payout.payoutAmount,
-    0
-  );
+  const yearlyComparison = comparisonYears.map((year) => {
+    const yearInvoices = invoices.filter((invoice) => invoice.date.startsWith(year));
+    const yearItems = yearInvoices.flatMap((invoice) => invoice.items);
+    const yearPayouts = visiblePayouts.filter((payout) => payout.date.startsWith(year));
+    const consultations = yearItems
+      .filter((item) => item.category === "Consultation")
+      .reduce((sum, item) => sum + itemQuantity(item), 0);
+    const procedures = yearItems
+      .filter(isProcedureItem)
+      .reduce((sum, item) => sum + itemQuantity(item), 0);
+    const otherServices = yearItems
+      .filter((item) => item.category !== "Consultation" && !isProcedureItem(item))
+      .reduce((sum, item) => sum + itemQuantity(item), 0);
+
+    return {
+      year,
+      totalSales: yearInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
+      consultations,
+      procedures,
+      otherServices,
+      doctorPayouts: yearPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0)
+    };
+  });
 
   const monthlyPaidPayouts = monthlyPayouts
     .filter((payout) => payout.status === "paid")
@@ -333,60 +366,82 @@ export function DashboardOverview({
   const monthlyPendingPayouts = monthlyPayouts
     .filter((payout) => payout.status === "unpaid")
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
-  const pendingByDoctor = doctors
+  const payoutsByDoctor = doctors
     .map((doctor) => {
-      const pending = monthlyPayouts
-        .filter((payout) => payout.doctorId === doctor.id && payout.status === "unpaid")
+      const doctorMonthlyPayouts = monthlyPayouts.filter(
+        (payout) => payout.doctorId === doctor.id
+      );
+      const pending = doctorMonthlyPayouts
+        .filter((payout) => payout.status === "unpaid")
+        .reduce((sum, payout) => sum + payout.payoutAmount, 0);
+      const paid = doctorMonthlyPayouts
+        .filter((payout) => payout.status === "paid")
         .reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
-      return { doctor, pending };
+      return { doctor, pending, paid };
     })
-    .filter((item) => item.pending > 0)
-    .sort((a, b) => b.pending - a.pending);
+    .filter((item) => item.pending > 0 || item.paid > 0)
+    .sort((a, b) => b.pending + b.paid - (a.pending + a.paid));
 
-  function updatePaymentMode(activeModel: DoctorPaymentModelType) {
+  function savePaymentMode() {
     setPaymentSettings((current) =>
       normalizeDoctorPaymentModel({
         ...current,
-        activeModel
+        activeModel: draftPaymentMode
       })
     );
   }
 
+  const paymentModeChanged = draftPaymentMode !== paymentSettings.activeModel;
+
   return (
     <div className="space-y-6">
-      <section className="panel overflow-hidden">
-        <SectionTitle
-          title="Operations Setup"
-          helper="Internal operating mode and active setup counts for the current mock workspace."
-        />
+      <section className="panel overflow-hidden border-[#efefef] bg-white">
+        <SectionTitle title="Operations Setup" />
         <div className="grid gap-4 p-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="rounded-xl border border-[#224770]/15 bg-[#efefef] p-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="label">Active payment mode</p>
-                <h3 className="mt-2 text-xl font-bold text-ink">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+                  Active Doctor Payment Mode
+                </p>
+                <h3 className="mt-2 text-2xl font-bold text-[#224770]">
                   {paymentModeLabels[paymentSettings.activeModel]}
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Invoice POS uses this global setting for doctor payout generation.
-                </p>
               </div>
-              <div className="min-w-64">
-                <label className="label" htmlFor="dashboard-payment-mode">
-                  Change mode
-                </label>
-                <select
-                  id="dashboard-payment-mode"
-                  value={paymentSettings.activeModel}
-                  onChange={(event) =>
-                    updatePaymentMode(event.target.value as DoctorPaymentModelType)
-                  }
-                  className="field mt-2"
+              <div className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <label
+                    className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]"
+                    htmlFor="dashboard-payment-mode"
+                  >
+                    Select mode
+                  </label>
+                  <select
+                    id="dashboard-payment-mode"
+                    value={draftPaymentMode}
+                    onChange={(event) =>
+                      setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
+                    }
+                    className="field mt-2 border-[#224770]/20 bg-white"
+                  >
+                    <option value="low_season">{paymentModeLabels.low_season}</option>
+                    <option value="peak_season">{paymentModeLabels.peak_season}</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={savePaymentMode}
+                  disabled={!paymentModeChanged}
+                  className={cn(
+                    "focus-ring rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition",
+                    paymentModeChanged
+                      ? "bg-[#224770] hover:bg-[#0eb6ef]"
+                      : "bg-[#46484a]/35"
+                  )}
                 >
-                  <option value="low_season">{paymentModeLabels.low_season}</option>
-                  <option value="peak_season">{paymentModeLabels.peak_season}</option>
-                </select>
+                  Save mode
+                </button>
               </div>
             </div>
           </div>
@@ -395,25 +450,23 @@ export function DashboardOverview({
             <StatCard
               label="Active doctors"
               value={String(activeDoctors.length)}
-              helper={`${doctors.length} doctors in directory`}
               icon={UsersRound}
-              tone="care"
+              tone="green"
             />
             <StatCard
               label="Active services"
               value={String(activeServices.length)}
-              helper={`${services.length} services in catalog`}
               icon={Settings2}
-              tone="lagoon"
+              tone="sky"
             />
           </div>
         </div>
-        <div className="border-t border-slate-100 px-5 pb-5">
+        <div className="border-t border-[#efefef] px-5 pb-5">
           <div className="grid gap-3 pt-5 sm:grid-cols-2 xl:grid-cols-4">
             {roleCounts.map((role) => (
-              <div key={role.label} className="rounded-lg border border-slate-100 bg-white p-4">
-                <p className="text-sm font-medium text-slate-500">{role.label}</p>
-                <p className="mt-2 text-2xl font-bold text-ink">{role.count}</p>
+              <div key={role.label} className="rounded-lg border border-[#efefef] bg-white p-4">
+                <p className="text-sm font-semibold text-[#46484a]">{role.label}</p>
+                <p className="mt-2 text-2xl font-bold text-[#224770]">{role.count}</p>
               </div>
             ))}
           </div>
@@ -424,184 +477,156 @@ export function DashboardOverview({
         <StatCard
           label="Today's sales"
           value={usd(todaySales)}
-          helper="Patient income, billed in USD"
           icon={DollarSign}
-          tone="lagoon"
+          tone="sky"
         />
         <StatCard
           label="New consultations today"
           value={String(consultationsToday)}
-          helper={`${todayInvoices.length} invoices created today`}
           icon={CalendarDays}
-          tone="care"
+          tone="green"
         />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <section className="panel overflow-hidden">
-          <SectionTitle
-            title="Monthly Service Summary"
-            helper={`Only non-zero service activity for ${selectedMonth}.`}
-          />
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Service</th>
-                  <th className="px-5 py-3 text-right">Count</th>
-                  <th className="px-5 py-3 text-right">Sales USD</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {monthlyServiceSummary.map((item) => (
-                  <tr key={item.label}>
-                    <td className="px-5 py-4 font-semibold text-ink">{item.label}</td>
-                    <td className="px-5 py-4 text-right text-slate-600">{item.count}</td>
-                    <td className="px-5 py-4 text-right font-bold text-lagoon-700">
-                      {usd(item.value)}
-                    </td>
-                  </tr>
-                ))}
-                {!monthlyServiceSummary.length ? (
-                  <tr>
-                    <td colSpan={3} className="px-5 py-8 text-center text-sm text-slate-500">
-                      No non-zero service activity for this month.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+        <section className="panel overflow-hidden border-[#efefef] bg-white">
+          <SectionTitle title="Monthly Services Summary" />
+          <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
+            {monthlyServiceSummary.map((item, index) => (
+              <div
+                key={item.label}
+                className={cn(
+                  "rounded-xl border p-4 shadow-sm",
+                  serviceCardTones[index % serviceCardTones.length]
+                )}
+              >
+                <p className="text-sm font-semibold">{item.label}</p>
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <p className="text-3xl font-bold">{item.count}</p>
+                  <p className="text-sm font-semibold">{usd(item.value)}</p>
+                </div>
+              </div>
+            ))}
+            {!monthlyServiceSummary.length ? (
+              <div className="rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a]">
+                No services with recorded value this month.
+              </div>
+            ) : null}
           </div>
         </section>
 
-        <section className="panel overflow-hidden">
-          <SectionTitle title="Season Summary" helper="Current mock season activity." />
+        <section className="panel overflow-hidden border-[#efefef] bg-white">
+          <SectionTitle title="Season Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             <StatCard
               label="New consultations"
               value={String(seasonConsultations)}
               icon={Stethoscope}
-              tone="care"
+              tone="green"
             />
             <StatCard
               label="Total patients"
               value={String(invoices.length)}
               icon={UsersRound}
-              tone="lagoon"
+              tone="sky"
             />
             <StatCard
               label="Procedures"
               value={String(seasonProcedures)}
               icon={ClipboardList}
-              tone="amber"
+              tone="blue"
             />
             <StatCard
               label="Other services"
               value={String(seasonOtherServices)}
               icon={Settings2}
-              tone="ink"
+              tone="dark"
             />
           </div>
         </section>
       </div>
 
-      <section className="panel overflow-hidden">
-        <SectionTitle title="Yearly Summary" helper={`Performance totals for ${selectedYear}.`} />
-        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard
-            label="Total sales"
-            value={usd(yearlySales)}
-            helper="Patient income in USD"
-            icon={DollarSign}
-            tone="lagoon"
-          />
-          <StatCard
-            label="Consultations"
-            value={String(yearlyConsultations)}
-            icon={Stethoscope}
-            tone="care"
-          />
-          <StatCard
-            label="Procedures"
-            value={String(yearlyProcedures)}
-            icon={ClipboardList}
-            tone="amber"
-          />
-          <StatCard
-            label="Total services"
-            value={String(yearlyServices)}
-            icon={Settings2}
-            tone="ink"
-          />
-          <StatCard
-            label="Doctor payouts"
-            value={money(yearlyDoctorPayouts)}
-            helper="Internal payout liability in LKR"
-            icon={Banknote}
-            tone="care"
-          />
+      <section className="panel overflow-hidden border-[#efefef] bg-white">
+        <SectionTitle title="Yearly Summary" />
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-[#efefef] text-sm">
+            <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+              <tr>
+                <th className="px-5 py-3">Year</th>
+                <th className="px-5 py-3 text-right">Total sales USD</th>
+                <th className="px-5 py-3 text-right">New consultations</th>
+                <th className="px-5 py-3 text-right">Procedures</th>
+                <th className="px-5 py-3 text-right">Other services</th>
+                <th className="px-5 py-3 text-right">Doctor payouts LKR</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#efefef]">
+              {yearlyComparison.map((item) => (
+                <tr key={item.year}>
+                  <td className="px-5 py-4 text-lg font-bold text-[#224770]">{item.year}</td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]">
+                    {usd(item.totalSales)}
+                  </td>
+                  <td className="px-5 py-4 text-right text-[#46484a]">{item.consultations}</td>
+                  <td className="px-5 py-4 text-right text-[#46484a]">{item.procedures}</td>
+                  <td className="px-5 py-4 text-right text-[#46484a]">{item.otherServices}</td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]">
+                    {money(item.doctorPayouts)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 
-      <section className="panel overflow-hidden">
-        <SectionTitle
-          title="Doctor Payouts"
-          helper="Monthly payout controls and unpaid doctor-wise exposure in LKR."
-        />
+      <section className="panel overflow-hidden border-[#efefef] bg-white">
+        <SectionTitle title="Doctor Payouts" />
         <div className="grid gap-4 p-5 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <StatCard
-              label="Payouts done"
+              label="Monthly payouts paid"
               value={money(monthlyPaidPayouts)}
-              helper={`Paid in ${selectedMonth}`}
               icon={Banknote}
-              tone="care"
+              tone="green"
             />
             <StatCard
-              label="Pending payout"
+              label="Pending payouts"
               value={money(monthlyPendingPayouts)}
-              helper="Unpaid doctor payout amount"
               icon={CalendarDays}
-              tone="amber"
+              tone="blue"
             />
           </div>
-          <div className="overflow-hidden rounded-xl border border-slate-100">
-            <div className="bg-slate-50 px-4 py-3">
-              <h3 className="text-sm font-semibold text-ink">Pending payouts doctor-wise</h3>
+          <div className="overflow-hidden rounded-xl border border-[#efefef]">
+            <div className="bg-[#efefef] px-4 py-3">
+              <h3 className="text-sm font-semibold text-[#224770]">Doctor-wise payouts</h3>
             </div>
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-white text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+            <table className="min-w-full divide-y divide-[#efefef] text-sm">
+              <thead className="bg-white text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
                 <tr>
                   <th className="px-4 py-3">Doctor</th>
-                  <th className="px-4 py-3">Last payout date</th>
                   <th className="px-4 py-3 text-right">Pending LKR</th>
+                  <th className="px-4 py-3 text-right">Paid this month LKR</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pendingByDoctor.map(({ doctor, pending }) => {
-                  const lastPaid = visiblePayouts
-                    .filter((payout) => payout.doctorId === doctor.id && payout.status === "paid")
-                    .sort((a, b) => b.date.localeCompare(a.date))[0];
-
-                  return (
-                    <tr key={doctor.id}>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-ink">{doctor.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">{doctor.designation}</p>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                        {lastPaid ? shortDate(lastPaid.date) : "-"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-amber-700">
-                        {money(pending)}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!pendingByDoctor.length ? (
+              <tbody className="divide-y divide-[#efefef]">
+                {payoutsByDoctor.map(({ doctor, pending, paid }) => (
+                  <tr key={doctor.id}>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-[#224770]">{doctor.name}</p>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-[#224770]">
+                      {money(pending)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-[#46484a]">
+                      {money(paid)}
+                    </td>
+                  </tr>
+                ))}
+                {!payoutsByDoctor.length ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-500">
-                      No pending doctor payouts for this month.
+                    <td colSpan={3} className="px-4 py-8 text-center text-sm font-semibold text-[#46484a]">
+                      No doctor payout records for this month.
                     </td>
                   </tr>
                 ) : null}
