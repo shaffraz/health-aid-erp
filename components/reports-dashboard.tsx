@@ -37,7 +37,9 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
 
   const dailyInvoices = invoices.filter((invoice) => invoice.date === date);
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === month);
-  const monthlyPayouts = payouts.filter((payout) => monthKey(payout.date) === month);
+  const monthlyPayouts = payouts.filter(
+    (payout) => monthKey(payout.date) === month && payout.payoutMode !== "pending_shift"
+  );
 
   const categoryIncome = useMemo(() => {
     const totals = new Map<ServiceCategory, number>();
@@ -247,7 +249,7 @@ export function ReportsDashboard({ doctors, invoices, payouts }: ReportsDashboar
                 <tr key={summary.doctor.id}>
                   <td className="px-5 py-4">
                     <p className="font-semibold text-ink">{summary.doctor.name}</p>
-                    <p className="text-xs text-slate-500">{summary.doctor.specialty}</p>
+                    <p className="text-xs text-slate-500">{summary.doctor.designation}</p>
                   </td>
                   <td className="px-5 py-4 text-right text-slate-600">{summary.count}</td>
                   <td className="px-5 py-4 text-right font-semibold text-care-700">{money(summary.paid)}</td>

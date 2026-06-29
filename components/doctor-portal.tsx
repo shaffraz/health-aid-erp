@@ -17,7 +17,10 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
   const [selectedMonth, setSelectedMonth] = useState(todayISO().slice(0, 7));
   const doctor = doctors.find((candidate) => candidate.id === user.doctorId);
   const scopedPayouts = useMemo(
-    () => payouts.filter((payout) => payout.doctorId === user.doctorId),
+    () =>
+      payouts.filter(
+        (payout) => payout.doctorId === user.doctorId && payout.payoutMode !== "pending_shift"
+      ),
     [payouts, user.doctorId]
   );
   const todaysPayouts = scopedPayouts.filter((payout) => payout.date === todayISO());
@@ -33,7 +36,7 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
             <p className="label">Doctor portal</p>
             <h2 className="mt-2 text-2xl font-bold text-ink">{doctor?.name ?? user.name}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {doctor?.specialty ?? "Clinical earnings"} - private earning view only
+              {doctor?.designation ?? "Clinical earnings"} - private earning view only
             </p>
           </div>
           <div>
@@ -84,7 +87,7 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
 
       <section className="panel overflow-hidden">
         <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-ink">Invoice-wise breakdown</h2>
+          <h2 className="font-semibold text-ink">Earnings breakdown</h2>
           <p className="mt-1 text-sm text-slate-500">
             Doctors see service, invoice number, reason, amount, and payment status only.
           </p>
@@ -94,8 +97,8 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               <tr>
                 <th className="px-5 py-3">Date</th>
-                <th className="px-5 py-3">Invoice</th>
-                <th className="px-5 py-3">Service</th>
+                <th className="px-5 py-3">Invoice / Shift</th>
+                <th className="px-5 py-3">Type</th>
                 <th className="px-5 py-3">Payment reason</th>
                 <th className="px-5 py-3 text-right">Amount</th>
                 <th className="px-5 py-3">Status</th>
@@ -106,7 +109,9 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
                 <tr key={payout.id}>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-600">{shortDate(payout.date)}</td>
                   <td className="whitespace-nowrap px-5 py-4 font-semibold text-ink">{payout.invoiceNo}</td>
-                  <td className="px-5 py-4 text-slate-600">{payout.serviceName}</td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"}
+                  </td>
                   <td className="px-5 py-4 text-slate-600">{payout.paymentReason}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
                     {money(payout.payoutAmount)}

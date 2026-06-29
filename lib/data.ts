@@ -1,4 +1,5 @@
 import { demoWorkspaceData } from "@/lib/demo-data";
+import { defaultDoctorPaymentModel } from "@/lib/doctor-payment";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import type {
   Doctor,
@@ -14,6 +15,7 @@ type DatabaseInvoice = {
   id: string;
   invoice_no: string;
   invoice_date: string;
+  invoice_time?: string | null;
   patient_name: string;
   passport: string | null;
   phone: string | null;
@@ -74,10 +76,11 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
     doctors: (doctors.data ?? []).map((doctor) => ({
       id: doctor.id,
       name: doctor.full_name,
-      specialty: doctor.specialty ?? "General practice",
+      designation: doctor.specialty ?? "General practice",
       registrationNo: doctor.registration_no ?? undefined,
       phone: doctor.phone ?? undefined,
-      email: doctor.email ?? undefined,
+      notes: undefined,
+      paymentModel: defaultDoctorPaymentModel,
       active: doctor.active
     })) satisfies Doctor[],
     services: (services.data ?? []).map((service) => ({
@@ -105,6 +108,7 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
       id: invoice.id,
       invoiceNo: invoice.invoice_no,
       date: invoice.invoice_date,
+      time: invoice.invoice_time ?? undefined,
       patientName: invoice.patient_name,
       passport: invoice.passport ?? undefined,
       phone: invoice.phone ?? undefined,
@@ -132,10 +136,12 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
       invoiceId: payout.invoice_id,
       invoiceNo: payout.invoice_no,
       date: payout.invoice_date,
+      time: undefined,
       serviceName: payout.service_name,
       paymentReason: payout.payment_reason,
       payoutAmount: Number(payout.payout_amount),
       status: payout.status,
+      payoutMode: "invoice",
       voucherNo: payout.voucher_no ?? undefined
     })) satisfies DoctorPayout[],
     vouchers: (vouchers.data ?? []).map((voucher) => ({

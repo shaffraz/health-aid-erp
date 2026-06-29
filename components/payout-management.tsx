@@ -39,7 +39,7 @@ export function PayoutManagement({
         const monthMatches = !month || monthKey(payout.date) === month;
         const statusMatches = status === "all" || payout.status === status;
 
-        return doctorMatches && monthMatches && statusMatches;
+        return doctorMatches && monthMatches && statusMatches && payout.payoutMode !== "pending_shift";
       }),
     [doctorId, month, payouts, status]
   );
@@ -201,10 +201,10 @@ export function PayoutManagement({
       `Status: ${selectedVoucher.status}`,
       `Total: ${lkr(selectedVoucher.totalAmount)}`,
       " ",
-      "Invoice | Service | Reason | Amount",
+      "Invoice/Shift | Type | Reason | Amount",
       ...voucherPayouts.map(
         (payout) =>
-          `${payout.invoiceNo} | ${payout.serviceName} | ${payout.paymentReason} | ${lkr(payout.payoutAmount)}`
+          `${payout.invoiceNo} | ${payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"} | ${payout.paymentReason} | ${lkr(payout.payoutAmount)}`
       )
     ];
     const blob = new Blob([buildSimplePdf(lines)], { type: "application/pdf" });
@@ -324,15 +324,17 @@ export function PayoutManagement({
         <section className="panel overflow-hidden">
           <div className="border-b border-slate-100 p-5">
             <h2 className="font-semibold text-ink">Doctor payout records</h2>
-            <p className="mt-1 text-sm text-slate-500">Default status is unpaid. Voucher status changes are audited in PostgreSQL.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Low season appears as invoice-based payouts. Peak season appears as shift-based vouchers.
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Doctor</th>
-                  <th className="px-5 py-3">Invoice</th>
-                  <th className="px-5 py-3">Service</th>
+                  <th className="px-5 py-3">Invoice / Shift</th>
+                  <th className="px-5 py-3">Type</th>
                   <th className="px-5 py-3">Reason</th>
                   <th className="px-5 py-3 text-right">Amount</th>
                   <th className="px-5 py-3">Status</th>
@@ -349,7 +351,9 @@ export function PayoutManagement({
                         <p>{payout.invoiceNo}</p>
                         <p className="text-xs font-normal text-slate-500">{shortDate(payout.date)}</p>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{payout.serviceName}</td>
+                      <td className="px-5 py-4 text-slate-600">
+                        {payout.payoutMode === "shift" ? "Shift voucher" : "Invoice payout"}
+                      </td>
                       <td className="px-5 py-4 text-slate-600">{payout.paymentReason}</td>
                       <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
                         {money(payout.payoutAmount)}

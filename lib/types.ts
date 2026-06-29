@@ -53,6 +53,29 @@ export type PaymentMethod = (typeof paymentMethods)[number];
 export type RuleType = "fixed" | "percentage" | "none";
 export type PayoutStatus = "unpaid" | "paid";
 export type VoucherStatus = "unpaid" | "paid";
+export type DoctorPaymentModelType = "low_season" | "peak_season";
+export type PayoutMode = "invoice" | "shift" | "pending_shift";
+
+export type LowSeasonPaymentModel = {
+  dayConsultationPayout: number;
+  nightConsultationPayout: number;
+  nightStartTime: string;
+  nightEndTime: string;
+};
+
+export type PeakSeasonPaymentModel = {
+  shiftStartTime: string;
+  shiftEndTime: string;
+  hourlyRate: number;
+  bonusThresholdPatients: number;
+  bonusPerPatient: number;
+};
+
+export type DoctorPaymentModel = {
+  activeModel: DoctorPaymentModelType;
+  lowSeason: LowSeasonPaymentModel;
+  peakSeason: PeakSeasonPaymentModel;
+};
 
 export type AppUser = {
   id: string;
@@ -65,11 +88,11 @@ export type AppUser = {
 export type Doctor = {
   id: string;
   name: string;
-  specialty: string;
+  designation: string;
   registrationNo?: string;
   phone?: string;
-  email?: string;
   notes?: string;
+  paymentModel: DoctorPaymentModel;
   active: boolean;
 };
 
@@ -114,6 +137,7 @@ export type Invoice = {
   id: string;
   invoiceNo: string;
   date: string;
+  time?: string;
   patientName: string;
   passport?: string;
   phone?: string;
@@ -134,10 +158,15 @@ export type DoctorPayout = {
   invoiceId: string;
   invoiceNo: string;
   date: string;
+  time?: string;
   serviceName: string;
   paymentReason: string;
   payoutAmount: number;
   status: PayoutStatus;
+  payoutMode?: PayoutMode;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+  patientCount?: number;
   voucherNo?: string;
 };
 

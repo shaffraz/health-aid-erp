@@ -14,9 +14,10 @@ import {
 import {
   calculateInvoiceTotals,
   generatePayoutsForInvoice,
+  generatePayoutsForInvoices,
   nextInvoiceNumber
 } from "@/lib/calculations";
-import { demoSettings } from "@/lib/demo-data";
+import { currentTimeHHMM, normalizeDoctorPaymentModel } from "@/lib/doctor-payment";
 import { money, todayISO, usd } from "@/lib/format";
 import {
   doctorStorageKey,
@@ -24,7 +25,6 @@ import {
   paymentMethods,
   serviceStorageKey,
   type Doctor,
-  type DoctorPaymentRule,
   type DoctorPayout,
   type Invoice,
   type InvoiceItem,
@@ -42,7 +42,6 @@ type DraftLine = {
 type InvoicePosFormProps = {
   doctors: Doctor[];
   services: Service[];
-  paymentRules: DoctorPaymentRule[];
   initialInvoices: Invoice[];
   createdBy: string;
 };
@@ -59,6 +58,16 @@ function makeId() {
   return crypto.randomUUID();
 }
 
+function normalizeDoctorCatalog(doctor: Doctor): Doctor {
+  const legacyDoctor = doctor as Doctor & { specialty?: string };
+
+  return {
+    ...doctor,
+    designation: doctor.designation ?? legacyDoctor.specialty ?? "General practice",
+    paymentModel: normalizeDoctorPaymentModel(doctor.paymentModel)
+  };
+}
+
 function escapeHtml(value: string | number | undefined) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -71,12 +80,12 @@ function escapeHtml(value: string | number | undefined) {
 export function InvoicePosForm({
   doctors,
   services,
-  paymentRules,
   initialInvoices,
   createdBy
 }: InvoicePosFormProps) {
-  const exchangeRate = demoSettings.exchangeRateLkrPerUsd;
-  const [doctorCatalog, setDoctorCatalog] = useState(doctors);
+  const [doctorCatalog, setDoctorCatalog] = useState(() =>
+    doctors.map(normalizeDoctorCatalog)
+  );
   const [catalogServices, setCatalogServices] = useState(services);
   const activeDoctors = useMemo(
     () => doctorCatalog.filter((doctor) => doctor.active),
@@ -87,9 +96,9 @@ export function InvoicePosForm({
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
   const [payoutQueue, setPayoutQueue] = useState<DoctorPayout[]>(() =>
-    initialInvoices
-      .flatMap((invoice) => generatePayoutsForInvoice(invoice, services, paymentRules))
-      .slice(0, 8)
+    generatePayoutsForInvoices(initialInvoices, doctors.map(normalizeDoctorCatalog), {
+      includePendingShiftRecords: true
+    }).slice(0, 8)
   );
   const [patientName, setPatientName] = useState("");
   const [passport, setPassport] = useState("");
@@ -114,10 +123,10 @@ export function InvoicePosForm({
 
       const parsed = JSON.parse(storedDoctors);
       if (Array.isArray(parsed)) {
-        setDoctorCatalog(parsed as Doctor[]);
+        setDoctorCatalog((parsed as Doctor[]).map(normalizeDoctorCatalog));
       }
     } catch {
-      setDoctorCatalog(doctors);
+      setDoctorCatalog(doctors.map(normalizeDoctorCatalog));
     }
   }, [doctors]);
 
@@ -184,37 +193,14 @@ export function InvoicePosForm({
     [invoiceServices, serviceLines]
   );
 
-  const serviceItemsLkr = useMemo<InvoiceItem[]>(
-    () =>
-      serviceLines
-        .map((line) => {
-          const service = catalogServices.find((candidate) => candidate.id === line.serviceId);
-
-          if (!service || isAmountOnlyInvoiceServiceName(service.name)) {
-            return null;
-          }
-
-          const unitPriceLkr = service.sellingPrice * exchangeRate;
-
-          return {
-            id: line.id,
-            serviceId: service.id,
-            serviceName: service.name,
-            category: service.category,
-            quantity: line.quantity,
-            unitPrice: unitPriceLkr,
-            lineTotal: unitPriceLkr * line.quantity
-          } satisfies InvoiceItem;
-        })
-        .filter((item): item is InvoiceItem => Boolean(item)),
-    [catalogServices, exchangeRate, serviceLines]
-  );
   const invoiceItems = serviceItemsUsd;
   const totals = calculateInvoiceTotals(invoiceItems, discount);
+  const invoiceTime = currentTimeHHMM();
   const draftInvoice = {
     id: "draft",
     invoiceNo,
     date: todayISO(),
+    time: invoiceTime,
     patientName: patientName || "Draft patient",
     passport: passport || undefined,
     phone: phone || undefined,
@@ -228,11 +214,7 @@ export function InvoicePosForm({
     totalAmount: totals.totalAmount,
     createdBy
   } satisfies Invoice;
-  const payoutInvoice = {
-    ...draftInvoice,
-    items: serviceItemsLkr
-  } satisfies Invoice;
-  const payoutPreview = generatePayoutsForInvoice(payoutInvoice, catalogServices, paymentRules);
+  const payoutPreview = generatePayoutsForInvoice(draftInvoice, doctorCatalog);
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
   function addServiceLine() {
@@ -307,7 +289,7 @@ export function InvoicePosForm({
   </head>
   <body>
     <h1>Health Aid Arugambay</h1>
-    <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)}</p>
+    <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)} ${escapeHtml(targetInvoice.time)}</p>
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
     <p><strong>Doctor:</strong> ${escapeHtml(selectedDoctor?.name ?? "Unassigned")}</p>
     <h2>Invoice items</h2>
@@ -362,17 +344,13 @@ export function InvoicePosForm({
       patientName: patientName.trim(),
       items: invoiceItems.map((item) => ({ ...item, id: makeId() }))
     };
-    const createdPayouts = generatePayoutsForInvoice(
-      {
-        ...createdInvoice,
-        items: serviceItemsLkr.map((item) => ({ ...item, id: makeId() }))
-      },
-      catalogServices,
-      paymentRules
-    );
+    const nextInvoices = [createdInvoice, ...invoices];
+    const nextPayouts = generatePayoutsForInvoices(nextInvoices, doctorCatalog, {
+      includePendingShiftRecords: true
+    });
 
-    setInvoices((current) => [createdInvoice, ...current]);
-    setPayoutQueue((current) => [...createdPayouts, ...current].slice(0, 8));
+    setInvoices(nextInvoices);
+    setPayoutQueue(nextPayouts.slice(0, 8));
     setSavedInvoiceNo(createdInvoice.invoiceNo);
     setLastSavedInvoice(createdInvoice);
     setPatientName("");
@@ -712,9 +690,6 @@ export function InvoicePosForm({
             <div>
               <h3 className="font-semibold text-ink">Doctor payout preview</h3>
               <p className="text-sm text-slate-500">Internal payout in LKR</p>
-              <p className="text-xs text-slate-500">
-                Payout exchange rate: 1 USD = {exchangeRate.toLocaleString("en-US")} LKR
-              </p>
             </div>
           </div>
           <div className="mt-4 space-y-3">

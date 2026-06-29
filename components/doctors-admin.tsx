@@ -10,10 +10,15 @@ import {
   UserX,
   X
 } from "lucide-react";
+import {
+  defaultDoctorPaymentModel,
+  normalizeDoctorPaymentModel
+} from "@/lib/doctor-payment";
 import { money } from "@/lib/format";
 import {
   doctorStorageKey,
   type Doctor,
+  type DoctorPaymentModelType,
   type DoctorPayout
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -27,39 +32,122 @@ type DoctorsAdminProps = {
 type DoctorForm = {
   id?: string;
   name: string;
-  specialty: string;
+  designation: string;
   phone: string;
-  email: string;
   active: boolean;
   notes: string;
+  activeModel: DoctorPaymentModelType;
+  dayConsultationPayout: string;
+  nightConsultationPayout: string;
+  nightStartTime: string;
+  nightEndTime: string;
+  shiftStartTime: string;
+  shiftEndTime: string;
+  hourlyRate: string;
+  bonusThresholdPatients: string;
+  bonusPerPatient: string;
 };
 
 const emptyForm: DoctorForm = {
   name: "",
-  specialty: "",
+  designation: "",
   phone: "",
-  email: "",
   active: true,
-  notes: ""
+  notes: "",
+  activeModel: defaultDoctorPaymentModel.activeModel,
+  dayConsultationPayout: String(defaultDoctorPaymentModel.lowSeason.dayConsultationPayout),
+  nightConsultationPayout: String(defaultDoctorPaymentModel.lowSeason.nightConsultationPayout),
+  nightStartTime: defaultDoctorPaymentModel.lowSeason.nightStartTime,
+  nightEndTime: defaultDoctorPaymentModel.lowSeason.nightEndTime,
+  shiftStartTime: defaultDoctorPaymentModel.peakSeason.shiftStartTime,
+  shiftEndTime: defaultDoctorPaymentModel.peakSeason.shiftEndTime,
+  hourlyRate: String(defaultDoctorPaymentModel.peakSeason.hourlyRate),
+  bonusThresholdPatients: String(defaultDoctorPaymentModel.peakSeason.bonusThresholdPatients),
+  bonusPerPatient: String(defaultDoctorPaymentModel.peakSeason.bonusPerPatient)
 };
 
-function doctorToForm(doctor: Doctor): DoctorForm {
-  return {
-    id: doctor.id,
-    name: doctor.name,
-    specialty: doctor.specialty,
-    phone: doctor.phone ?? "",
-    email: doctor.email ?? "",
-    active: doctor.active,
-    notes: doctor.notes ?? ""
-  };
+const modelLabels: Record<DoctorPaymentModelType, string> = {
+  low_season: "Low Season / Per Patient",
+  peak_season: "Peak Season / Shift Based"
+};
+
+function toAmount(value: string, fallback: number) {
+  const amount = Number(value);
+
+  return Number.isFinite(amount) ? Math.max(0, amount) : fallback;
 }
 
 function normalizeDoctor(doctor: Doctor): Doctor {
+  const legacyDoctor = doctor as Doctor & { specialty?: string };
+
   return {
     ...doctor,
-    specialty: doctor.specialty || "General practice",
-    notes: doctor.notes ?? ""
+    designation: doctor.designation ?? legacyDoctor.specialty ?? "General practice",
+    notes: doctor.notes ?? "",
+    paymentModel: normalizeDoctorPaymentModel(doctor.paymentModel)
+  };
+}
+
+function doctorToForm(doctor: Doctor): DoctorForm {
+  const normalized = normalizeDoctor(doctor);
+  const paymentModel = normalizeDoctorPaymentModel(normalized.paymentModel);
+
+  return {
+    id: normalized.id,
+    name: normalized.name,
+    designation: normalized.designation,
+    phone: normalized.phone ?? "",
+    active: normalized.active,
+    notes: normalized.notes ?? "",
+    activeModel: paymentModel.activeModel,
+    dayConsultationPayout: String(paymentModel.lowSeason.dayConsultationPayout),
+    nightConsultationPayout: String(paymentModel.lowSeason.nightConsultationPayout),
+    nightStartTime: paymentModel.lowSeason.nightStartTime,
+    nightEndTime: paymentModel.lowSeason.nightEndTime,
+    shiftStartTime: paymentModel.peakSeason.shiftStartTime,
+    shiftEndTime: paymentModel.peakSeason.shiftEndTime,
+    hourlyRate: String(paymentModel.peakSeason.hourlyRate),
+    bonusThresholdPatients: String(paymentModel.peakSeason.bonusThresholdPatients),
+    bonusPerPatient: String(paymentModel.peakSeason.bonusPerPatient)
+  };
+}
+
+function formToDoctor(form: DoctorForm): Doctor {
+  return {
+    id: form.id ?? crypto.randomUUID(),
+    name: form.name.trim(),
+    designation: form.designation.trim() || "General practice",
+    phone: form.phone.trim() || undefined,
+    notes: form.notes.trim() || undefined,
+    active: form.active,
+    paymentModel: {
+      activeModel: form.activeModel,
+      lowSeason: {
+        dayConsultationPayout: toAmount(
+          form.dayConsultationPayout,
+          defaultDoctorPaymentModel.lowSeason.dayConsultationPayout
+        ),
+        nightConsultationPayout: toAmount(
+          form.nightConsultationPayout,
+          defaultDoctorPaymentModel.lowSeason.nightConsultationPayout
+        ),
+        nightStartTime: form.nightStartTime || defaultDoctorPaymentModel.lowSeason.nightStartTime,
+        nightEndTime: form.nightEndTime || defaultDoctorPaymentModel.lowSeason.nightEndTime
+      },
+      peakSeason: {
+        shiftStartTime: form.shiftStartTime || defaultDoctorPaymentModel.peakSeason.shiftStartTime,
+        shiftEndTime: form.shiftEndTime || defaultDoctorPaymentModel.peakSeason.shiftEndTime,
+        hourlyRate: toAmount(form.hourlyRate, defaultDoctorPaymentModel.peakSeason.hourlyRate),
+        bonusThresholdPatients: toAmount(
+          form.bonusThresholdPatients,
+          defaultDoctorPaymentModel.peakSeason.bonusThresholdPatients
+        ),
+        bonusPerPatient: toAmount(
+          form.bonusPerPatient,
+          defaultDoctorPaymentModel.peakSeason.bonusPerPatient
+        )
+      }
+    }
   };
 }
 
@@ -92,7 +180,7 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
 
   const unpaidPayoutByDoctor = useMemo(() => {
     return payouts.reduce<Map<string, number>>((totals, payout) => {
-      if (payout.status === "unpaid") {
+      if (payout.status === "unpaid" && payout.payoutMode !== "pending_shift") {
         totals.set(payout.doctorId, (totals.get(payout.doctorId) ?? 0) + payout.payoutAmount);
       }
 
@@ -125,21 +213,12 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
       return;
     }
 
-    const name = form.name.trim();
-    if (!name) {
+    if (!form.name.trim()) {
       setError("Doctor name is required.");
       return;
     }
 
-    const nextDoctor: Doctor = {
-      id: form.id ?? crypto.randomUUID(),
-      name,
-      specialty: form.specialty.trim() || "General practice",
-      phone: form.phone.trim() || undefined,
-      email: form.email.trim() || undefined,
-      notes: form.notes.trim() || undefined,
-      active: form.active
-    };
+    const nextDoctor = formToDoctor(form);
 
     setDoctors((current) =>
       form.id
@@ -198,10 +277,10 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               <tr>
                 <th className="px-5 py-3">Doctor name</th>
-                <th className="px-5 py-3">Specialty / role</th>
+                <th className="px-5 py-3">Designation</th>
                 <th className="px-5 py-3">Phone</th>
-                <th className="px-5 py-3">Email</th>
                 <th className="px-5 py-3">Active status</th>
+                <th className="px-5 py-3">Active model</th>
                 <th className="px-5 py-3 text-right">Total unpaid payout LKR</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
@@ -224,13 +303,10 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
                     ) : null}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                    {doctor.specialty}
+                    {doctor.designation}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-600">
                     {doctor.phone ?? "-"}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                    {doctor.email ?? "-"}
                   </td>
                   <td className="px-5 py-4">
                     <span
@@ -241,6 +317,9 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
                     >
                       {doctor.active ? "Active" : "Inactive"}
                     </span>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                    {modelLabels[normalizeDoctorPaymentModel(doctor.paymentModel).activeModel]}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-ink">
                     {money(unpaidPayoutByDoctor.get(doctor.id) ?? 0)}
@@ -301,7 +380,7 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
           aria-modal="true"
           aria-labelledby="doctor-form-title"
         >
-          <section className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+          <section className="w-full max-w-3xl rounded-xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <h2 id="doctor-form-title" className="font-semibold text-ink">
                 {editing ? "Edit doctor" : "Add doctor"}
@@ -316,7 +395,7 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
               </button>
             </div>
 
-            <div className="space-y-4 p-5">
+            <div className="max-h-[75vh] space-y-5 overflow-y-auto p-5">
               {!canEdit ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
                   Doctor setup is admin-only.
@@ -347,18 +426,18 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
                 </div>
 
                 <div>
-                  <label className="label" htmlFor="doctor-specialty">
-                    Specialty / role
+                  <label className="label" htmlFor="doctor-designation">
+                    Designation
                   </label>
                   <input
-                    id="doctor-specialty"
-                    value={form.specialty}
+                    id="doctor-designation"
+                    value={form.designation}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, specialty: event.target.value }))
+                      setForm((current) => ({ ...current, designation: event.target.value }))
                     }
                     disabled={!canEdit}
                     className="field mt-2 disabled:bg-slate-100"
-                    placeholder="Eg. General practice"
+                    placeholder="Eg. Medical officer"
                   />
                 </div>
 
@@ -371,22 +450,6 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
                     value={form.phone}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, phone: event.target.value }))
-                    }
-                    disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="label" htmlFor="doctor-email">
-                    Email
-                  </label>
-                  <input
-                    id="doctor-email"
-                    type="email"
-                    value={form.email}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, email: event.target.value }))
                     }
                     disabled={!canEdit}
                     className="field mt-2 disabled:bg-slate-100"
@@ -426,6 +489,195 @@ export function DoctorsAdmin({ initialDoctors, payouts, canEdit }: DoctorsAdminP
                     placeholder="Optional internal notes"
                   />
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <h3 className="font-semibold text-ink">Doctor Payment Model</h3>
+                <div className="mt-4">
+                  <label className="label" htmlFor="active-payment-model">
+                    Active model
+                  </label>
+                  <select
+                    id="active-payment-model"
+                    value={form.activeModel}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        activeModel: event.target.value as DoctorPaymentModelType
+                      }))
+                    }
+                    disabled={!canEdit}
+                    className="field mt-2 disabled:bg-slate-100"
+                  >
+                    <option value="low_season">{modelLabels.low_season}</option>
+                    <option value="peak_season">{modelLabels.peak_season}</option>
+                  </select>
+                </div>
+
+                {form.activeModel === "low_season" ? (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="label" htmlFor="day-payout">
+                        Day consultation payout LKR
+                      </label>
+                      <input
+                        id="day-payout"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={form.dayConsultationPayout}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            dayConsultationPayout: event.target.value
+                          }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="night-payout">
+                        Night consultation payout LKR
+                      </label>
+                      <input
+                        id="night-payout"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={form.nightConsultationPayout}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            nightConsultationPayout: event.target.value
+                          }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="night-start">
+                        Night start time
+                      </label>
+                      <input
+                        id="night-start"
+                        type="time"
+                        value={form.nightStartTime}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, nightStartTime: event.target.value }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="night-end">
+                        Night end time
+                      </label>
+                      <input
+                        id="night-end"
+                        type="time"
+                        value={form.nightEndTime}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, nightEndTime: event.target.value }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="label" htmlFor="shift-start">
+                        Shift start time
+                      </label>
+                      <input
+                        id="shift-start"
+                        type="time"
+                        value={form.shiftStartTime}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, shiftStartTime: event.target.value }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="shift-end">
+                        Shift end time
+                      </label>
+                      <input
+                        id="shift-end"
+                        type="time"
+                        value={form.shiftEndTime}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, shiftEndTime: event.target.value }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="hourly-rate">
+                        Hourly rate LKR
+                      </label>
+                      <input
+                        id="hourly-rate"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={form.hourlyRate}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, hourlyRate: event.target.value }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="bonus-threshold">
+                        Bonus threshold patients
+                      </label>
+                      <input
+                        id="bonus-threshold"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={form.bonusThresholdPatients}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            bonusThresholdPatients: event.target.value
+                          }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="bonus-per-patient">
+                        Bonus per patient LKR
+                      </label>
+                      <input
+                        id="bonus-per-patient"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={form.bonusPerPatient}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            bonusPerPatient: event.target.value
+                          }))
+                        }
+                        disabled={!canEdit}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

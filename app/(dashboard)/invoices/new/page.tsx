@@ -22,7 +22,6 @@ export default async function NewInvoicePage() {
       <InvoicePosForm
         doctors={data.doctors}
         services={data.services}
-        paymentRules={data.paymentRules}
         initialInvoices={data.invoices}
         createdBy={user.id}
       />

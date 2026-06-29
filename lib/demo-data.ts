@@ -1,7 +1,8 @@
 import {
   calculateInvoiceTotals,
-  generatePayoutsForInvoice
+  generatePayoutsForInvoices
 } from "@/lib/calculations";
+import { defaultDoctorPaymentModel } from "@/lib/doctor-payment";
 import { todayISO } from "@/lib/format";
 import type {
   AuditLog,
@@ -25,28 +26,34 @@ export const demoDoctors: Doctor[] = [
   {
     id: "doc-ameer",
     name: "Dr. Ameer Hassan",
-    specialty: "Emergency and travel medicine",
+    designation: "Emergency physician",
     registrationNo: "SLMC 48291",
     phone: "+94 77 412 1098",
-    email: "ameer@healthaid.lk",
+    notes: "Handles urgent travel medicine consultations.",
+    paymentModel: defaultDoctorPaymentModel,
     active: true
   },
   {
     id: "doc-nadeesha",
     name: "Dr. Nadeesha Perera",
-    specialty: "General practice",
+    designation: "General practitioner",
     registrationNo: "SLMC 51904",
     phone: "+94 76 203 7712",
-    email: "nadeesha@healthaid.lk",
+    notes: "Low season per-patient consultation model.",
+    paymentModel: defaultDoctorPaymentModel,
     active: true
   },
   {
     id: "doc-samara",
     name: "Dr. Samara Wijesinghe",
-    specialty: "Procedures and wound care",
+    designation: "Procedures and wound care doctor",
     registrationNo: "SLMC 46702",
     phone: "+94 75 889 6440",
-    email: "samara@healthaid.lk",
+    notes: "Peak season shift model for evening procedure cover.",
+    paymentModel: {
+      ...defaultDoctorPaymentModel,
+      activeModel: "peak_season"
+    },
     active: true
   }
 ];
@@ -249,6 +256,7 @@ export const demoInvoices: Invoice[] = [
     id: "inv-001",
     invoiceNo: "HA-2026-0001",
     date: today,
+    time: "10:25",
     patientName: "Mia Carter",
     passport: "P8942013",
     phone: "+61 412 300 771",
@@ -264,6 +272,7 @@ export const demoInvoices: Invoice[] = [
     id: "inv-002",
     invoiceNo: "HA-2026-0002",
     date: today,
+    time: "17:30",
     patientName: "Luka Weber",
     passport: "C1029831",
     phone: "+49 176 555 0192",
@@ -279,6 +288,7 @@ export const demoInvoices: Invoice[] = [
     id: "inv-003",
     invoiceNo: "HA-2026-0003",
     date: monthStart,
+    time: "23:15",
     patientName: "Chen Min",
     phone: "+86 155 9012 1188",
     nationality: "Chinese",
@@ -291,14 +301,12 @@ export const demoInvoices: Invoice[] = [
   })
 ];
 
-const generatedPayouts = demoInvoices.flatMap((createdInvoice) =>
-  generatePayoutsForInvoice(createdInvoice, demoServices, demoPaymentRules)
-);
+const generatedPayouts = generatePayoutsForInvoices(demoInvoices, demoDoctors);
 
 export const demoPayouts = generatedPayouts.map((payout, index) => ({
   ...payout,
-  status: index === 2 ? ("paid" as const) : payout.status,
-  voucherNo: index === 2 ? "DPV-2026-0001" : undefined
+  status: index === 1 ? ("paid" as const) : payout.status,
+  voucherNo: index === 1 ? "DPV-2026-0001" : undefined
 }));
 
 export const demoVouchers: PayoutVoucher[] = [
