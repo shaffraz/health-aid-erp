@@ -1,16 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Banknote,
-  CalendarDays,
-  ClipboardList,
-  DollarSign,
-  Settings2,
-  Stethoscope,
-  UsersRound
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
 import {
   defaultDoctorPaymentModel,
@@ -72,42 +62,14 @@ const monthlyServiceLabels = [
 
 type MonthlyServiceLabel = (typeof monthlyServiceLabels)[number];
 
-const metricTones: Record<
-  MetricTone,
-  {
-    panel: string;
-    icon: string;
-    value: string;
-  }
-> = {
-  blue: {
-    panel: "border-[#224770]/15 bg-white",
-    icon: "bg-[#224770] text-white",
-    value: "text-[#224770]"
-  },
-  sky: {
-    panel: "border-[#0eb6ef]/20 bg-white",
-    icon: "bg-[#0eb6ef] text-white",
-    value: "text-[#224770]"
-  },
-  green: {
-    panel: "border-[#84bc3f]/25 bg-white",
-    icon: "bg-[#84bc3f] text-white",
-    value: "text-[#224770]"
-  },
-  dark: {
-    panel: "border-[#46484a]/15 bg-white",
-    icon: "bg-[#46484a] text-white",
-    value: "text-[#46484a]"
-  }
+const accentColors: Record<MetricTone, string> = {
+  blue: "bg-[#224770]",
+  sky: "bg-[#0eb6ef]",
+  green: "bg-[#84bc3f]",
+  dark: "bg-[#46484a]"
 };
 
-const serviceCardTones = [
-  "border-[#224770]/15 bg-[#224770] text-white",
-  "border-[#0eb6ef]/20 bg-white text-[#224770]",
-  "border-[#84bc3f]/25 bg-white text-[#224770]",
-  "border-[#46484a]/15 bg-[#efefef] text-[#46484a]"
-];
+const serviceCardTones: MetricTone[] = ["blue", "sky", "green", "dark"];
 
 function normalizeDoctor(doctor: Doctor): Doctor {
   const legacyDoctor = doctor as Doctor & { specialty?: string };
@@ -161,33 +123,30 @@ function itemQuantity(item: InvoiceItem) {
   return Math.max(1, item.quantity);
 }
 
-function StatCard({
+function SummaryCard({
   label,
   value,
-  icon: Icon,
+  detail,
   tone = "blue"
 }: {
   label: string;
   value: string;
-  icon: LucideIcon;
+  detail?: string;
   tone?: MetricTone;
 }) {
-  const toneClasses = metricTones[tone];
-
   return (
-    <div className={cn("rounded-xl border p-4 shadow-sm", toneClasses.panel)}>
-      <div className="flex items-start justify-between gap-4">
+    <div className="group relative min-h-32 overflow-hidden rounded-xl border border-[#efefef] bg-white p-4 pl-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+      <div className={cn("absolute left-0 top-0 h-full w-1.5", accentColors[tone])} />
+      <div className="flex h-full flex-col justify-between gap-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+          {label}
+        </p>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
-            {label}
-          </p>
-          <p className={cn("mt-2 text-2xl font-bold tracking-tight", toneClasses.value)}>
-            {value}
-          </p>
+          <p className="text-2xl font-bold tracking-tight text-[#224770]">{value}</p>
+          {detail ? (
+            <p className="mt-1 text-sm font-semibold text-[#46484a]">{detail}</p>
+          ) : null}
         </div>
-        <span className={cn("rounded-lg p-2.5", toneClasses.icon)}>
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </span>
       </div>
     </div>
   );
@@ -343,19 +302,11 @@ export function DashboardOverview({
     const consultations = yearItems
       .filter((item) => item.category === "Consultation")
       .reduce((sum, item) => sum + itemQuantity(item), 0);
-    const procedures = yearItems
-      .filter(isProcedureItem)
-      .reduce((sum, item) => sum + itemQuantity(item), 0);
-    const otherServices = yearItems
-      .filter((item) => item.category !== "Consultation" && !isProcedureItem(item))
-      .reduce((sum, item) => sum + itemQuantity(item), 0);
 
     return {
       year,
       totalSales: yearInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
       consultations,
-      procedures,
-      otherServices,
       doctorPayouts: yearPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0)
     };
   });
@@ -399,7 +350,8 @@ export function DashboardOverview({
       <section className="panel overflow-hidden border-[#efefef] bg-white">
         <SectionTitle title="Operations Setup" />
         <div className="grid gap-4 p-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-xl border border-[#224770]/15 bg-[#efefef] p-4">
+          <div className="relative min-h-32 overflow-hidden rounded-xl border border-[#efefef] bg-[#efefef] p-4 pl-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
+            <div className="absolute left-0 top-0 h-full w-1.5 bg-[#224770]" />
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
@@ -447,43 +399,41 @@ export function DashboardOverview({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <StatCard
+            <SummaryCard
               label="Active doctors"
               value={String(activeDoctors.length)}
-              icon={UsersRound}
               tone="green"
             />
-            <StatCard
+            <SummaryCard
               label="Active services"
               value={String(activeServices.length)}
-              icon={Settings2}
               tone="sky"
             />
           </div>
         </div>
         <div className="border-t border-[#efefef] px-5 pb-5">
           <div className="grid gap-3 pt-5 sm:grid-cols-2 xl:grid-cols-4">
-            {roleCounts.map((role) => (
-              <div key={role.label} className="rounded-lg border border-[#efefef] bg-white p-4">
-                <p className="text-sm font-semibold text-[#46484a]">{role.label}</p>
-                <p className="mt-2 text-2xl font-bold text-[#224770]">{role.count}</p>
-              </div>
+            {roleCounts.map((role, index) => (
+              <SummaryCard
+                key={role.label}
+                label={role.label}
+                value={String(role.count)}
+                tone={serviceCardTones[index % serviceCardTones.length]}
+              />
             ))}
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <StatCard
+        <SummaryCard
           label="Today's sales"
           value={usd(todaySales)}
-          icon={DollarSign}
           tone="sky"
         />
-        <StatCard
+        <SummaryCard
           label="New consultations today"
           value={String(consultationsToday)}
-          icon={CalendarDays}
           tone="green"
         />
       </section>
@@ -496,14 +446,27 @@ export function DashboardOverview({
               <div
                 key={item.label}
                 className={cn(
-                  "rounded-xl border p-4 shadow-sm",
-                  serviceCardTones[index % serviceCardTones.length]
+                  "group relative min-h-32 overflow-hidden rounded-xl border border-[#efefef] bg-white p-4 pl-6 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
                 )}
               >
-                <p className="text-sm font-semibold">{item.label}</p>
-                <div className="mt-5 flex items-end justify-between gap-3">
-                  <p className="text-3xl font-bold">{item.count}</p>
-                  <p className="text-sm font-semibold">{usd(item.value)}</p>
+                <div
+                  className={cn(
+                    "absolute left-0 top-0 h-full w-1.5",
+                    accentColors[serviceCardTones[index % serviceCardTones.length]]
+                  )}
+                />
+                <div className="flex h-full flex-col justify-between gap-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#46484a]">
+                    {item.label}
+                  </p>
+                  <div>
+                    <p className="text-2xl font-bold tracking-tight text-[#224770]">
+                      {item.count}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[#46484a]">
+                      {usd(item.value)}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -518,28 +481,24 @@ export function DashboardOverview({
         <section className="panel overflow-hidden border-[#efefef] bg-white">
           <SectionTitle title="Season Summary" />
           <div className="grid gap-3 p-5 sm:grid-cols-2">
-            <StatCard
+            <SummaryCard
               label="New consultations"
               value={String(seasonConsultations)}
-              icon={Stethoscope}
               tone="green"
             />
-            <StatCard
+            <SummaryCard
               label="Total patients"
               value={String(invoices.length)}
-              icon={UsersRound}
               tone="sky"
             />
-            <StatCard
+            <SummaryCard
               label="Procedures"
               value={String(seasonProcedures)}
-              icon={ClipboardList}
               tone="blue"
             />
-            <StatCard
+            <SummaryCard
               label="Other services"
               value={String(seasonOtherServices)}
-              icon={Settings2}
               tone="dark"
             />
           </div>
@@ -553,23 +512,19 @@ export function DashboardOverview({
             <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
               <tr>
                 <th className="px-5 py-3">Year</th>
-                <th className="px-5 py-3 text-right">Total sales USD</th>
                 <th className="px-5 py-3 text-right">New consultations</th>
-                <th className="px-5 py-3 text-right">Procedures</th>
-                <th className="px-5 py-3 text-right">Other services</th>
-                <th className="px-5 py-3 text-right">Doctor payouts LKR</th>
+                <th className="px-5 py-3 text-right">Total Sales (USD)</th>
+                <th className="px-5 py-3 text-right">Total Doctor Payouts (LKR)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
               {yearlyComparison.map((item) => (
                 <tr key={item.year}>
                   <td className="px-5 py-4 text-lg font-bold text-[#224770]">{item.year}</td>
+                  <td className="px-5 py-4 text-right text-[#46484a]">{item.consultations}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]">
                     {usd(item.totalSales)}
                   </td>
-                  <td className="px-5 py-4 text-right text-[#46484a]">{item.consultations}</td>
-                  <td className="px-5 py-4 text-right text-[#46484a]">{item.procedures}</td>
-                  <td className="px-5 py-4 text-right text-[#46484a]">{item.otherServices}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]">
                     {money(item.doctorPayouts)}
                   </td>
@@ -581,25 +536,23 @@ export function DashboardOverview({
       </section>
 
       <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Doctor Payouts" />
+        <SectionTitle title="Doctor Payout Summary" />
         <div className="grid gap-4 p-5 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <StatCard
+            <SummaryCard
               label="Monthly payouts paid"
               value={money(monthlyPaidPayouts)}
-              icon={Banknote}
               tone="green"
             />
-            <StatCard
+            <SummaryCard
               label="Pending payouts"
               value={money(monthlyPendingPayouts)}
-              icon={CalendarDays}
               tone="blue"
             />
           </div>
           <div className="overflow-hidden rounded-xl border border-[#efefef]">
             <div className="bg-[#efefef] px-4 py-3">
-              <h3 className="text-sm font-semibold text-[#224770]">Doctor-wise payouts</h3>
+              <h3 className="text-sm font-semibold text-[#224770]">Doctor Payout Summary</h3>
             </div>
             <table className="min-w-full divide-y divide-[#efefef] text-sm">
               <thead className="bg-white text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
