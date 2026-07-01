@@ -13,6 +13,7 @@ import {
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
 import { money, todayISO, usdWhole } from "@/lib/format";
+import { createId } from "@/lib/id";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
@@ -58,7 +59,7 @@ function roundUsd(value: number) {
 }
 
 function makeId() {
-  return crypto.randomUUID();
+  return createId();
 }
 
 function normalizeDoctorCatalog(doctor: Doctor): Doctor {

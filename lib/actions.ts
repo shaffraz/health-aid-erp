@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { createId } from "@/lib/id";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import {
   isAmountOnlyInvoiceServiceName,
@@ -120,7 +121,7 @@ export async function createInvoiceAction(input: unknown): Promise<ActionResult<
     return {
       ok: true,
       demo: true,
-      data: { invoiceNo: "demo", invoiceId: crypto.randomUUID(), date: new Date().toISOString().slice(0, 10) }
+      data: { invoiceNo: "demo", invoiceId: createId(), date: new Date().toISOString().slice(0, 10) }
     };
   }
 
@@ -231,7 +232,7 @@ export async function createServiceAction(input: unknown): Promise<ActionResult<
   }
 
   if (!auth.supabase) {
-    return { ok: true, demo: true, data: { id: crypto.randomUUID() } };
+    return { ok: true, demo: true, data: { id: createId() } };
   }
 
   const { data, error } = await auth.supabase
@@ -271,7 +272,7 @@ export async function createDoctorAction(input: unknown): Promise<ActionResult<{
   }
 
   if (!auth.supabase) {
-    return { ok: true, demo: true, data: { id: crypto.randomUUID() } };
+    return { ok: true, demo: true, data: { id: createId() } };
   }
 
   const { data, error } = await auth.supabase
@@ -309,7 +310,7 @@ export async function createDoctorPaymentRuleAction(input: unknown): Promise<Act
   }
 
   if (!auth.supabase) {
-    return { ok: true, demo: true, data: { id: crypto.randomUUID() } };
+    return { ok: true, demo: true, data: { id: createId() } };
   }
 
   const { data, error } = await auth.supabase
@@ -353,7 +354,7 @@ export async function generatePayoutVoucherAction(input: unknown): Promise<Actio
     return {
       ok: true,
       demo: true,
-      data: { id: crypto.randomUUID(), voucherNo: "demo", payoutIds: [], totalAmount: 0 }
+      data: { id: createId(), voucherNo: "demo", payoutIds: [], totalAmount: 0 }
     };
   }
 

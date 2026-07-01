@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { money, usd } from "@/lib/format";
+import { createId } from "@/lib/id";
 import {
   isPayoutEligibleCategory,
   serviceCategories,
@@ -170,7 +171,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
     const payoutAmount = categoryCanPayout ? Math.max(0, Number(form.payoutAmount)) : 0;
     const payoutEnabled = payoutAmount > 0;
     const nextService: Service = {
-      id: form.id ?? crypto.randomUUID(),
+      id: form.id ?? createId(),
       name,
       category: form.category,
       sellingPrice,
