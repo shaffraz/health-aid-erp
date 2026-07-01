@@ -17,6 +17,7 @@ import {
   X
 } from "lucide-react";
 import { useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { DemoRoleSwitcher } from "@/components/demo-role-switcher";
 import { StatusPill } from "@/components/status-pill";
 import { hasPermission, roleLabels } from "@/lib/permissions";
@@ -68,16 +69,11 @@ export function AppShell({ user, children }: AppShellProps) {
 
   const sidebar = (
     <aside className="flex h-full flex-col gap-5">
-      <div className="rounded-xl bg-ink p-4 text-white shadow-soft">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-care-500 font-black text-ink">
-            HA
-          </div>
-          <div>
-            <p className="text-sm font-semibold">Health Aid</p>
-            <p className="text-xs text-cyan-100">Arugambay ERP POS</p>
-          </div>
-        </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-soft">
+        <BrandLogo className="mx-auto max-w-[210px]" priority />
+        <p className="mt-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          ERP POS
+        </p>
       </div>
 
       <DemoRoleSwitcher activeRole={user.role} />
@@ -132,8 +128,8 @@ export function AppShell({ user, children }: AppShellProps) {
       <header className="sticky top-0 z-40 border-b border-white/70 bg-white/85 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink text-sm font-black text-care-300">
-              HA
+            <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+              <BrandLogo variant="mark" priority />
             </span>
             <span className="font-semibold text-ink">Health Aid ERP</span>
           </Link>

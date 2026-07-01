@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Activity, ArrowRight, ShieldCheck } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { roleLabels } from "@/lib/permissions";
 import { roles, type Role } from "@/lib/types";
@@ -54,8 +55,8 @@ export function LoginPanel() {
     <main className="grid min-h-screen place-items-center px-4 py-10">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-white/80 bg-white shadow-soft lg:grid-cols-[0.9fr_1.1fr]">
         <section className="bg-ink p-8 text-white lg:p-10">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-care-500 font-black text-ink">
-            HA
+          <div className="rounded-2xl bg-white p-4 shadow-soft">
+            <BrandLogo priority />
           </div>
           <h1 className="mt-8 text-3xl font-bold tracking-tight">Health Aid Arugambay ERP POS</h1>
           <p className="mt-4 text-sm leading-6 text-cyan-50">
