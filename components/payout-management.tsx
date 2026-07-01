@@ -5,7 +5,7 @@ import { generatePayoutVoucherAction, updateVoucherStatusAction } from "@/lib/ac
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
-import { createId } from "@/lib/id";
+import { generateId } from "@/lib/id";
 import type { Doctor, DoctorPayout, PayoutVoucher } from "@/lib/types";
 
 type PayoutManagementProps = {
@@ -83,7 +83,7 @@ export function PayoutManagement({
       ? eligible.reduce((sum, payout) => sum + payout.payoutAmount, 0)
       : result.data.totalAmount;
     const voucher: PayoutVoucher = {
-      id: result.demo ? createId() : result.data.id,
+      id: result.demo ? generateId() : result.data.id,
       voucherNo,
       doctorId,
       periodStart: `${month}-01`,

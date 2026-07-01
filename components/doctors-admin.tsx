@@ -9,7 +9,7 @@ import {
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
-import { createId } from "@/lib/id";
+import { generateId } from "@/lib/id";
 import {
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
@@ -81,7 +81,7 @@ function doctorToForm(doctor: Doctor): DoctorForm {
 
 function formToDoctor(form: DoctorForm): Doctor {
   return {
-    id: form.id ?? createId(),
+    id: form.id ?? generateId(),
     name: form.name.trim(),
     designation: form.designation.trim() || "General practice",
     phone: form.phone.trim() || undefined,
