@@ -16,6 +16,7 @@ export function BrandLogo({ className, priority = false, variant = "full" }: Bra
         width={360}
         height={360}
         priority={priority}
+        unoptimized
         className={cn("h-auto w-full object-contain", className)}
       />
     );
@@ -28,6 +29,7 @@ export function BrandLogo({ className, priority = false, variant = "full" }: Bra
       width={900}
       height={255}
       priority={priority}
+      unoptimized
       className={cn("h-auto w-full object-contain", className)}
     />
   );

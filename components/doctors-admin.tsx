@@ -100,6 +100,9 @@ export function DoctorsAdmin({
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
     defaultDoctorPaymentModel
   );
+  const [paymentModeDraft, setPaymentModeDraft] = useState<DoctorPaymentModelType>(
+    defaultDoctorPaymentModel.activeModel
+  );
   const [form, setForm] = useState<DoctorForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState("");
@@ -117,7 +120,9 @@ export function DoctorsAdmin({
 
       const storedSettings = window.localStorage.getItem(doctorPaymentSettingsStorageKey);
       if (storedSettings) {
-        setPaymentSettings(normalizeDoctorPaymentModel(JSON.parse(storedSettings)));
+        const normalizedSettings = normalizeDoctorPaymentModel(JSON.parse(storedSettings));
+        setPaymentSettings(normalizedSettings);
+        setPaymentModeDraft(normalizedSettings.activeModel);
       }
     } finally {
       setHydrated(true);
@@ -249,6 +254,16 @@ export function DoctorsAdmin({
     setPaymentSettings((current) => normalizeDoctorPaymentModel({ ...current, ...patch }));
   }
 
+  function savePaymentMode() {
+    if (!canEdit) {
+      return;
+    }
+
+    updatePaymentSettings({ activeModel: paymentModeDraft });
+  }
+
+  const paymentModeChanged = paymentModeDraft !== paymentSettings.activeModel;
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -293,27 +308,48 @@ export function DoctorsAdmin({
           <h2 className="font-semibold text-[#224770]">Doctor Payment Settings</h2>
         </div>
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-          <div className="xl:col-span-3">
-            <label className="label" htmlFor="global-payment-model">
-              Current Payment Mode
-            </label>
-            <select
-              id="global-payment-model"
-              value={paymentSettings.activeModel}
-              onChange={(event) =>
-                updatePaymentSettings({
-                  activeModel: event.target.value as DoctorPaymentModelType
-                })
-              }
-              disabled={!canEdit}
-              className="field mt-2 max-w-md disabled:bg-slate-100"
-            >
-              <option value="low_season">{modelLabels.low_season}</option>
-              <option value="peak_season">{modelLabels.peak_season}</option>
-            </select>
+          <div className="rounded-xl border border-[#efefef] bg-white p-4 shadow-sm xl:col-span-3">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr] lg:items-end">
+              <div>
+                <p className="label">Current Payment Mode</p>
+                <p className="mt-2 text-xl font-bold text-[#224770]">
+                  {modelLabels[paymentSettings.activeModel]}
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <div>
+                  <label className="label" htmlFor="global-payment-model">
+                    Switch Payment Mode
+                  </label>
+                  <select
+                    id="global-payment-model"
+                    value={paymentModeDraft}
+                    onChange={(event) =>
+                      setPaymentModeDraft(event.target.value as DoctorPaymentModelType)
+                    }
+                    disabled={!canEdit}
+                    className="field mt-2 disabled:bg-slate-100"
+                  >
+                    <option value="low_season">{modelLabels.low_season}</option>
+                    <option value="peak_season">{modelLabels.peak_season}</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={savePaymentMode}
+                  disabled={!canEdit || !paymentModeChanged}
+                  className={buttonClass(
+                    paymentModeChanged ? "primary" : "muted",
+                    "min-h-11 whitespace-nowrap"
+                  )}
+                >
+                  Save Mode
+                </button>
+              </div>
+            </div>
           </div>
 
-          {paymentSettings.activeModel === "low_season" ? (
+          {paymentModeDraft === "low_season" ? (
             <>
               <div>
                 <label className="label" htmlFor="day-payout">

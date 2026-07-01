@@ -125,8 +125,8 @@ export function AppShell({ user, children }: AppShellProps) {
       <header className="sticky top-0 z-40 border-b border-white/70 bg-white/85 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-              <BrandLogo variant="mark" priority />
+            <span className="flex h-10 w-10 items-center justify-center overflow-hidden">
+              <BrandLogo variant="mark" priority className="h-10 w-10" />
             </span>
             <span className="font-semibold text-ink">Health Aid ERP</span>
           </Link>

@@ -27,6 +27,7 @@ import {
   type InvoiceItem,
   type Service
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type DraftLine = {
   id: string;
@@ -63,6 +64,76 @@ function roundUsd(value: number) {
 
 function makeId() {
   return generateId();
+}
+
+type InvoiceSectionTone =
+  | "invoice"
+  | "patient"
+  | "billing"
+  | "services"
+  | "charges"
+  | "notes"
+  | "totals"
+  | "preview"
+  | "payout"
+  | "recent";
+
+const invoiceSectionColors = {
+  invoice: "#224770",
+  patient: "#0eb6ef",
+  billing: "#84bc3f",
+  services: "#224770",
+  charges: "#0eb6ef",
+  notes: "#46484a",
+  totals: "#84bc3f",
+  preview: "#224770",
+  payout: "#84bc3f",
+  recent: "#46484a"
+} satisfies Record<InvoiceSectionTone, string>;
+
+function WorkflowSection({
+  title,
+  tone,
+  children,
+  className
+}: {
+  title: string;
+  tone: InvoiceSectionTone;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-xl border border-t-4 border-[#efefef] bg-white p-4 shadow-sm",
+        className
+      )}
+      style={{ borderTopColor: invoiceSectionColors[tone] }}
+    >
+      <SectionHeading title={title} tone={tone} />
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function SidePanel({
+  title,
+  tone,
+  children
+}: {
+  title: string;
+  tone: InvoiceSectionTone;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="panel border-t-4 bg-white p-5"
+      style={{ borderTopColor: invoiceSectionColors[tone] }}
+    >
+      <SectionHeading title={title} tone={tone} />
+      <div className="mt-4">{children}</div>
+    </section>
+  );
 }
 
 function normalizeDoctorCatalog(doctor: Doctor): Doctor {
@@ -446,7 +517,8 @@ export function InvoicePosForm({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="panel p-5">
+        <div className="space-y-4">
+          <WorkflowSection title="Invoice Information" tone="invoice">
           <InvoiceHeader
             invoiceNo={invoiceNo}
             invoiceDate={invoiceDate}
@@ -465,10 +537,10 @@ export function InvoicePosForm({
               Saved {savedInvoiceNo}. Recent invoices were updated locally.
             </div>
           ) : null}
+          </WorkflowSection>
 
-          <div className="mt-6 space-y-7">
-            <div className="space-y-4">
-              <SectionHeading title="Patient Information" />
+          <div className="space-y-4">
+            <WorkflowSection title="Patient Information" tone="patient">
               <PatientInformationFields
                 patientName={patientName}
                 passport={passport}
@@ -481,10 +553,9 @@ export function InvoicePosForm({
                 onEmailChange={setEmail}
                 onNationalityChange={setNationality}
               />
-            </div>
+            </WorkflowSection>
 
-            <div className="space-y-4">
-              <SectionHeading title="Billing Information" />
+            <WorkflowSection title="Billing Information" tone="billing">
               <BillingDetailsFields
                 activeDoctors={activeDoctors}
                 doctorId={doctorId}
@@ -492,7 +563,7 @@ export function InvoicePosForm({
                 onDoctorIdChange={setDoctorId}
                 onPaymentMethodChange={setPaymentMethod}
               />
-            </div>
+            </WorkflowSection>
 
             <InvoiceServicesSection
               selectedServiceId={selectedServiceId}
@@ -520,12 +591,11 @@ export function InvoicePosForm({
               />
             </div>
           </div>
-        </section>
+        </div>
 
         <aside className="space-y-6">
-          <section className="panel p-5">
-            <h3 className="font-semibold text-[#224770]">Invoice Preview</h3>
-            <div className="mt-4 space-y-4">
+          <SidePanel title="Invoice Preview" tone="preview">
+            <div className="space-y-4">
               <PreviewGroup title="Clinical Services" items={clinicalInvoiceItems} />
               <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
                 <div className="flex justify-between">
@@ -550,11 +620,10 @@ export function InvoicePosForm({
                 </div>
               </div>
             </div>
-          </section>
+          </SidePanel>
 
-          <section className="panel p-5">
-            <h3 className="font-semibold text-[#224770]">Doctor Payout Preview</h3>
-            <div className="mt-3 rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
+          <SidePanel title="Doctor Payout Preview" tone="payout">
+            <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
               <div className="flex justify-between gap-3">
                 <span className="text-[#46484a]">Current Payment Mode</span>
                 <span className="font-semibold text-[#224770]">
@@ -585,11 +654,10 @@ export function InvoicePosForm({
                 </p>
               )}
             </div>
-          </section>
+          </SidePanel>
 
-          <section className="panel p-5">
-            <h3 className="font-semibold text-[#224770]">Recent Invoices</h3>
-            <div className="mt-4 space-y-3">
+          <SidePanel title="Recent Invoices" tone="recent">
+            <div className="space-y-3">
               {invoices.slice(0, 5).map((invoice) => (
                 <div key={invoice.id} className="rounded-lg border border-[#efefef] p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -605,15 +673,20 @@ export function InvoicePosForm({
                 </div>
               ))}
             </div>
-          </section>
+          </SidePanel>
         </aside>
     </div>
   );
 }
 
-function SectionHeading({ title }: { title: string }) {
+function SectionHeading({ title, tone = "invoice" }: { title: string; tone?: InvoiceSectionTone }) {
   return (
-    <div className="border-b border-[#efefef] pb-3">
+    <div className="flex items-center gap-2 border-b border-[#efefef] pb-3">
+      <span
+        className="h-2.5 w-2.5 rounded-full"
+        style={{ backgroundColor: invoiceSectionColors[tone] }}
+        aria-hidden="true"
+      />
       <h3 className="font-semibold text-[#224770]">{title}</h3>
     </div>
   );
@@ -688,10 +761,10 @@ function InvoiceHeader({
   onDownloadInvoice: (invoice: Invoice) => void;
 }) {
   return (
-    <div className="border-b border-[#efefef] pb-5">
+    <div>
       <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
         <div className="min-w-0 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-4">
-          <p className="label">Invoice Information</p>
+          <p className="label">Invoice No.</p>
           <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
             {invoiceNo}
           </h2>
@@ -900,8 +973,7 @@ function InvoiceServicesSection({
   onRemoveServiceLine: (id: string) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <SectionHeading title="Clinical Services" />
+    <WorkflowSection title="Clinical Services" tone="services">
       <FieldShell>
         <label className="label" htmlFor="service-selector">
           Select Service
@@ -961,7 +1033,7 @@ function InvoiceServicesSection({
           </p>
         ) : null}
       </div>
-    </div>
+    </WorkflowSection>
   );
 }
 
@@ -1020,8 +1092,7 @@ function AdditionalChargesSection({
   onChargeLineChange: (serviceId: string, amountUsd: number) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <SectionHeading title="Additional Charges" />
+    <WorkflowSection title="Additional Charges" tone="charges">
       <div className="grid gap-3">
         <AdditionalChargeInput
           label="Medication Charges"
@@ -1036,7 +1107,7 @@ function AdditionalChargesSection({
           onAmountChange={onChargeLineChange}
         />
       </div>
-    </div>
+    </WorkflowSection>
   );
 }
 
@@ -1048,8 +1119,7 @@ function NotesSection({
   onNotesChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <SectionHeading title="Notes" />
+    <WorkflowSection title="Notes" tone="notes">
       <textarea
         id="notes"
         value={notes}
@@ -1057,7 +1127,7 @@ function NotesSection({
         className="field min-h-28"
         placeholder="Clinical or billing notes for the invoice"
       />
-    </div>
+    </WorkflowSection>
   );
 }
 
@@ -1075,8 +1145,12 @@ function TotalsPanel({
   onSaveInvoice: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-[#efefef] bg-[#efefef]/50 p-4">
-      <div className="space-y-3 text-sm">
+    <div
+      className="rounded-xl border border-t-4 border-[#efefef] bg-white p-4 shadow-sm"
+      style={{ borderTopColor: invoiceSectionColors.totals }}
+    >
+      <SectionHeading title="Invoice Total" tone="totals" />
+      <div className="mt-4 space-y-3 text-sm">
         <div>
           <label className="label" htmlFor="discount">
             Discount

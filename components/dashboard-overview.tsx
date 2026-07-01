@@ -1,7 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
+import { KpiCard, tableStyles } from "@/components/erp-ui";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
 import {
   defaultDoctorPaymentModel,
@@ -23,6 +24,7 @@ import {
   type Service,
   type ServiceCategory
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type DashboardOverviewProps = {
   initialDoctors: Doctor[];
@@ -133,11 +135,80 @@ function receivableOutstanding(receivable: InsuranceReceivable) {
   return Math.max(0, receivable.totalBilled - receivable.paidAmount);
 }
 
-function SectionTitle({ title }: { title: string }) {
+type SectionTone = "operations" | "performance" | "services" | "season" | "yearly" | "insights";
+
+const sectionTones: Record<
+  SectionTone,
+  {
+    panel: string;
+    header: string;
+    accent: string;
+    title: string;
+  }
+> = {
+  operations: {
+    panel: "border-[#224770] bg-[#224770]",
+    header: "border-white/25",
+    accent: "bg-white",
+    title: "text-white"
+  },
+  performance: {
+    panel: "border-[#84bc3f] bg-[#84bc3f]",
+    header: "border-white/25",
+    accent: "bg-white",
+    title: "text-white"
+  },
+  services: {
+    panel: "bg-white",
+    header: "border-[#efefef]",
+    accent: "bg-[#84bc3f]",
+    title: "text-[#3f6f18]"
+  },
+  season: {
+    panel: "bg-white",
+    header: "border-[#efefef]",
+    accent: "bg-[#224770]",
+    title: "text-[#224770]"
+  },
+  yearly: {
+    panel: "bg-white",
+    header: "border-[#efefef]",
+    accent: "bg-[#46484a]",
+    title: "text-[#46484a]"
+  },
+  insights: {
+    panel: "bg-white",
+    header: "border-[#efefef]",
+    accent: "bg-[#0eb6ef]",
+    title: "text-[#224770]"
+  }
+};
+
+function SectionTitle({ title, tone }: { title: string; tone: SectionTone }) {
+  const styles = sectionTones[tone];
+
   return (
-    <div className="border-b border-[#efefef] px-5 py-4">
-      <h2 className="font-semibold text-[#224770]">{title}</h2>
+    <div className={cn("border-b px-5 py-4", styles.header)}>
+      <div className={cn("mb-3 h-1 w-12 rounded-full", styles.accent)} />
+      <h2 className={cn("font-semibold", styles.title)}>{title}</h2>
     </div>
+  );
+}
+
+function DashboardSection({
+  title,
+  tone,
+  children
+}: {
+  title: string;
+  tone: SectionTone;
+  children: ReactNode;
+}) {
+  return (
+    <section className={cn("panel overflow-hidden", sectionTones[tone].panel)}>
+      <SectionTitle title={title} tone={tone} />
+      {children}
+    </section>
   );
 }
 
@@ -225,10 +296,6 @@ export function DashboardOverview({
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
     defaultDoctorPaymentModel
   );
-  const [draftPaymentMode, setDraftPaymentMode] = useState<DoctorPaymentModelType>(
-    defaultDoctorPaymentModel.activeModel
-  );
-  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
@@ -254,23 +321,11 @@ export function DashboardOverview({
       if (storedPaymentSettings) {
         const normalizedSettings = normalizeDoctorPaymentModel(JSON.parse(storedPaymentSettings));
         setPaymentSettings(normalizedSettings);
-        setDraftPaymentMode(normalizedSettings.activeModel);
       }
-    } finally {
-      setHydrated(true);
+    } catch {
+      setPaymentSettings(defaultDoctorPaymentModel);
     }
   }, []);
-
-  useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
-    window.localStorage.setItem(
-      doctorPaymentSettingsStorageKey,
-      JSON.stringify(paymentSettings)
-    );
-  }, [hydrated, paymentSettings]);
 
   const today = todayISO();
   const selectedMonth = today.slice(0, 7);
@@ -382,22 +437,12 @@ export function DashboardOverview({
     };
   });
 
-  function savePaymentMode() {
-    setPaymentSettings((current) =>
-      normalizeDoctorPaymentModel({
-        ...current,
-        activeModel: draftPaymentMode
-      })
-    );
-  }
-
   function paymentTotal(method: Extract<PaymentMethod, "cash" | "card" | "insurance">) {
     return monthlyInvoices
       .filter((invoice) => invoice.paymentMethod === method)
       .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
   }
 
-  const paymentModeChanged = draftPaymentMode !== paymentSettings.activeModel;
   const averageInvoiceValue = monthlyInvoices.length
     ? monthlyRevenue / monthlyInvoices.length
     : 0;
@@ -415,22 +460,36 @@ export function DashboardOverview({
 
   return (
     <div className="space-y-6">
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Operations" />
-        <div className="grid gap-4 p-5 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
+      <DashboardSection title="Operations" tone="operations">
+        <div className="grid gap-4 p-5 md:grid-cols-3">
           <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
             <p className="label">Current Payment Mode</p>
             <p className="mt-3 text-2xl font-bold tracking-tight text-[#224770]">
               {paymentModeLabels[paymentSettings.activeModel]}
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-              <span className="rounded-full bg-[#efefef] px-3 py-1 text-[#46484a]">
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1",
+                  paymentSettings.activeModel === "low_season"
+                    ? "bg-[#224770] text-white"
+                    : "bg-[#efefef] text-[#46484a]"
+                )}
+              >
                 On-Call Mode
               </span>
-              <span className="rounded-full bg-[#efefef] px-3 py-1 text-[#46484a]">
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1",
+                  paymentSettings.activeModel === "peak_season"
+                    ? "bg-[#224770] text-white"
+                    : "bg-[#efefef] text-[#46484a]"
+                )}
+              >
                 Clinic Shift Mode
               </span>
             </div>
+            <p className="mt-3 text-xs font-semibold text-[#46484a]">Active system mode</p>
           </div>
           <KpiCard
             label="Active Doctors"
@@ -444,36 +503,10 @@ export function DashboardOverview({
             tone="success"
             className="min-h-full"
           />
-          <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-            <label className="label" htmlFor="dashboard-payment-mode">
-              Payment Mode
-            </label>
-            <select
-              id="dashboard-payment-mode"
-              value={draftPaymentMode}
-              onChange={(event) =>
-                setDraftPaymentMode(event.target.value as DoctorPaymentModelType)
-              }
-              className="field mt-3 min-h-11 border-[#224770]/20 bg-white"
-              aria-label="Doctor payment mode"
-            >
-              <option value="low_season">{paymentModeLabels.low_season}</option>
-              <option value="peak_season">{paymentModeLabels.peak_season}</option>
-            </select>
-            <button
-              type="button"
-              onClick={savePaymentMode}
-              disabled={!paymentModeChanged}
-              className={buttonClass(paymentModeChanged ? "primary" : "muted", "mt-3 w-full min-h-11")}
-            >
-              Save Mode
-            </button>
-          </div>
         </div>
-      </section>
+      </DashboardSection>
 
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Business Performance" />
+      <DashboardSection title="Business Performance" tone="performance">
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="Today's Revenue (USD)" value={usdWhole(todayRevenue)} tone="info" />
           <KpiCard label="Patients Seen Today" value={String(patientsSeenToday)} />
@@ -488,10 +521,9 @@ export function DashboardOverview({
             tone="primary"
           />
         </div>
-      </section>
+      </DashboardSection>
 
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Monthly Services Summary" />
+      <DashboardSection title="Monthly Services Summary" tone="services">
         <div className="overflow-x-auto p-5">
           <div className="flex min-w-full gap-4 pb-1">
             {monthlyServiceSummary.map((item) => (
@@ -501,9 +533,6 @@ export function DashboardOverview({
               >
                 <p className="text-sm font-semibold text-[#224770]">{item.serviceName}</p>
                 <p className="mt-4 text-2xl font-bold text-[#224770]">{item.count}</p>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
-                  Performed this month
-                </p>
                 <p className="mt-3 text-sm font-medium text-[#46484a]">
                   Revenue {usdWhole(item.revenue)}
                 </p>
@@ -516,10 +545,9 @@ export function DashboardOverview({
             ) : null}
           </div>
         </div>
-      </section>
+      </DashboardSection>
 
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Current Season Summary" />
+      <DashboardSection title="Current Season Summary" tone="season">
         <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
           {currentSeasonSummary.map((item) => (
             <SummaryCard
@@ -530,10 +558,9 @@ export function DashboardOverview({
             />
           ))}
         </div>
-      </section>
+      </DashboardSection>
 
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Yearly Summary" />
+      <DashboardSection title="Yearly Summary" tone="yearly">
         <div className={tableStyles.wrapper}>
           <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
@@ -558,10 +585,9 @@ export function DashboardOverview({
             </tbody>
           </table>
         </div>
-      </section>
+      </DashboardSection>
 
-      <section className="panel overflow-hidden border-[#efefef] bg-white">
-        <SectionTitle title="Business Insights" />
+      <DashboardSection title="Business Insights" tone="insights">
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
           <SummaryCard
             label="Average Invoice Value (USD)"
@@ -582,7 +608,7 @@ export function DashboardOverview({
             total={paymentDistributionTotal}
           />
         </div>
-      </section>
+      </DashboardSection>
     </div>
   );
 }
