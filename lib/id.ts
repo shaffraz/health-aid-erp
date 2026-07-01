@@ -1,10 +1,6 @@
 export function createId(prefix = "id") {
   const cryptoApi = globalThis.crypto;
 
-  if (typeof cryptoApi?.randomUUID === "function") {
-    return cryptoApi.randomUUID();
-  }
-
   if (typeof cryptoApi?.getRandomValues === "function") {
     const bytes = new Uint8Array(16);
     cryptoApi.getRandomValues(bytes);
