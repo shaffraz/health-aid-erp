@@ -34,6 +34,9 @@ type DraftLine = {
   amountUsd: number;
 };
 
+type PaymentMethod = (typeof paymentMethods)[number];
+type InvoiceTotals = ReturnType<typeof calculateInvoiceTotals>;
+
 type InvoicePosFormProps = {
   doctors: Doctor[];
   services: Service[];
@@ -41,7 +44,7 @@ type InvoicePosFormProps = {
   createdBy: string;
 };
 
-const paymentLabels: Record<(typeof paymentMethods)[number], string> = {
+const paymentLabels: Record<PaymentMethod, string> = {
   cash: "Cash",
   card: "Card",
   bank_transfer: "Bank transfer",
@@ -123,7 +126,7 @@ export function InvoicePosForm({
   const [nationality, setNationality] = useState("");
   const [doctorId, setDoctorId] = useState(activeDoctors[0]?.id ?? "");
   const [discount, setDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethods)[number]>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [notes, setNotes] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([]);
@@ -441,389 +444,21 @@ export function InvoicePosForm({
     );
   }
 
-  function SectionHeading({ title }: { title: string }) {
-    return (
-      <div className="border-b border-[#efefef] pb-3">
-        <h3 className="font-semibold text-[#224770]">{title}</h3>
-      </div>
-    );
-  }
-
-  function FieldShell({ children }: { children: ReactNode }) {
-    return <div>{children}</div>;
-  }
-
-  function AdditionalChargeInput({
-    label,
-    service
-  }: {
-    label: string;
-    service?: Service;
-  }) {
-    if (!service) {
-      return (
-        <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
-          Charge service is not active.
-        </p>
-      );
-    }
-
-    const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
-
-    return (
-      <div className="grid gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
-        <label className="text-sm font-semibold text-[#224770]" htmlFor={`charge-${service.id}`}>
-          {label}
-        </label>
-        <div className="flex items-center overflow-hidden rounded-lg border border-[#dbe3ea] bg-white focus-within:ring-2 focus-within:ring-[#0eb6ef]/20">
-          <span className="px-3 text-sm font-semibold text-[#46484a]">$</span>
-          <input
-            id={`charge-${service.id}`}
-            type="number"
-            min={0}
-            step="1"
-            value={line?.amountUsd ?? 0}
-            onChange={(event) => updateChargeLine(service.id, Number(event.target.value))}
-            className="h-10 w-full border-0 bg-transparent px-3 py-2 text-right text-sm font-semibold text-[#224770] outline-none"
-            placeholder="0"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  function InvoiceTimestampFields() {
-    return (
-      <>
-        <FieldShell>
-          <label className="label" htmlFor="invoice-date">
-            Invoice date
-          </label>
-          <input
-            id="invoice-date"
-            type="date"
-            value={invoiceDate}
-            onChange={(event) => setInvoiceDate(event.target.value)}
-            className="field mt-2"
-          />
-        </FieldShell>
-        <FieldShell>
-          <label className="label" htmlFor="invoice-time">
-            Invoice time
-          </label>
-          <input
-            id="invoice-time"
-            type="time"
-            value={invoiceTime}
-            onChange={(event) => setInvoiceTime(event.target.value)}
-            className="field mt-2"
-          />
-        </FieldShell>
-      </>
-    );
-  }
-
-  function PatientInformationFields() {
-    return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <FieldShell>
-          <label className="label" htmlFor="patientName">
-            Patient name
-          </label>
-          <input
-            id="patientName"
-            value={patientName}
-            onChange={(event) => setPatientName(event.target.value)}
-            className="field mt-2"
-            placeholder="Patient full name"
-            required
-          />
-        </FieldShell>
-        <FieldShell>
-          <label className="label" htmlFor="passport">
-            Passport / ID
-          </label>
-          <input
-            id="passport"
-            value={passport}
-            onChange={(event) => setPassport(event.target.value)}
-            className="field mt-2"
-            placeholder="Required"
-            required
-          />
-        </FieldShell>
-        <FieldShell>
-          <label className="label" htmlFor="phone">
-            Mobile Number
-          </label>
-          <input
-            id="phone"
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            className="field mt-2"
-            placeholder="Required"
-            required
-          />
-        </FieldShell>
-        <FieldShell>
-          <label className="label" htmlFor="nationality">
-            Nationality
-          </label>
-          <input
-            id="nationality"
-            value={nationality}
-            onChange={(event) => setNationality(event.target.value)}
-            className="field mt-2"
-            placeholder="Required"
-            required
-          />
-        </FieldShell>
-        <div className="md:col-span-2">
-          <label className="label" htmlFor="email">
-            Email (optional)
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="field mt-2"
-            placeholder="Optional"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  function BillingDetailsFields() {
-    return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <FieldShell>
-          <label className="label" htmlFor="doctor">
-            Doctor
-          </label>
-          <select
-            id="doctor"
-            value={doctorId}
-            onChange={(event) => setDoctorId(event.target.value)}
-            className="field mt-2"
-          >
-            {activeDoctors.length ? (
-              activeDoctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.name}
-                </option>
-              ))
-            ) : (
-              <option value="">No active doctors</option>
-            )}
-          </select>
-        </FieldShell>
-        <FieldShell>
-          <label className="label" htmlFor="paymentMethod">
-            Payment method
-          </label>
-          <select
-            id="paymentMethod"
-            value={paymentMethod}
-            onChange={(event) => setPaymentMethod(event.target.value as typeof paymentMethod)}
-            className="field mt-2"
-          >
-            {paymentMethods.map((method) => (
-              <option key={method} value={method}>
-                {paymentLabels[method]}
-              </option>
-            ))}
-          </select>
-        </FieldShell>
-      </div>
-    );
-  }
-
-  function AdditionalChargesSection() {
-    return (
-      <div className="space-y-4">
-        <SectionHeading title="Additional Charges" />
-        <div className="grid gap-3">
-          <AdditionalChargeInput
-            label="Medication Charges"
-            service={medicationChargeService}
-          />
-          <AdditionalChargeInput
-            label="Consumable Charges"
-            service={consumableChargeService}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  function InvoiceServicesSection() {
-    return (
-      <div className="space-y-4">
-        <SectionHeading title="Clinical Services" />
-        <FieldShell>
-          <label className="label" htmlFor="service-selector">
-            Select Service
-          </label>
-          <select
-            id="service-selector"
-            value={selectedServiceId}
-            onChange={(event) => {
-              addSelectedService(event.target.value);
-            }}
-            disabled={!clinicalServiceOptions.length}
-            className="field mt-2"
-          >
-            <option value="">
-              {clinicalServiceOptions.length
-                ? "Select a service to add"
-                : "No active clinical services"}
-            </option>
-            {clinicalServiceOptions.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.name} - {usdWhole(roundUsd(candidate.sellingPrice))}
-              </option>
-            ))}
-          </select>
-        </FieldShell>
-
-        <div className="space-y-3">
-          {serviceLines.map((line) => {
-            const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
-            const lineTotalUsd = roundUsd(service?.sellingPrice ?? 0);
-
-            return (
-              <div
-                key={line.id}
-                className="flex flex-col gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/50 p-3 sm:flex-row sm:items-center"
-              >
-                <p className="min-w-0 flex-1 text-sm font-semibold text-[#224770]">
-                  {service?.name ?? "Unknown service"}
-                </p>
-                <span className="text-sm font-bold text-[#224770]">{usdWhole(lineTotalUsd)}</span>
-                <button
-                  type="button"
-                  onClick={() => removeServiceLine(line.id)}
-                  className={buttonClass("danger", "h-10 px-3 py-0 text-xs")}
-                  aria-label="Remove service line"
-                >
-                  Remove
-                </button>
-              </div>
-            );
-          })}
-          {!serviceLines.length ? (
-            <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
-              {clinicalServiceOptions.length
-                ? "No clinical services selected."
-                : "No active clinical services are available."}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  function NotesSection() {
-    return (
-      <div className="space-y-4">
-        <SectionHeading title="Notes" />
-        <textarea
-          id="notes"
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          className="field min-h-28"
-          placeholder="Clinical or billing notes for the invoice"
-        />
-      </div>
-    );
-  }
-
-  function TotalsPanel() {
-    return (
-      <div className="rounded-xl border border-[#efefef] bg-[#efefef]/50 p-4">
-        <div className="space-y-3 text-sm">
-          <div>
-            <label className="label" htmlFor="discount">
-              Discount
-            </label>
-            <input
-              id="discount"
-              type="number"
-              min={0}
-              step="1"
-              value={discount}
-              onChange={(event) => setDiscount(roundUsd(Number(event.target.value)))}
-              className="field mt-2"
-            />
-          </div>
-          <div className="flex justify-between border-t border-[#efefef] pt-3 text-base">
-            <span className="font-semibold text-[#224770]">Grand Total</span>
-            <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={saveInvoice}
-          disabled={!formReady}
-          className={buttonClass(
-            formReady ? "primary" : "muted",
-            "mt-4 w-full"
-          )}
-        >
-          Save invoice
-        </button>
-      </div>
-    );
-  }
-
-  function InvoiceHeader() {
-    return (
-      <div className="border-b border-[#efefef] pb-5">
-        <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
-          <div className="min-w-0 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-4">
-            <p className="label">Invoice Information</p>
-            <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
-              {invoiceNo}
-            </h2>
-            <p className="mt-1 whitespace-nowrap text-sm text-[#46484a]">
-              {invoiceDate} at {invoiceTime}
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <InvoiceTimestampFields />
-          </div>
-          <div className="flex gap-2 sm:justify-end">
-            <button
-              type="button"
-              onClick={() => printInvoice(lastSavedInvoice ?? draftInvoice)}
-              className={buttonClass("secondary", "h-10 px-3 py-2")}
-            >
-              Print
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadInvoice(lastSavedInvoice ?? draftInvoice)}
-              disabled={!formReady && !lastSavedInvoice}
-              className={buttonClass(
-                formReady || lastSavedInvoice ? "secondary" : "muted",
-                "h-10 px-3 py-2"
-              )}
-            >
-              Download
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="panel p-5">
-          <InvoiceHeader />
+          <InvoiceHeader
+            invoiceNo={invoiceNo}
+            invoiceDate={invoiceDate}
+            invoiceTime={invoiceTime}
+            formReady={formReady}
+            lastSavedInvoice={lastSavedInvoice}
+            draftInvoice={draftInvoice}
+            onInvoiceDateChange={setInvoiceDate}
+            onInvoiceTimeChange={setInvoiceTime}
+            onPrintInvoice={printInvoice}
+            onDownloadInvoice={downloadInvoice}
+          />
 
           {savedInvoiceNo ? (
             <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -834,20 +469,55 @@ export function InvoicePosForm({
           <div className="mt-6 space-y-7">
             <div className="space-y-4">
               <SectionHeading title="Patient Information" />
-              <PatientInformationFields />
+              <PatientInformationFields
+                patientName={patientName}
+                passport={passport}
+                phone={phone}
+                email={email}
+                nationality={nationality}
+                onPatientNameChange={setPatientName}
+                onPassportChange={setPassport}
+                onPhoneChange={setPhone}
+                onEmailChange={setEmail}
+                onNationalityChange={setNationality}
+              />
             </div>
 
             <div className="space-y-4">
               <SectionHeading title="Billing Information" />
-              <BillingDetailsFields />
+              <BillingDetailsFields
+                activeDoctors={activeDoctors}
+                doctorId={doctorId}
+                paymentMethod={paymentMethod}
+                onDoctorIdChange={setDoctorId}
+                onPaymentMethodChange={setPaymentMethod}
+              />
             </div>
 
-            <InvoiceServicesSection />
-            <AdditionalChargesSection />
+            <InvoiceServicesSection
+              selectedServiceId={selectedServiceId}
+              clinicalServiceOptions={clinicalServiceOptions}
+              serviceLines={serviceLines}
+              invoiceServices={invoiceServices}
+              onServiceSelect={addSelectedService}
+              onRemoveServiceLine={removeServiceLine}
+            />
+            <AdditionalChargesSection
+              medicationChargeService={medicationChargeService}
+              consumableChargeService={consumableChargeService}
+              chargeLines={chargeLines}
+              onChargeLineChange={updateChargeLine}
+            />
 
             <div className="grid gap-4 md:grid-cols-[1fr_260px]">
-              <NotesSection />
-              <TotalsPanel />
+              <NotesSection notes={notes} onNotesChange={setNotes} />
+              <TotalsPanel
+                discount={discount}
+                totals={totals}
+                formReady={formReady}
+                onDiscountChange={(value) => setDiscount(roundUsd(value))}
+                onSaveInvoice={saveInvoice}
+              />
             </div>
           </div>
         </section>
@@ -937,6 +607,506 @@ export function InvoicePosForm({
             </div>
           </section>
         </aside>
+    </div>
+  );
+}
+
+function SectionHeading({ title }: { title: string }) {
+  return (
+    <div className="border-b border-[#efefef] pb-3">
+      <h3 className="font-semibold text-[#224770]">{title}</h3>
+    </div>
+  );
+}
+
+function FieldShell({ children }: { children: ReactNode }) {
+  return <div>{children}</div>;
+}
+
+function InvoiceTimestampFields({
+  invoiceDate,
+  invoiceTime,
+  onInvoiceDateChange,
+  onInvoiceTimeChange
+}: {
+  invoiceDate: string;
+  invoiceTime: string;
+  onInvoiceDateChange: (value: string) => void;
+  onInvoiceTimeChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <FieldShell>
+        <label className="label" htmlFor="invoice-date">
+          Invoice date
+        </label>
+        <input
+          id="invoice-date"
+          type="date"
+          value={invoiceDate}
+          onChange={(event) => onInvoiceDateChange(event.target.value)}
+          className="field mt-2"
+        />
+      </FieldShell>
+      <FieldShell>
+        <label className="label" htmlFor="invoice-time">
+          Invoice time
+        </label>
+        <input
+          id="invoice-time"
+          type="time"
+          value={invoiceTime}
+          onChange={(event) => onInvoiceTimeChange(event.target.value)}
+          className="field mt-2"
+        />
+      </FieldShell>
+    </>
+  );
+}
+
+function InvoiceHeader({
+  invoiceNo,
+  invoiceDate,
+  invoiceTime,
+  formReady,
+  lastSavedInvoice,
+  draftInvoice,
+  onInvoiceDateChange,
+  onInvoiceTimeChange,
+  onPrintInvoice,
+  onDownloadInvoice
+}: {
+  invoiceNo: string;
+  invoiceDate: string;
+  invoiceTime: string;
+  formReady: boolean;
+  lastSavedInvoice: Invoice | null;
+  draftInvoice: Invoice;
+  onInvoiceDateChange: (value: string) => void;
+  onInvoiceTimeChange: (value: string) => void;
+  onPrintInvoice: (invoice: Invoice) => void;
+  onDownloadInvoice: (invoice: Invoice) => void;
+}) {
+  return (
+    <div className="border-b border-[#efefef] pb-5">
+      <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
+        <div className="min-w-0 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-4">
+          <p className="label">Invoice Information</p>
+          <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
+            {invoiceNo}
+          </h2>
+          <p className="mt-1 whitespace-nowrap text-sm text-[#46484a]">
+            {invoiceDate} at {invoiceTime}
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InvoiceTimestampFields
+            invoiceDate={invoiceDate}
+            invoiceTime={invoiceTime}
+            onInvoiceDateChange={onInvoiceDateChange}
+            onInvoiceTimeChange={onInvoiceTimeChange}
+          />
+        </div>
+        <div className="flex gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={() => onPrintInvoice(lastSavedInvoice ?? draftInvoice)}
+            className={buttonClass("secondary", "h-10 px-3 py-2")}
+          >
+            Print
+          </button>
+          <button
+            type="button"
+            onClick={() => onDownloadInvoice(lastSavedInvoice ?? draftInvoice)}
+            disabled={!formReady && !lastSavedInvoice}
+            className={buttonClass(
+              formReady || lastSavedInvoice ? "secondary" : "muted",
+              "h-10 px-3 py-2"
+            )}
+          >
+            Download
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PatientInformationFields({
+  patientName,
+  passport,
+  phone,
+  email,
+  nationality,
+  onPatientNameChange,
+  onPassportChange,
+  onPhoneChange,
+  onEmailChange,
+  onNationalityChange
+}: {
+  patientName: string;
+  passport: string;
+  phone: string;
+  email: string;
+  nationality: string;
+  onPatientNameChange: (value: string) => void;
+  onPassportChange: (value: string) => void;
+  onPhoneChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
+  onNationalityChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <FieldShell>
+        <label className="label" htmlFor="patientName">
+          Patient name
+        </label>
+        <input
+          id="patientName"
+          value={patientName}
+          onChange={(event) => onPatientNameChange(event.target.value)}
+          className="field mt-2"
+          placeholder="Patient full name"
+          required
+        />
+      </FieldShell>
+      <FieldShell>
+        <label className="label" htmlFor="passport">
+          Passport / ID
+        </label>
+        <input
+          id="passport"
+          value={passport}
+          onChange={(event) => onPassportChange(event.target.value)}
+          className="field mt-2"
+          placeholder="Required"
+          required
+        />
+      </FieldShell>
+      <FieldShell>
+        <label className="label" htmlFor="phone">
+          Mobile Number
+        </label>
+        <input
+          id="phone"
+          type="tel"
+          value={phone}
+          onChange={(event) => onPhoneChange(event.target.value)}
+          className="field mt-2"
+          placeholder="Required"
+          required
+        />
+      </FieldShell>
+      <FieldShell>
+        <label className="label" htmlFor="nationality">
+          Nationality
+        </label>
+        <input
+          id="nationality"
+          value={nationality}
+          onChange={(event) => onNationalityChange(event.target.value)}
+          className="field mt-2"
+          placeholder="Required"
+          required
+        />
+      </FieldShell>
+      <div className="md:col-span-2">
+        <label className="label" htmlFor="email">
+          Email (optional)
+        </label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(event) => onEmailChange(event.target.value)}
+          className="field mt-2"
+          placeholder="Optional"
+        />
+      </div>
+    </div>
+  );
+}
+
+function BillingDetailsFields({
+  activeDoctors,
+  doctorId,
+  paymentMethod,
+  onDoctorIdChange,
+  onPaymentMethodChange
+}: {
+  activeDoctors: Doctor[];
+  doctorId: string;
+  paymentMethod: PaymentMethod;
+  onDoctorIdChange: (value: string) => void;
+  onPaymentMethodChange: (value: PaymentMethod) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <FieldShell>
+        <label className="label" htmlFor="doctor">
+          Doctor
+        </label>
+        <select
+          id="doctor"
+          value={doctorId}
+          onChange={(event) => onDoctorIdChange(event.target.value)}
+          className="field mt-2"
+        >
+          {activeDoctors.length ? (
+            activeDoctors.map((doctor) => (
+              <option key={doctor.id} value={doctor.id}>
+                {doctor.name}
+              </option>
+            ))
+          ) : (
+            <option value="">No active doctors</option>
+          )}
+        </select>
+      </FieldShell>
+      <FieldShell>
+        <label className="label" htmlFor="paymentMethod">
+          Payment method
+        </label>
+        <select
+          id="paymentMethod"
+          value={paymentMethod}
+          onChange={(event) => onPaymentMethodChange(event.target.value as PaymentMethod)}
+          className="field mt-2"
+        >
+          {paymentMethods.map((method) => (
+            <option key={method} value={method}>
+              {paymentLabels[method]}
+            </option>
+          ))}
+        </select>
+      </FieldShell>
+    </div>
+  );
+}
+
+function InvoiceServicesSection({
+  selectedServiceId,
+  clinicalServiceOptions,
+  serviceLines,
+  invoiceServices,
+  onServiceSelect,
+  onRemoveServiceLine
+}: {
+  selectedServiceId: string;
+  clinicalServiceOptions: Service[];
+  serviceLines: DraftLine[];
+  invoiceServices: Service[];
+  onServiceSelect: (serviceId: string) => void;
+  onRemoveServiceLine: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeading title="Clinical Services" />
+      <FieldShell>
+        <label className="label" htmlFor="service-selector">
+          Select Service
+        </label>
+        <select
+          id="service-selector"
+          value={selectedServiceId}
+          onChange={(event) => {
+            onServiceSelect(event.target.value);
+          }}
+          disabled={!clinicalServiceOptions.length}
+          className="field mt-2"
+        >
+          <option value="">
+            {clinicalServiceOptions.length
+              ? "Select a service to add"
+              : "No active clinical services"}
+          </option>
+          {clinicalServiceOptions.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.name} - {usdWhole(roundUsd(candidate.sellingPrice))}
+            </option>
+          ))}
+        </select>
+      </FieldShell>
+
+      <div className="space-y-3">
+        {serviceLines.map((line) => {
+          const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
+          const lineTotalUsd = roundUsd(service?.sellingPrice ?? 0);
+
+          return (
+            <div
+              key={line.id}
+              className="flex flex-col gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/50 p-3 sm:flex-row sm:items-center"
+            >
+              <p className="min-w-0 flex-1 text-sm font-semibold text-[#224770]">
+                {service?.name ?? "Unknown service"}
+              </p>
+              <span className="text-sm font-bold text-[#224770]">{usdWhole(lineTotalUsd)}</span>
+              <button
+                type="button"
+                onClick={() => onRemoveServiceLine(line.id)}
+                className={buttonClass("danger", "h-10 px-3 py-0 text-xs")}
+                aria-label="Remove service line"
+              >
+                Remove
+              </button>
+            </div>
+          );
+        })}
+        {!serviceLines.length ? (
+          <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+            {clinicalServiceOptions.length
+              ? "No clinical services selected."
+              : "No active clinical services are available."}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AdditionalChargeInput({
+  label,
+  service,
+  chargeLines,
+  onAmountChange
+}: {
+  label: string;
+  service?: Service;
+  chargeLines: DraftLine[];
+  onAmountChange: (serviceId: string, amountUsd: number) => void;
+}) {
+  if (!service) {
+    return (
+      <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+        Charge service is not active.
+      </p>
+    );
+  }
+
+  const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
+
+  return (
+    <div className="grid gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+      <label className="text-sm font-semibold text-[#224770]" htmlFor={`charge-${service.id}`}>
+        {label}
+      </label>
+      <div className="flex items-center overflow-hidden rounded-lg border border-[#dbe3ea] bg-white focus-within:ring-2 focus-within:ring-[#0eb6ef]/20">
+        <span className="px-3 text-sm font-semibold text-[#46484a]">$</span>
+        <input
+          id={`charge-${service.id}`}
+          type="number"
+          min={0}
+          step="1"
+          value={line?.amountUsd ?? 0}
+          onChange={(event) => onAmountChange(service.id, Number(event.target.value))}
+          className="h-10 w-full border-0 bg-transparent px-3 py-2 text-right text-sm font-semibold text-[#224770] outline-none"
+          placeholder="0"
+        />
+      </div>
+    </div>
+  );
+}
+
+function AdditionalChargesSection({
+  medicationChargeService,
+  consumableChargeService,
+  chargeLines,
+  onChargeLineChange
+}: {
+  medicationChargeService?: Service;
+  consumableChargeService?: Service;
+  chargeLines: DraftLine[];
+  onChargeLineChange: (serviceId: string, amountUsd: number) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeading title="Additional Charges" />
+      <div className="grid gap-3">
+        <AdditionalChargeInput
+          label="Medication Charges"
+          service={medicationChargeService}
+          chargeLines={chargeLines}
+          onAmountChange={onChargeLineChange}
+        />
+        <AdditionalChargeInput
+          label="Consumable Charges"
+          service={consumableChargeService}
+          chargeLines={chargeLines}
+          onAmountChange={onChargeLineChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+function NotesSection({
+  notes,
+  onNotesChange
+}: {
+  notes: string;
+  onNotesChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeading title="Notes" />
+      <textarea
+        id="notes"
+        value={notes}
+        onChange={(event) => onNotesChange(event.target.value)}
+        className="field min-h-28"
+        placeholder="Clinical or billing notes for the invoice"
+      />
+    </div>
+  );
+}
+
+function TotalsPanel({
+  discount,
+  totals,
+  formReady,
+  onDiscountChange,
+  onSaveInvoice
+}: {
+  discount: number;
+  totals: InvoiceTotals;
+  formReady: boolean;
+  onDiscountChange: (value: number) => void;
+  onSaveInvoice: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-[#efefef] bg-[#efefef]/50 p-4">
+      <div className="space-y-3 text-sm">
+        <div>
+          <label className="label" htmlFor="discount">
+            Discount
+          </label>
+          <input
+            id="discount"
+            type="number"
+            min={0}
+            step="1"
+            value={discount}
+            onChange={(event) => onDiscountChange(Number(event.target.value))}
+            className="field mt-2"
+          />
+        </div>
+        <div className="flex justify-between border-t border-[#efefef] pt-3 text-base">
+          <span className="font-semibold text-[#224770]">Grand Total</span>
+          <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onSaveInvoice}
+        disabled={!formReady}
+        className={buttonClass(
+          formReady ? "primary" : "muted",
+          "mt-4 w-full"
+        )}
+      >
+        Save invoice
+      </button>
     </div>
   );
 }
