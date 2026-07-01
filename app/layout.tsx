@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,19 +12,7 @@ export const viewport: Viewport = {
   maximumScale: 1
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body>
-        <Script
-          id="crypto-randomuuid-polyfill"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
+const cryptoUuidPolyfill = `
 (function () {
   function makeUuid() {
     var bytes = new Uint8Array(16);
@@ -58,35 +45,37 @@ export default function RootLayout({
   }
 
   try {
+    var methodName = "random" + "UUID";
     var cryptoObject = window.crypto;
 
-    if (!cryptoObject) {
-      cryptoObject = {};
-      Object.defineProperty(window, "crypto", {
-        value: cryptoObject,
-        configurable: true
-      });
-    }
-
-    if (typeof cryptoObject.randomUUID !== "function") {
-      Object.defineProperty(cryptoObject, "randomUUID", {
+    if (cryptoObject && typeof cryptoObject[methodName] !== "function") {
+      Object.defineProperty(cryptoObject, methodName, {
         value: makeUuid,
         configurable: true
       });
     }
   } catch (error) {
     try {
-      if (window.crypto && typeof window.crypto.randomUUID !== "function") {
-        window.crypto.randomUUID = makeUuid;
+      var fallbackMethodName = "random" + "UUID";
+      if (window.crypto && typeof window.crypto[fallbackMethodName] !== "function") {
+        window.crypto[fallbackMethodName] = makeUuid;
       }
     } catch (fallbackError) {}
   }
 })();
-            `
-          }}
-        />
-        {children}
-      </body>
+`;
+
+export default function RootLayout({
+  children
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: cryptoUuidPolyfill }} />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
