@@ -20,6 +20,8 @@ export type ServiceCategory = (typeof serviceCategories)[number];
 export const serviceStorageKey = "health-aid-services-v1";
 export const doctorStorageKey = "health-aid-doctors-v1";
 export const doctorPaymentSettingsStorageKey = "health-aid-doctor-payment-settings-v1";
+export const assistanceCompanyStorageKey = "health-aid-assistance-companies-v1";
+export const insuranceClaimStatusStorageKey = "health-aid-insurance-claim-status-v1";
 
 export const amountOnlyInvoiceServiceNames = [
   "Medication Charges",
@@ -55,6 +57,14 @@ export type RuleType = "fixed" | "percentage" | "none";
 export type PayoutStatus = "unpaid" | "paid";
 export type VoucherStatus = "unpaid" | "paid";
 export type InsuranceReceivableStatus = "Pending" | "Partially Paid" | "Paid" | "Overdue";
+export type InsuranceClaimStatus =
+  | "Draft"
+  | "Submitted"
+  | "Under Review"
+  | "Approved"
+  | "Paid"
+  | "Rejected"
+  | "Overdue";
 export type DoctorPaymentModelType = "low_season" | "peak_season";
 export type PayoutMode = "invoice" | "shift" | "pending_shift";
 
@@ -110,6 +120,17 @@ export type Service = {
   active: boolean;
 };
 
+export type AssistanceCompany = {
+  id: string;
+  name: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  defaultClaimPercentage: number;
+  active: boolean;
+  notes?: string;
+};
+
 export function isServicePayoutEnabled(service: Service) {
   return service.payoutEnabled && service.defaultPayoutType !== "none";
 }
@@ -150,6 +171,11 @@ export type Invoice = {
   subtotal: number;
   discount: number;
   paymentMethod: PaymentMethod;
+  assistanceCompanyId?: string;
+  assistanceCompanyName?: string;
+  claimPercentage?: number;
+  claimAmount?: number;
+  claimStatus?: InsuranceClaimStatus;
   notes?: string;
   totalAmount: number;
   createdBy: string;

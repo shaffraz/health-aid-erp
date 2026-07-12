@@ -12,15 +12,18 @@ import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
+import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { money, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
+  assistanceCompanyStorageKey,
   doctorPaymentSettingsStorageKey,
   doctorStorageKey,
   isAmountOnlyInvoiceServiceName,
   isPayoutEligibleCategory,
   paymentMethods,
   serviceStorageKey,
+  type AssistanceCompany,
   type Doctor,
   type DoctorPaymentModel,
   type Invoice,
@@ -43,6 +46,7 @@ type InvoicePosFormProps = {
   services: Service[];
   initialInvoices: Invoice[];
   createdBy: string;
+  canEditInsurancePercentage: boolean;
 };
 
 const paymentLabels: Record<PaymentMethod, string> = {
@@ -53,6 +57,8 @@ const paymentLabels: Record<PaymentMethod, string> = {
   other: "Other"
 };
 
+const invoicePaymentMethods = ["cash", "card", "insurance"] as const satisfies readonly PaymentMethod[];
+
 const paymentModelLabels = {
   low_season: "On-Call Mode",
   peak_season: "Clinic Shift Mode"
@@ -60,6 +66,10 @@ const paymentModelLabels = {
 
 function roundUsd(value: number) {
   return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+}
+
+function roundPercentage(value: number) {
+  return Math.min(100, roundUsd(value));
 }
 
 function makeId() {
@@ -70,6 +80,7 @@ type InvoiceSectionTone =
   | "invoice"
   | "patient"
   | "billing"
+  | "insurance"
   | "services"
   | "charges"
   | "notes"
@@ -82,6 +93,7 @@ const invoiceSectionColors = {
   invoice: "#224770",
   patient: "#0eb6ef",
   billing: "#84bc3f",
+  insurance: "#224770",
   services: "#224770",
   charges: "#0eb6ef",
   notes: "#46484a",
@@ -159,12 +171,16 @@ export function InvoicePosForm({
   doctors,
   services,
   initialInvoices,
-  createdBy
+  createdBy,
+  canEditInsurancePercentage
 }: InvoicePosFormProps) {
   const [doctorCatalog, setDoctorCatalog] = useState(() =>
     doctors.map(normalizeDoctorCatalog)
   );
   const [catalogServices, setCatalogServices] = useState(services);
+  const [assistanceCompanies, setAssistanceCompanies] = useState<AssistanceCompany[]>(
+    demoAssistanceCompanies
+  );
   const activeDoctors = useMemo(
     () => doctorCatalog.filter((doctor) => doctor.active),
     [doctorCatalog]
@@ -183,6 +199,10 @@ export function InvoicePosForm({
     () => serviceOptions.filter((service) => isAmountOnlyInvoiceServiceName(service.name)),
     [serviceOptions]
   );
+  const activeAssistanceCompanies = useMemo(
+    () => assistanceCompanies.filter((company) => company.active),
+    [assistanceCompanies]
+  );
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
   const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
@@ -198,6 +218,8 @@ export function InvoicePosForm({
   const [doctorId, setDoctorId] = useState(activeDoctors[0]?.id ?? "");
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [assistanceCompanyId, setAssistanceCompanyId] = useState("");
+  const [claimPercentage, setClaimPercentage] = useState(0);
   const [notes, setNotes] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([]);
@@ -256,6 +278,22 @@ export function InvoicePosForm({
 
   useEffect(() => {
     try {
+      const storedCompanies = window.localStorage.getItem(assistanceCompanyStorageKey);
+      if (!storedCompanies) {
+        return;
+      }
+
+      const parsed = JSON.parse(storedCompanies);
+      if (Array.isArray(parsed)) {
+        setAssistanceCompanies(parsed as AssistanceCompany[]);
+      }
+    } catch {
+      setAssistanceCompanies(demoAssistanceCompanies);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
       const storedSettings = window.localStorage.getItem(doctorPaymentSettingsStorageKey);
       if (storedSettings) {
         setPaymentSettings(normalizeDoctorPaymentModel(JSON.parse(storedSettings)));
@@ -264,6 +302,28 @@ export function InvoicePosForm({
       setPaymentSettings(defaultDoctorPaymentModel);
     }
   }, []);
+
+  useEffect(() => {
+    if (paymentMethod !== "insurance") {
+      return;
+    }
+
+    if (!activeAssistanceCompanies.length) {
+      setAssistanceCompanyId("");
+      setClaimPercentage(0);
+      return;
+    }
+
+    const selectedCompany = activeAssistanceCompanies.find(
+      (company) => company.id === assistanceCompanyId
+    );
+
+    if (!selectedCompany) {
+      const firstCompany = activeAssistanceCompanies[0];
+      setAssistanceCompanyId(firstCompany.id);
+      setClaimPercentage(roundPercentage(firstCompany.defaultClaimPercentage));
+    }
+  }, [activeAssistanceCompanies, assistanceCompanyId, paymentMethod]);
 
   useEffect(() => {
     setServiceLines((current) => {
@@ -341,12 +401,20 @@ export function InvoicePosForm({
     isPayoutEligibleCategory(item.category)
   );
   const totals = calculateInvoiceTotals(invoiceItems, discount);
+  const selectedAssistanceCompany = activeAssistanceCompanies.find(
+    (company) => company.id === assistanceCompanyId
+  );
+  const claimAmount =
+    paymentMethod === "insurance"
+      ? roundUsd((totals.totalAmount * roundPercentage(claimPercentage)) / 100)
+      : 0;
   const formReady =
     Boolean(patientName.trim()) &&
     Boolean(passport.trim()) &&
     Boolean(phone.trim()) &&
     Boolean(nationality.trim()) &&
     Boolean(doctorId) &&
+    (paymentMethod !== "insurance" || Boolean(selectedAssistanceCompany)) &&
     invoiceItems.length > 0;
   const draftInvoice = {
     id: "draft",
@@ -363,6 +431,13 @@ export function InvoicePosForm({
     subtotal: totals.subtotal,
     discount: totals.discount,
     paymentMethod,
+    assistanceCompanyId:
+      paymentMethod === "insurance" ? selectedAssistanceCompany?.id : undefined,
+    assistanceCompanyName:
+      paymentMethod === "insurance" ? selectedAssistanceCompany?.name : undefined,
+    claimPercentage: paymentMethod === "insurance" ? roundPercentage(claimPercentage) : undefined,
+    claimAmount: paymentMethod === "insurance" ? claimAmount : undefined,
+    claimStatus: paymentMethod === "insurance" ? "Draft" : undefined,
     notes: notes || undefined,
     totalAmount: totals.totalAmount,
     createdBy
@@ -427,6 +502,13 @@ export function InvoicePosForm({
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
     ${targetInvoice.email ? `<p><strong>Email:</strong> ${escapeHtml(targetInvoice.email)}</p>` : ""}
     <p><strong>Doctor:</strong> ${escapeHtml(invoiceDoctor?.name ?? "Unassigned")}</p>
+    ${
+      targetInvoice.paymentMethod === "insurance"
+        ? `<p><strong>Assistance company:</strong> ${escapeHtml(targetInvoice.assistanceCompanyName ?? "Unassigned")}</p>
+    <p><strong>Claim percentage:</strong> ${escapeHtml(targetInvoice.claimPercentage ?? 0)}%</p>
+    <p><strong>Claim amount:</strong> ${usdWhole(targetInvoice.claimAmount ?? 0)}</p>`
+        : ""
+    }
     <h2>Services and charges</h2>
     <table>
       <thead>
@@ -496,6 +578,8 @@ export function InvoicePosForm({
     setNationality("");
     setDiscount(0);
     setPaymentMethod("cash");
+    setAssistanceCompanyId("");
+    setClaimPercentage(0);
     setNotes("");
     setServiceLines([]);
     setChargeLines(
@@ -513,6 +597,35 @@ export function InvoicePosForm({
         line.serviceId === serviceId ? { ...line, amountUsd: roundUsd(amountUsd) } : line
       )
     );
+  }
+
+  function selectAssistanceCompany(companyId: string) {
+    setAssistanceCompanyId(companyId);
+    const company = activeAssistanceCompanies.find((candidate) => candidate.id === companyId);
+    setClaimPercentage(roundPercentage(company?.defaultClaimPercentage ?? 0));
+  }
+
+  function selectPaymentMethod(method: (typeof invoicePaymentMethods)[number]) {
+    if (method === paymentMethod) {
+      return;
+    }
+
+    setPaymentMethod(method);
+
+    if (method !== "insurance") {
+      setAssistanceCompanyId("");
+      setClaimPercentage(0);
+      return;
+    }
+
+    const selectedCompany =
+      activeAssistanceCompanies.find((company) => company.id === assistanceCompanyId) ??
+      activeAssistanceCompanies[0];
+
+    if (selectedCompany) {
+      setAssistanceCompanyId(selectedCompany.id);
+      setClaimPercentage(roundPercentage(selectedCompany.defaultClaimPercentage));
+    }
   }
 
   return (
@@ -558,10 +671,17 @@ export function InvoicePosForm({
             <WorkflowSection title="Billing Information" tone="billing">
               <BillingDetailsFields
                 activeDoctors={activeDoctors}
+                assistanceCompanies={activeAssistanceCompanies}
                 doctorId={doctorId}
                 paymentMethod={paymentMethod}
+                assistanceCompanyId={assistanceCompanyId}
+                claimPercentage={claimPercentage}
+                claimAmount={claimAmount}
+                canEditClaimPercentage={canEditInsurancePercentage}
                 onDoctorIdChange={setDoctorId}
-                onPaymentMethodChange={setPaymentMethod}
+                onPaymentMethodChange={selectPaymentMethod}
+                onAssistanceCompanyChange={selectAssistanceCompany}
+                onClaimPercentageChange={(value) => setClaimPercentage(roundPercentage(value))}
               />
             </WorkflowSection>
 
@@ -902,19 +1022,33 @@ function PatientInformationFields({
 
 function BillingDetailsFields({
   activeDoctors,
+  assistanceCompanies,
   doctorId,
   paymentMethod,
+  assistanceCompanyId,
+  claimPercentage,
+  claimAmount,
+  canEditClaimPercentage,
   onDoctorIdChange,
-  onPaymentMethodChange
+  onPaymentMethodChange,
+  onAssistanceCompanyChange,
+  onClaimPercentageChange
 }: {
   activeDoctors: Doctor[];
+  assistanceCompanies: AssistanceCompany[];
   doctorId: string;
   paymentMethod: PaymentMethod;
+  assistanceCompanyId: string;
+  claimPercentage: number;
+  claimAmount: number;
+  canEditClaimPercentage: boolean;
   onDoctorIdChange: (value: string) => void;
-  onPaymentMethodChange: (value: PaymentMethod) => void;
+  onPaymentMethodChange: (value: (typeof invoicePaymentMethods)[number]) => void;
+  onAssistanceCompanyChange: (value: string) => void;
+  onClaimPercentageChange: (value: number) => void;
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] lg:items-start">
       <FieldShell>
         <label className="label" htmlFor="doctor">
           Doctor
@@ -936,23 +1070,139 @@ function BillingDetailsFields({
           )}
         </select>
       </FieldShell>
+      <div className="space-y-4">
+        <PaymentMethodButtons
+          paymentMethod={paymentMethod}
+          onPaymentMethodChange={onPaymentMethodChange}
+        />
+
+        {paymentMethod === "insurance" ? (
+          <InsuranceClaimFields
+            assistanceCompanies={assistanceCompanies}
+            assistanceCompanyId={assistanceCompanyId}
+            claimPercentage={claimPercentage}
+            claimAmount={claimAmount}
+            canEditClaimPercentage={canEditClaimPercentage}
+            onAssistanceCompanyChange={onAssistanceCompanyChange}
+            onClaimPercentageChange={onClaimPercentageChange}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PaymentMethodButtons({
+  paymentMethod,
+  onPaymentMethodChange
+}: {
+  paymentMethod: PaymentMethod;
+  onPaymentMethodChange: (value: (typeof invoicePaymentMethods)[number]) => void;
+}) {
+  return (
+    <div>
+      <p className="label" id="payment-method-label">
+        Payment Method
+      </p>
+      <div
+        aria-labelledby="payment-method-label"
+        className="mt-2 grid gap-3 sm:grid-cols-3"
+        role="radiogroup"
+      >
+        {invoicePaymentMethods.map((method) => {
+          const isSelected = paymentMethod === method;
+
+          return (
+            <button
+              key={method}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              onClick={() => onPaymentMethodChange(method)}
+              className={cn(
+                "focus-ring min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 ease-out",
+                isSelected
+                  ? "border-[#224770] bg-[#224770] text-white shadow-sm"
+                  : "border-[#efefef] bg-white text-[#46484a] shadow-sm hover:-translate-y-0.5 hover:border-[#0eb6ef]/40 hover:shadow-md"
+              )}
+            >
+              {paymentLabels[method]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function InsuranceClaimFields({
+  assistanceCompanies,
+  assistanceCompanyId,
+  claimPercentage,
+  claimAmount,
+  canEditClaimPercentage,
+  onAssistanceCompanyChange,
+  onClaimPercentageChange
+}: {
+  assistanceCompanies: AssistanceCompany[];
+  assistanceCompanyId: string;
+  claimPercentage: number;
+  claimAmount: number;
+  canEditClaimPercentage: boolean;
+  onAssistanceCompanyChange: (value: string) => void;
+  onClaimPercentageChange: (value: number) => void;
+}) {
+  return (
+    <div className="grid gap-4 rounded-xl border border-[#d7e1ec] bg-[#efefef]/30 p-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
       <FieldShell>
-        <label className="label" htmlFor="paymentMethod">
-          Payment method
+        <label className="label" htmlFor="assistance-company">
+          Assistance Company
         </label>
         <select
-          id="paymentMethod"
-          value={paymentMethod}
-          onChange={(event) => onPaymentMethodChange(event.target.value as PaymentMethod)}
+          id="assistance-company"
+          value={assistanceCompanyId}
+          onChange={(event) => onAssistanceCompanyChange(event.target.value)}
+          disabled={!assistanceCompanies.length}
           className="field mt-2"
+          required
         >
-          {paymentMethods.map((method) => (
-            <option key={method} value={method}>
-              {paymentLabels[method]}
+          <option value="">
+            {assistanceCompanies.length ? "Select assistance company" : "No active companies"}
+          </option>
+          {assistanceCompanies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
             </option>
           ))}
         </select>
       </FieldShell>
+      <FieldShell>
+        <label className="label" htmlFor="claim-percentage">
+          Claim Percentage
+        </label>
+        <div className="relative mt-2">
+          <input
+            id="claim-percentage"
+            type="number"
+            min={0}
+            max={100}
+            step="1"
+            value={claimPercentage}
+            onChange={(event) => onClaimPercentageChange(Number(event.target.value))}
+            disabled={!canEditClaimPercentage}
+            className="field min-h-12 pr-9 disabled:bg-slate-100"
+          />
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-[#46484a]">
+            %
+          </span>
+        </div>
+      </FieldShell>
+      <div className="rounded-xl border border-[#efefef] bg-white p-3">
+        <p className="label">Claim Amount</p>
+        <p className="mt-2 min-h-12 text-lg font-bold leading-[3rem] text-[#224770]">
+          {usdWhole(claimAmount)}
+        </p>
+      </div>
     </div>
   );
 }

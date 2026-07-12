@@ -5,6 +5,7 @@ import {
 import { defaultDoctorPaymentModel } from "@/lib/doctor-payment";
 import { todayISO } from "@/lib/format";
 import type {
+  AssistanceCompany,
   AuditLog,
   Doctor,
   DoctorPaymentRule,
@@ -22,6 +23,49 @@ const monthStart = `${today.slice(0, 7)}-01`;
 export const demoSettings = {
   exchangeRateLkrPerUsd: 300
 };
+
+export const demoAssistanceCompanies: AssistanceCompany[] = [
+  {
+    id: "assist-global-travel",
+    name: "Global Travel Assist",
+    contactPerson: "Maya Fernando",
+    email: "claims@globaltravel.example",
+    phone: "+94 77 420 1188",
+    defaultClaimPercentage: 80,
+    active: true,
+    notes: "Primary travel assistance partner for tourist claims."
+  },
+  {
+    id: "assist-nomadcare",
+    name: "NomadCare Insurance",
+    contactPerson: "Jonas Meyer",
+    email: "support@nomadcare.example",
+    phone: "+49 30 2210 7711",
+    defaultClaimPercentage: 75,
+    active: true,
+    notes: "Requires monthly summary statement."
+  },
+  {
+    id: "assist-blue-ocean",
+    name: "Blue Ocean Travel Cover",
+    contactPerson: "Priya Raman",
+    email: "claims@blueocean.example",
+    phone: "+65 6220 7721",
+    defaultClaimPercentage: 100,
+    active: true,
+    notes: "Full claim coverage for approved outpatient services."
+  },
+  {
+    id: "assist-island-rescue",
+    name: "Island Rescue Claims",
+    contactPerson: "Sofia Lind",
+    email: "accounts@islandrescue.example",
+    phone: "+46 8 555 1200",
+    defaultClaimPercentage: 85,
+    active: false,
+    notes: "Inactive pending updated contract."
+  }
+];
 
 export const demoDoctors: Doctor[] = [
   {
@@ -260,6 +304,11 @@ export const demoInvoices: Invoice[] = [
     items: [item("item-001-a", "svc-emergency-consult"), item("item-001-b", "svc-iv")],
     discount: 0,
     paymentMethod: "insurance",
+    assistanceCompanyId: "assist-global-travel",
+    assistanceCompanyName: "Global Travel Assist",
+    claimPercentage: 80,
+    claimAmount: 43,
+    claimStatus: "Submitted",
     notes: "Traveller with dehydration symptoms. Billed to insurance.",
     createdBy: "demo-admin"
   }),
@@ -291,6 +340,11 @@ export const demoInvoices: Invoice[] = [
     items: [item("item-003-a", "svc-consult"), item("item-003-b", "svc-cbc")],
     discount: 0,
     paymentMethod: "insurance",
+    assistanceCompanyId: "assist-blue-ocean",
+    assistanceCompanyName: "Blue Ocean Travel Cover",
+    claimPercentage: 100,
+    claimAmount: 21,
+    claimStatus: "Paid",
     notes: "Fever screen and basic labs.",
     createdBy: "demo-admin"
   })

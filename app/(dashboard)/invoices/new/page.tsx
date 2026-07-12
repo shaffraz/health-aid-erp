@@ -23,6 +23,7 @@ export default async function NewInvoicePage() {
         services={data.services}
         initialInvoices={data.invoices}
         createdBy={user.id}
+        canEditInsurancePercentage={user.role === "admin" || user.role === "accountant"}
       />
     </div>
   );

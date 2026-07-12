@@ -1,19 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
+import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { shortDate, todayISO, usdWhole } from "@/lib/format";
-import type { AppUser, InsuranceReceivable, Invoice } from "@/lib/types";
-
-type ClaimStatus =
-  | "Draft"
-  | "Submitted"
-  | "Under Review"
-  | "Approved"
-  | "Paid"
-  | "Rejected"
-  | "Overdue";
+import { generateId } from "@/lib/id";
+import {
+  assistanceCompanyStorageKey,
+  insuranceClaimStatusStorageKey,
+  type AppUser,
+  type AssistanceCompany,
+  type InsuranceClaimStatus,
+  type InsuranceReceivable,
+  type Invoice
+} from "@/lib/types";
 
 type InsuranceClaim = {
   id: string;
@@ -22,13 +23,13 @@ type InsuranceClaim = {
   date: string;
   patientName: string;
   passport?: string;
+  assistanceCompanyId?: string;
   assistanceCompany: string;
   services: string[];
   invoiceTotal: number;
-  deductionPercent: number;
-  deductionAmount: number;
+  claimPercentage: number;
   claimAmount: number;
-  status: ClaimStatus;
+  status: InsuranceClaimStatus;
 };
 
 type StatementGroup = {
@@ -39,13 +40,24 @@ type StatementGroup = {
   totalClaimAmount: number;
 };
 
+type CompanyForm = {
+  id?: string;
+  name: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  defaultClaimPercentage: number;
+  active: boolean;
+  notes: string;
+};
+
 type InsuranceClaimsDashboardProps = {
   invoices: Invoice[];
   insuranceReceivables: InsuranceReceivable[];
   currentUser: AppUser;
 };
 
-const claimStatuses: ClaimStatus[] = [
+const claimStatuses: InsuranceClaimStatus[] = [
   "Draft",
   "Submitted",
   "Under Review",
@@ -55,7 +67,7 @@ const claimStatuses: ClaimStatus[] = [
   "Overdue"
 ];
 
-const partnerVisibleStatuses = new Set<ClaimStatus>([
+const partnerVisibleStatuses = new Set<InsuranceClaimStatus>([
   "Submitted",
   "Under Review",
   "Approved",
@@ -71,7 +83,7 @@ const claimStatusTones = {
   Paid: "green",
   Rejected: "red",
   Overdue: "red"
-} satisfies Record<ClaimStatus, "green" | "amber" | "cyan" | "red" | "slate">;
+} satisfies Record<InsuranceClaimStatus, "green" | "amber" | "cyan" | "red" | "slate">;
 
 const monthOptions = [
   { value: "01", label: "January" },
@@ -88,11 +100,14 @@ const monthOptions = [
   { value: "12", label: "December" }
 ];
 
-const deductionPercentByCompany: Record<string, number> = {
-  "Global Travel Assist": 10,
-  "NomadCare Insurance": 12,
-  "Blue Ocean Travel Cover": 0,
-  "Island Rescue Claims": 15
+const emptyCompanyForm: CompanyForm = {
+  name: "",
+  contactPerson: "",
+  email: "",
+  phone: "",
+  defaultClaimPercentage: 80,
+  active: true,
+  notes: ""
 };
 
 function formatMonth(value: string) {
@@ -125,7 +140,41 @@ function downloadFile(fileName: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function claimStatusFromReceivable(status?: InsuranceReceivable["status"]): ClaimStatus {
+function roundUsd(value: number) {
+  return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+}
+
+function roundPercentage(value: number) {
+  return Math.min(100, roundUsd(value));
+}
+
+function companyToForm(company: AssistanceCompany): CompanyForm {
+  return {
+    id: company.id,
+    name: company.name,
+    contactPerson: company.contactPerson ?? "",
+    email: company.email ?? "",
+    phone: company.phone ?? "",
+    defaultClaimPercentage: company.defaultClaimPercentage,
+    active: company.active,
+    notes: company.notes ?? ""
+  };
+}
+
+function formToCompany(form: CompanyForm): AssistanceCompany {
+  return {
+    id: form.id ?? generateId(),
+    name: form.name.trim(),
+    contactPerson: form.contactPerson.trim() || undefined,
+    email: form.email.trim() || undefined,
+    phone: form.phone.trim() || undefined,
+    defaultClaimPercentage: roundPercentage(form.defaultClaimPercentage),
+    active: form.active,
+    notes: form.notes.trim() || undefined
+  };
+}
+
+function claimStatusFromReceivable(status?: InsuranceReceivable["status"]): InsuranceClaimStatus {
   if (status === "Paid") {
     return "Paid";
   }
@@ -147,7 +196,9 @@ function claimStatusFromReceivable(status?: InsuranceReceivable["status"]): Clai
 
 function buildClaims(
   invoices: Invoice[],
-  insuranceReceivables: InsuranceReceivable[]
+  insuranceReceivables: InsuranceReceivable[],
+  companies: AssistanceCompany[],
+  statusOverrides: Record<string, InsuranceClaimStatus>
 ): InsuranceClaim[] {
   return invoices
     .filter((invoice) => invoice.paymentMethod === "insurance")
@@ -155,26 +206,39 @@ function buildClaims(
       const receivable = insuranceReceivables.find((candidate) =>
         candidate.invoices.includes(invoice.invoiceNo)
       );
-      const assistanceCompany = receivable?.insuranceCompany ?? "Unassigned assistance company";
-      const invoiceTotal = Math.round(invoice.totalAmount);
-      const deductionPercent = deductionPercentByCompany[assistanceCompany] ?? 5;
-      const deductionAmount = Math.round((invoiceTotal * deductionPercent) / 100);
-      const claimAmount = Math.max(0, invoiceTotal - deductionAmount);
+      const company =
+        companies.find((candidate) => candidate.id === invoice.assistanceCompanyId) ??
+        companies.find((candidate) => candidate.name === invoice.assistanceCompanyName) ??
+        companies.find((candidate) => candidate.name === receivable?.insuranceCompany);
+      const assistanceCompany =
+        invoice.assistanceCompanyName ??
+        company?.name ??
+        receivable?.insuranceCompany ??
+        "Unassigned assistance company";
+      const invoiceTotal = roundUsd(invoice.totalAmount);
+      const claimPercentage = roundPercentage(
+        invoice.claimPercentage ?? company?.defaultClaimPercentage ?? 80
+      );
+      const claimAmount = roundUsd(invoice.claimAmount ?? (invoiceTotal * claimPercentage) / 100);
+      const id = `claim-${invoice.id}`;
 
       return {
-        id: `claim-${invoice.id}`,
+        id,
         invoiceId: invoice.id,
         invoiceNo: invoice.invoiceNo,
         date: invoice.date,
         patientName: invoice.patientName,
         passport: invoice.passport,
+        assistanceCompanyId: invoice.assistanceCompanyId ?? company?.id,
         assistanceCompany,
         services: invoice.items.map((item) => item.serviceName),
         invoiceTotal,
-        deductionPercent,
-        deductionAmount,
+        claimPercentage,
         claimAmount,
-        status: claimStatusFromReceivable(receivable?.status)
+        status:
+          statusOverrides[id] ??
+          invoice.claimStatus ??
+          claimStatusFromReceivable(receivable?.status)
       };
     });
 }
@@ -201,14 +265,17 @@ function buildInvoiceDocument(claim: InsuranceClaim) {
   <body>
     <h1>Health Aid Arugambay</h1>
     <p class="meta">Invoice ${escapeHtml(claim.invoiceNo)}</p>
+    <p class="meta">Date: ${escapeHtml(claim.date)}</p>
     <p class="meta">Patient: ${escapeHtml(claim.patientName)}</p>
     <p class="meta">Passport / ID: ${escapeHtml(claim.passport ?? "N/A")}</p>
     <p class="meta">Assistance company: ${escapeHtml(claim.assistanceCompany)}</p>
+    <p class="meta">Claim percentage: ${escapeHtml(claim.claimPercentage)}%</p>
     <table>
       <thead><tr><th>Services</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p class="total">Invoice total ${usdWhole(claim.invoiceTotal)}</p>
+    <p class="total">Claim amount ${usdWhole(claim.claimAmount)}</p>
   </body>
 </html>`;
 }
@@ -218,12 +285,14 @@ function buildStatementDocument(statement: StatementGroup) {
     .map(
       (claim) => `<tr>
         <td>${escapeHtml(claim.invoiceNo)}</td>
+        <td>${escapeHtml(claim.date)}</td>
         <td>${escapeHtml(claim.patientName)}</td>
         <td>${escapeHtml(claim.passport ?? "N/A")}</td>
         <td>${escapeHtml(claim.services.join(", "))}</td>
         <td>${usdWhole(claim.invoiceTotal)}</td>
-        <td>${usdWhole(claim.deductionAmount)}</td>
+        <td>${escapeHtml(claim.claimPercentage)}%</td>
         <td>${usdWhole(claim.claimAmount)}</td>
+        <td>${escapeHtml(claim.status)}</td>
       </tr>`
     )
     .join("");
@@ -245,19 +314,20 @@ function buildStatementDocument(statement: StatementGroup) {
   </head>
   <body>
     <h1>Health Aid Arugambay</h1>
-    <p class="meta">Insurance Claim Statement</p>
     <p class="meta">Assistance company: ${escapeHtml(statement.assistanceCompany)}</p>
     <p class="meta">Statement period: ${escapeHtml(formatMonth(statement.period))}</p>
     <table>
       <thead>
         <tr>
           <th>Invoice number</th>
+          <th>Invoice date</th>
           <th>Patient name</th>
           <th>Passport / ID</th>
-          <th>Services</th>
+          <th>Services provided</th>
           <th>Invoice total USD</th>
-          <th>Deduction amount USD</th>
+          <th>Claim percentage</th>
           <th>Claim amount USD</th>
+          <th>Claim status</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -270,37 +340,46 @@ function buildStatementDocument(statement: StatementGroup) {
 function statementCsv(statement: StatementGroup) {
   const rows = [
     [
-      "Assistance company name",
+      "Health Aid Arugambay",
+      "Assistance company",
       "Statement period",
       "Invoice number",
+      "Invoice date",
       "Patient name",
       "Passport / ID",
-      "Services",
+      "Services provided",
       "Invoice total USD",
-      "Deduction amount USD",
-      "Claim amount USD"
+      "Claim percentage",
+      "Claim amount USD",
+      "Claim status"
     ],
     ...statement.claims.map((claim) => [
+      "Health Aid Arugambay",
       statement.assistanceCompany,
       formatMonth(statement.period),
       claim.invoiceNo,
+      claim.date,
       claim.patientName,
       claim.passport ?? "N/A",
       claim.services.join("; "),
       String(claim.invoiceTotal),
-      String(claim.deductionAmount),
-      String(claim.claimAmount)
+      `${claim.claimPercentage}%`,
+      String(claim.claimAmount),
+      claim.status
     ]),
     [
+      "Health Aid Arugambay",
       statement.assistanceCompany,
       formatMonth(statement.period),
-      "Total claim amount",
+      "Total claim amount USD",
       "",
       "",
       "",
       "",
       "",
-      String(statement.totalClaimAmount)
+      "",
+      String(statement.totalClaimAmount),
+      ""
     ]
   ];
 
@@ -316,13 +395,55 @@ export function InsuranceClaimsDashboard({
   const [yearFilter, setYearFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [companyFilter, setCompanyFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<ClaimStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<InsuranceClaimStatus | "all">("all");
   const [claimSearch, setClaimSearch] = useState("");
   const [selectedStatementKey, setSelectedStatementKey] = useState("");
+  const [selectedClaim, setSelectedClaim] = useState<InsuranceClaim | null>(null);
+  const [companies, setCompanies] = useState<AssistanceCompany[]>(demoAssistanceCompanies);
+  const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
+  const [companyPanelOpen, setCompanyPanelOpen] = useState(false);
+  const [companyError, setCompanyError] = useState("");
+  const [claimStatusOverrides, setClaimStatusOverrides] = useState<
+    Record<string, InsuranceClaimStatus>
+  >({});
+
+  const canManageCompanies = currentUser.role === "admin";
+  const canUpdateStatus = currentUser.role === "admin" || currentUser.role === "accountant";
+
+  useEffect(() => {
+    try {
+      const storedCompanies = window.localStorage.getItem(assistanceCompanyStorageKey);
+      if (storedCompanies) {
+        const parsed = JSON.parse(storedCompanies);
+        if (Array.isArray(parsed)) {
+          setCompanies(parsed as AssistanceCompany[]);
+        }
+      }
+
+      const storedStatuses = window.localStorage.getItem(insuranceClaimStatusStorageKey);
+      if (storedStatuses) {
+        setClaimStatusOverrides(JSON.parse(storedStatuses));
+      }
+    } catch {
+      setCompanies(demoAssistanceCompanies);
+      setClaimStatusOverrides({});
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(assistanceCompanyStorageKey, JSON.stringify(companies));
+  }, [companies]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      insuranceClaimStatusStorageKey,
+      JSON.stringify(claimStatusOverrides)
+    );
+  }, [claimStatusOverrides]);
 
   const allClaims = useMemo(
-    () => buildClaims(invoices, insuranceReceivables),
-    [insuranceReceivables, invoices]
+    () => buildClaims(invoices, insuranceReceivables, companies, claimStatusOverrides),
+    [claimStatusOverrides, companies, insuranceReceivables, invoices]
   );
 
   const roleScopedClaims = useMemo(() => {
@@ -351,9 +472,10 @@ export function InsuranceClaimsDashboard({
     [roleScopedClaims]
   );
 
-  const statusOptions = currentUser.role === "insurance_partner"
-    ? claimStatuses.filter((status) => partnerVisibleStatuses.has(status))
-    : claimStatuses;
+  const statusOptions =
+    currentUser.role === "insurance_partner"
+      ? claimStatuses.filter((status) => partnerVisibleStatuses.has(status))
+      : claimStatuses;
 
   const filteredClaims = useMemo(() => {
     const searchTerm = claimSearch.trim().toLowerCase();
@@ -381,29 +503,23 @@ export function InsuranceClaimsDashboard({
         return false;
       }
 
-      if (searchTerm && !searchableText.includes(searchTerm)) {
-        return false;
-      }
-
-      return true;
+      return !searchTerm || searchableText.includes(searchTerm);
     });
   }, [claimSearch, companyFilter, monthFilter, roleScopedClaims, statusFilter, yearFilter]);
 
   const currentMonthClaims = roleScopedClaims.filter((claim) =>
     claim.date.startsWith(currentMonth)
   );
-  const claimsThisMonth = currentMonthClaims.length;
-  const claimAmountThisMonth = currentMonthClaims.reduce(
-    (sum, claim) => sum + claim.claimAmount,
-    0
-  );
-  const paidClaims = currentMonthClaims
-    .filter((claim) => claim.status === "Paid")
-    .reduce((sum, claim) => sum + claim.claimAmount, 0);
-  const outstandingClaims = currentMonthClaims
+  const insurancePatientsThisMonth = new Set(
+    currentMonthClaims.map((claim) => claim.patientName)
+  ).size;
+  const insurancePatientsThisSeason = new Set(
+    roleScopedClaims.map((claim) => claim.patientName)
+  ).size;
+  const outstandingClaims = roleScopedClaims
     .filter((claim) => !["Paid", "Rejected"].includes(claim.status))
     .reduce((sum, claim) => sum + claim.claimAmount, 0);
-  const overdueClaims = currentMonthClaims
+  const overdueClaims = roleScopedClaims
     .filter((claim) => claim.status === "Overdue")
     .reduce((sum, claim) => sum + claim.claimAmount, 0);
 
@@ -430,13 +546,84 @@ export function InsuranceClaimsDashboard({
     });
 
     return [...groups.values()].sort(
-      (a, b) => b.period.localeCompare(a.period) || a.assistanceCompany.localeCompare(b.assistanceCompany)
+      (a, b) =>
+        b.period.localeCompare(a.period) ||
+        a.assistanceCompany.localeCompare(b.assistanceCompany)
     );
   }, [filteredClaims]);
 
   const selectedStatement = statementGroups.find(
     (statement) => statement.key === selectedStatementKey
   );
+
+  function companyHasClaims(company: AssistanceCompany) {
+    return allClaims.some(
+      (claim) =>
+        claim.assistanceCompanyId === company.id || claim.assistanceCompany === company.name
+    );
+  }
+
+  function resetCompanyForm() {
+    setCompanyForm(emptyCompanyForm);
+    setCompanyError("");
+  }
+
+  function saveCompany() {
+    if (!canManageCompanies) {
+      return;
+    }
+
+    const nextCompany = formToCompany(companyForm);
+
+    if (!nextCompany.name) {
+      setCompanyError("Company name is required.");
+      return;
+    }
+
+    setCompanies((current) =>
+      companyForm.id
+        ? current.map((company) => (company.id === companyForm.id ? nextCompany : company))
+        : [nextCompany, ...current]
+    );
+    resetCompanyForm();
+  }
+
+  function editCompany(company: AssistanceCompany) {
+    setCompanyForm(companyToForm(company));
+    setCompanyPanelOpen(true);
+    setCompanyError("");
+  }
+
+  function toggleCompanyActive(companyId: string) {
+    if (!canManageCompanies) {
+      return;
+    }
+
+    setCompanies((current) =>
+      current.map((company) =>
+        company.id === companyId ? { ...company, active: !company.active } : company
+      )
+    );
+  }
+
+  function deleteCompany(company: AssistanceCompany) {
+    if (!canManageCompanies || companyHasClaims(company)) {
+      return;
+    }
+
+    setCompanies((current) => current.filter((candidate) => candidate.id !== company.id));
+    if (companyForm.id === company.id) {
+      resetCompanyForm();
+    }
+  }
+
+  function updateClaimStatus(claimId: string, status: InsuranceClaimStatus) {
+    if (!canUpdateStatus) {
+      return;
+    }
+
+    setClaimStatusOverrides((current) => ({ ...current, [claimId]: status }));
+  }
 
   function downloadInvoicePdf(claim: InsuranceClaim) {
     const printWindow = window.open("", "_blank", "noopener,noreferrer");
@@ -474,21 +661,263 @@ export function InsuranceClaimsDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Claims This Month" value={String(claimsThisMonth)} tone="primary" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Claim Amount This Month USD"
-          value={usdWhole(claimAmountThisMonth)}
-          tone="info"
+          label="Insurance Patients This Month"
+          value={String(insurancePatientsThisMonth)}
+          tone="primary"
         />
-        <KpiCard label="Paid Claims USD" value={usdWhole(paidClaims)} tone="success" />
         <KpiCard
-          label="Outstanding Claims USD"
+          label="Insurance Patients This Season"
+          value={String(insurancePatientsThisSeason)}
+        />
+        <KpiCard
+          label="Outstanding Claims (USD)"
           value={usdWhole(outstandingClaims)}
-          tone="warning"
+          tone={outstandingClaims > 0 ? "warning" : "default"}
         />
-        <KpiCard label="Overdue Claims USD" value={usdWhole(overdueClaims)} tone="danger" />
+        <KpiCard
+          label="Overdue Claims (USD)"
+          value={usdWhole(overdueClaims)}
+          tone={overdueClaims > 0 ? "danger" : "default"}
+        />
       </div>
+
+      {currentUser.role !== "insurance_partner" ? (
+        <section className="panel overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="font-semibold text-[#224770]">Assistance Company Management</h2>
+            <button
+              type="button"
+              onClick={() => setCompanyPanelOpen((current) => !current)}
+              className={buttonClass("secondary", "px-3 py-2")}
+            >
+              Manage Assistance Companies
+            </button>
+          </div>
+          {companyPanelOpen ? (
+            <div className="grid gap-5 p-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+              <div className="rounded-xl border border-[#efefef] bg-white p-4">
+                <div className="grid gap-3">
+                  <div>
+                    <label className="label" htmlFor="company-name">
+                      Company name
+                    </label>
+                    <input
+                      id="company-name"
+                      value={companyForm.name}
+                      onChange={(event) =>
+                        setCompanyForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                      disabled={!canManageCompanies}
+                      className="field mt-2 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="company-contact">
+                      Contact person
+                    </label>
+                    <input
+                      id="company-contact"
+                      value={companyForm.contactPerson}
+                      onChange={(event) =>
+                        setCompanyForm((current) => ({
+                          ...current,
+                          contactPerson: event.target.value
+                        }))
+                      }
+                      disabled={!canManageCompanies}
+                      className="field mt-2 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <div>
+                      <label className="label" htmlFor="company-email">
+                        Email
+                      </label>
+                      <input
+                        id="company-email"
+                        type="email"
+                        value={companyForm.email}
+                        onChange={(event) =>
+                          setCompanyForm((current) => ({
+                            ...current,
+                            email: event.target.value
+                          }))
+                        }
+                        disabled={!canManageCompanies}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="company-phone">
+                        Phone
+                      </label>
+                      <input
+                        id="company-phone"
+                        value={companyForm.phone}
+                        onChange={(event) =>
+                          setCompanyForm((current) => ({
+                            ...current,
+                            phone: event.target.value
+                          }))
+                        }
+                        disabled={!canManageCompanies}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="label" htmlFor="company-claim-percent">
+                        Default claim %
+                      </label>
+                      <input
+                        id="company-claim-percent"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="1"
+                        value={companyForm.defaultClaimPercentage}
+                        onChange={(event) =>
+                          setCompanyForm((current) => ({
+                            ...current,
+                            defaultClaimPercentage: roundPercentage(Number(event.target.value))
+                          }))
+                        }
+                        disabled={!canManageCompanies}
+                        className="field mt-2 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="company-active">
+                        Active status
+                      </label>
+                      <select
+                        id="company-active"
+                        value={companyForm.active ? "active" : "inactive"}
+                        onChange={(event) =>
+                          setCompanyForm((current) => ({
+                            ...current,
+                            active: event.target.value === "active"
+                          }))
+                        }
+                        disabled={!canManageCompanies}
+                        className="field mt-2 disabled:bg-slate-100"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="company-notes">
+                      Notes
+                    </label>
+                    <textarea
+                      id="company-notes"
+                      value={companyForm.notes}
+                      onChange={(event) =>
+                        setCompanyForm((current) => ({ ...current, notes: event.target.value }))
+                      }
+                      disabled={!canManageCompanies}
+                      className="field mt-2 min-h-24 disabled:bg-slate-100"
+                    />
+                  </div>
+                  {companyError ? (
+                    <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                      {companyError}
+                    </p>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={saveCompany}
+                      disabled={!canManageCompanies}
+                      className={buttonClass("primary", "flex-1")}
+                    >
+                      {companyForm.id ? "Update Company" : "Add Company"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetCompanyForm}
+                      className={buttonClass("secondary")}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className={tableStyles.wrapper}>
+                <table className={tableStyles.table}>
+                  <thead className={tableStyles.head}>
+                    <tr>
+                      <th className={tableStyles.headerCell}>Company</th>
+                      <th className={tableStyles.headerCell}>Contact</th>
+                      <th className={tableStyles.numericHeaderCell}>Default Claim %</th>
+                      <th className={tableStyles.headerCell}>Status</th>
+                      <th className={tableStyles.headerCell}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#efefef]">
+                    {companies.map((company) => {
+                      const used = companyHasClaims(company);
+
+                      return (
+                        <tr key={company.id} className={tableStyles.row}>
+                          <td className={tableStyles.strongCell}>{company.name}</td>
+                          <td className={tableStyles.cell}>
+                            <div>{company.contactPerson ?? "N/A"}</div>
+                            <div className="text-xs text-[#46484a]">{company.email ?? ""}</div>
+                          </td>
+                          <td className={tableStyles.numericCell}>
+                            {company.defaultClaimPercentage}%
+                          </td>
+                          <td className={tableStyles.cell}>
+                            <StatusPill tone={company.active ? "green" : "slate"}>
+                              {company.active ? "Active" : "Inactive"}
+                            </StatusPill>
+                          </td>
+                          <td className={tableStyles.cell}>
+                            <div className="flex min-w-[260px] flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => editCompany(company)}
+                                className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleCompanyActive(company.id)}
+                                disabled={!canManageCompanies}
+                                className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                              >
+                                {company.active ? "Deactivate" : "Activate"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteCompany(company)}
+                                disabled={!canManageCompanies || used}
+                                className={buttonClass(
+                                  !used ? "danger" : "muted",
+                                  "px-3 py-2 text-xs"
+                                )}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="panel p-5">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_150px_220px_200px_minmax(260px,1fr)]">
@@ -554,7 +983,9 @@ export function InsuranceClaimsDashboard({
             <select
               id="claim-status-filter"
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as ClaimStatus | "all")}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as InsuranceClaimStatus | "all")
+              }
               className="field mt-2"
             >
               <option value="all">All statuses</option>
@@ -594,7 +1025,7 @@ export function InsuranceClaimsDashboard({
                 <th className={tableStyles.headerCell}>Passport / ID</th>
                 <th className={tableStyles.headerCell}>Assistance Company</th>
                 <th className={tableStyles.numericHeaderCell}>Invoice Total USD</th>
-                <th className={tableStyles.numericHeaderCell}>Deduction %</th>
+                <th className={tableStyles.numericHeaderCell}>Claim %</th>
                 <th className={tableStyles.numericHeaderCell}>Claim Amount USD</th>
                 <th className={tableStyles.headerCell}>Claim Status</th>
                 <th className={tableStyles.headerCell}>Actions</th>
@@ -609,19 +1040,46 @@ export function InsuranceClaimsDashboard({
                   <td className={tableStyles.cell}>{claim.passport ?? "N/A"}</td>
                   <td className={tableStyles.cell}>{claim.assistanceCompany}</td>
                   <td className={tableStyles.numericCell}>{usdWhole(claim.invoiceTotal)}</td>
-                  <td className={tableStyles.numericCell}>{claim.deductionPercent}%</td>
+                  <td className={tableStyles.numericCell}>{claim.claimPercentage}%</td>
                   <td className={tableStyles.numericCell}>{usdWhole(claim.claimAmount)}</td>
                   <td className={tableStyles.cell}>
                     <StatusPill tone={claimStatusTones[claim.status]}>{claim.status}</StatusPill>
                   </td>
                   <td className={tableStyles.cell}>
-                    <button
-                      type="button"
-                      onClick={() => downloadInvoicePdf(claim)}
-                      className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                    >
-                      Download Invoice PDF
-                    </button>
+                    <div className="flex min-w-[360px] flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedClaim(claim)}
+                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadInvoicePdf(claim)}
+                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                      >
+                        Download Invoice PDF
+                      </button>
+                      <select
+                        value={claim.status}
+                        onChange={(event) =>
+                          updateClaimStatus(
+                            claim.id,
+                            event.target.value as InsuranceClaimStatus
+                          )
+                        }
+                        disabled={!canUpdateStatus}
+                        className="field h-9 w-40 py-1 text-xs disabled:bg-slate-100"
+                        aria-label={`Update status for ${claim.invoiceNo}`}
+                      >
+                        {claimStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -662,7 +1120,7 @@ export function InsuranceClaimsDashboard({
                     {usdWhole(statement.totalClaimAmount)}
                   </td>
                   <td className={tableStyles.cell}>
-                    <div className="flex min-w-[360px] flex-wrap gap-2">
+                    <div className="flex min-w-[380px] flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => setSelectedStatementKey(statement.key)}
@@ -675,14 +1133,14 @@ export function InsuranceClaimsDashboard({
                         onClick={() => downloadStatementPdf(statement)}
                         className={buttonClass("secondary", "px-3 py-2 text-xs")}
                       >
-                        Download Statement PDF
+                        Download Monthly Statement PDF
                       </button>
                       <button
                         type="button"
                         onClick={() => downloadStatementCsv(statement)}
                         className={buttonClass("secondary", "px-3 py-2 text-xs")}
                       >
-                        Download Statement CSV
+                        Download Monthly Statement CSV
                       </button>
                     </div>
                   </td>
@@ -700,15 +1158,54 @@ export function InsuranceClaimsDashboard({
         </div>
       </section>
 
+      {selectedClaim ? (
+        <section className="panel p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#224770]">{selectedClaim.invoiceNo}</h2>
+            <button
+              type="button"
+              onClick={() => setSelectedClaim(null)}
+              className={buttonClass("secondary", "px-3 py-2")}
+            >
+              Close
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg bg-[#efefef]/60 p-3">
+              <span className="label">Patient</span>
+              <p className="mt-1 font-semibold text-[#224770]">{selectedClaim.patientName}</p>
+            </div>
+            <div className="rounded-lg bg-[#efefef]/60 p-3">
+              <span className="label">Assistance Company</span>
+              <p className="mt-1 font-semibold text-[#224770]">
+                {selectedClaim.assistanceCompany}
+              </p>
+            </div>
+            <div className="rounded-lg bg-[#efefef]/60 p-3">
+              <span className="label">Claim %</span>
+              <p className="mt-1 font-semibold text-[#224770]">
+                {selectedClaim.claimPercentage}%
+              </p>
+            </div>
+            <div className="rounded-lg bg-[#efefef]/60 p-3">
+              <span className="label">Claim Amount</span>
+              <p className="mt-1 font-semibold text-[#224770]">
+                {usdWhole(selectedClaim.claimAmount)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 rounded-lg border border-[#efefef] p-3 text-sm text-[#46484a]">
+            {selectedClaim.services.join(", ")}
+          </div>
+        </section>
+      ) : null}
+
       {selectedStatement ? (
         <section className="panel p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="label">Statement Preview</p>
-              <h2 className="mt-2 text-lg font-semibold text-[#224770]">
-                {selectedStatement.assistanceCompany} - {formatMonth(selectedStatement.period)}
-              </h2>
-            </div>
+            <h2 className="text-lg font-semibold text-[#224770]">
+              {selectedStatement.assistanceCompany} - {formatMonth(selectedStatement.period)}
+            </h2>
             <button
               type="button"
               onClick={() => setSelectedStatementKey("")}
@@ -722,24 +1219,30 @@ export function InsuranceClaimsDashboard({
               <thead className={tableStyles.head}>
                 <tr>
                   <th className={tableStyles.headerCell}>Invoice number</th>
+                  <th className={tableStyles.headerCell}>Invoice date</th>
                   <th className={tableStyles.headerCell}>Patient name</th>
                   <th className={tableStyles.headerCell}>Passport / ID</th>
-                  <th className={tableStyles.headerCell}>Services</th>
+                  <th className={tableStyles.headerCell}>Services provided</th>
                   <th className={tableStyles.numericHeaderCell}>Invoice total USD</th>
-                  <th className={tableStyles.numericHeaderCell}>Deduction amount USD</th>
+                  <th className={tableStyles.numericHeaderCell}>Claim %</th>
                   <th className={tableStyles.numericHeaderCell}>Claim amount USD</th>
+                  <th className={tableStyles.headerCell}>Claim status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efefef]">
                 {selectedStatement.claims.map((claim) => (
                   <tr key={claim.id} className={tableStyles.row}>
                     <td className={tableStyles.strongCell}>{claim.invoiceNo}</td>
+                    <td className={tableStyles.cell}>{shortDate(claim.date)}</td>
                     <td className={tableStyles.cell}>{claim.patientName}</td>
                     <td className={tableStyles.cell}>{claim.passport ?? "N/A"}</td>
                     <td className={tableStyles.cell}>{claim.services.join(", ")}</td>
                     <td className={tableStyles.numericCell}>{usdWhole(claim.invoiceTotal)}</td>
-                    <td className={tableStyles.numericCell}>{usdWhole(claim.deductionAmount)}</td>
+                    <td className={tableStyles.numericCell}>{claim.claimPercentage}%</td>
                     <td className={tableStyles.numericCell}>{usdWhole(claim.claimAmount)}</td>
+                    <td className={tableStyles.cell}>
+                      <StatusPill tone={claimStatusTones[claim.status]}>{claim.status}</StatusPill>
+                    </td>
                   </tr>
                 ))}
               </tbody>
