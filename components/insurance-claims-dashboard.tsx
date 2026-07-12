@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { demoAssistanceCompanies } from "@/lib/demo-data";
@@ -172,6 +172,10 @@ function formToCompany(form: CompanyForm): AssistanceCompany {
     active: form.active,
     notes: form.notes.trim() || undefined
   };
+}
+
+function claimMatchesCompany(claim: InsuranceClaim, company: AssistanceCompany) {
+  return claim.assistanceCompanyId === company.id || claim.assistanceCompany === company.name;
 }
 
 function claimStatusFromReceivable(status?: InsuranceReceivable["status"]): InsuranceClaimStatus {
@@ -386,6 +390,173 @@ function statementCsv(statement: StatementGroup) {
   return rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
 }
 
+function CompanyDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[#efefef] bg-white p-3">
+      <span className="label">{label}</span>
+      <p className="mt-1 font-semibold text-[#224770]">{value}</p>
+    </div>
+  );
+}
+
+function CompanyFormModal({
+  companyForm,
+  companyError,
+  onCompanyFormChange,
+  onCancel,
+  onSave
+}: {
+  companyForm: CompanyForm;
+  companyError: string;
+  onCompanyFormChange: (form: CompanyForm) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const title = companyForm.id ? "Edit Company" : "Add Company";
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+      role="dialog"
+    >
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+        <div className="border-b border-[#efefef] p-5">
+          <h2 className="text-lg font-semibold text-[#224770]">{title}</h2>
+        </div>
+        <div className="grid gap-4 p-5 md:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="company-name">
+              Company Name
+            </label>
+            <input
+              id="company-name"
+              value={companyForm.name}
+              onChange={(event) =>
+                onCompanyFormChange({ ...companyForm, name: event.target.value })
+              }
+              className="field mt-2 min-h-12"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="company-contact">
+              Contact Person
+            </label>
+            <input
+              id="company-contact"
+              value={companyForm.contactPerson}
+              onChange={(event) =>
+                onCompanyFormChange({ ...companyForm, contactPerson: event.target.value })
+              }
+              className="field mt-2 min-h-12"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="company-email">
+              Email
+            </label>
+            <input
+              id="company-email"
+              type="email"
+              value={companyForm.email}
+              onChange={(event) =>
+                onCompanyFormChange({ ...companyForm, email: event.target.value })
+              }
+              className="field mt-2 min-h-12"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="company-phone">
+              Phone
+            </label>
+            <input
+              id="company-phone"
+              value={companyForm.phone}
+              onChange={(event) =>
+                onCompanyFormChange({ ...companyForm, phone: event.target.value })
+              }
+              className="field mt-2 min-h-12"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="company-claim-percent">
+              Default Claim Percentage
+            </label>
+            <input
+              id="company-claim-percent"
+              type="number"
+              min={0}
+              max={100}
+              step="1"
+              value={companyForm.defaultClaimPercentage}
+              onChange={(event) =>
+                onCompanyFormChange({
+                  ...companyForm,
+                  defaultClaimPercentage: roundPercentage(Number(event.target.value))
+                })
+              }
+              className="field mt-2 min-h-12"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="company-active">
+              Status
+            </label>
+            <select
+              id="company-active"
+              value={companyForm.active ? "active" : "inactive"}
+              onChange={(event) =>
+                onCompanyFormChange({
+                  ...companyForm,
+                  active: event.target.value === "active"
+                })
+              }
+              className="field mt-2 min-h-12"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="label" htmlFor="company-notes">
+              Notes
+            </label>
+            <textarea
+              id="company-notes"
+              value={companyForm.notes}
+              onChange={(event) =>
+                onCompanyFormChange({ ...companyForm, notes: event.target.value })
+              }
+              className="field mt-2 min-h-28"
+            />
+          </div>
+          {companyError ? (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 md:col-span-2">
+              {companyError}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-col-reverse gap-3 border-t border-[#efefef] p-5 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className={buttonClass("secondary", "min-h-12 px-6")}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className={buttonClass("primary", "min-h-12 px-6")}
+          >
+            Save Company
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function InsuranceClaimsDashboard({
   invoices,
   insuranceReceivables,
@@ -401,7 +572,8 @@ export function InsuranceClaimsDashboard({
   const [selectedClaim, setSelectedClaim] = useState<InsuranceClaim | null>(null);
   const [companies, setCompanies] = useState<AssistanceCompany[]>(demoAssistanceCompanies);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
-  const [companyPanelOpen, setCompanyPanelOpen] = useState(false);
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [expandedCompanyId, setExpandedCompanyId] = useState("");
   const [companyError, setCompanyError] = useState("");
   const [claimStatusOverrides, setClaimStatusOverrides] = useState<
     Record<string, InsuranceClaimStatus>
@@ -556,16 +728,63 @@ export function InsuranceClaimsDashboard({
     (statement) => statement.key === selectedStatementKey
   );
 
+  const companyStats = useMemo(() => {
+    const stats = new Map<
+      string,
+      {
+        patientCount: number;
+        outstandingClaims: number;
+        paidClaims: number;
+        lastClaimDate: string;
+      }
+    >();
+
+    companies.forEach((company) => {
+      const companyClaims = allClaims.filter((claim) => claimMatchesCompany(claim, company));
+      const patientCount = new Set(companyClaims.map((claim) => claim.patientName)).size;
+      const outstandingClaims = companyClaims
+        .filter((claim) => !["Paid", "Rejected"].includes(claim.status))
+        .reduce((sum, claim) => sum + claim.claimAmount, 0);
+      const paidClaims = companyClaims
+        .filter((claim) => claim.status === "Paid")
+        .reduce((sum, claim) => sum + claim.claimAmount, 0);
+      const lastClaimDate =
+        companyClaims
+          .map((claim) => claim.date)
+          .sort((a, b) => b.localeCompare(a))[0] ?? "";
+
+      stats.set(company.id, {
+        patientCount,
+        outstandingClaims,
+        paidClaims,
+        lastClaimDate
+      });
+    });
+
+    return stats;
+  }, [allClaims, companies]);
+
   function companyHasClaims(company: AssistanceCompany) {
-    return allClaims.some(
-      (claim) =>
-        claim.assistanceCompanyId === company.id || claim.assistanceCompany === company.name
-    );
+    return allClaims.some((claim) => claimMatchesCompany(claim, company));
   }
 
   function resetCompanyForm() {
     setCompanyForm(emptyCompanyForm);
     setCompanyError("");
+  }
+
+  function openAddCompanyModal() {
+    if (!canManageCompanies) {
+      return;
+    }
+
+    resetCompanyForm();
+    setCompanyModalOpen(true);
+  }
+
+  function closeCompanyModal() {
+    setCompanyModalOpen(false);
+    resetCompanyForm();
   }
 
   function saveCompany() {
@@ -585,12 +804,16 @@ export function InsuranceClaimsDashboard({
         ? current.map((company) => (company.id === companyForm.id ? nextCompany : company))
         : [nextCompany, ...current]
     );
-    resetCompanyForm();
+    closeCompanyModal();
   }
 
   function editCompany(company: AssistanceCompany) {
+    if (!canManageCompanies) {
+      return;
+    }
+
     setCompanyForm(companyToForm(company));
-    setCompanyPanelOpen(true);
+    setCompanyModalOpen(true);
     setCompanyError("");
   }
 
@@ -614,6 +837,7 @@ export function InsuranceClaimsDashboard({
     setCompanies((current) => current.filter((candidate) => candidate.id !== company.id));
     if (companyForm.id === company.id) {
       resetCompanyForm();
+      setCompanyModalOpen(false);
     }
   }
 
@@ -686,236 +910,142 @@ export function InsuranceClaimsDashboard({
       {currentUser.role !== "insurance_partner" ? (
         <section className="panel overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-semibold text-[#224770]">Assistance Company Management</h2>
-            <button
-              type="button"
-              onClick={() => setCompanyPanelOpen((current) => !current)}
-              className={buttonClass("secondary", "px-3 py-2")}
-            >
-              Manage Assistance Companies
-            </button>
+            <h2 className="font-semibold text-[#224770]">Assistance Companies</h2>
+            {canManageCompanies ? (
+              <button
+                type="button"
+                onClick={openAddCompanyModal}
+                className={buttonClass("primary", "min-h-12 px-5")}
+              >
+                Add Company
+              </button>
+            ) : null}
           </div>
-          {companyPanelOpen ? (
-            <div className="grid gap-5 p-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <div className="rounded-xl border border-[#efefef] bg-white p-4">
-                <div className="grid gap-3">
-                  <div>
-                    <label className="label" htmlFor="company-name">
-                      Company name
-                    </label>
-                    <input
-                      id="company-name"
-                      value={companyForm.name}
-                      onChange={(event) =>
-                        setCompanyForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                      disabled={!canManageCompanies}
-                      className="field mt-2 disabled:bg-slate-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="company-contact">
-                      Contact person
-                    </label>
-                    <input
-                      id="company-contact"
-                      value={companyForm.contactPerson}
-                      onChange={(event) =>
-                        setCompanyForm((current) => ({
-                          ...current,
-                          contactPerson: event.target.value
-                        }))
-                      }
-                      disabled={!canManageCompanies}
-                      className="field mt-2 disabled:bg-slate-100"
-                    />
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                    <div>
-                      <label className="label" htmlFor="company-email">
-                        Email
-                      </label>
-                      <input
-                        id="company-email"
-                        type="email"
-                        value={companyForm.email}
-                        onChange={(event) =>
-                          setCompanyForm((current) => ({
-                            ...current,
-                            email: event.target.value
-                          }))
-                        }
-                        disabled={!canManageCompanies}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="company-phone">
-                        Phone
-                      </label>
-                      <input
-                        id="company-phone"
-                        value={companyForm.phone}
-                        onChange={(event) =>
-                          setCompanyForm((current) => ({
-                            ...current,
-                            phone: event.target.value
-                          }))
-                        }
-                        disabled={!canManageCompanies}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="label" htmlFor="company-claim-percent">
-                        Default claim %
-                      </label>
-                      <input
-                        id="company-claim-percent"
-                        type="number"
-                        min={0}
-                        max={100}
-                        step="1"
-                        value={companyForm.defaultClaimPercentage}
-                        onChange={(event) =>
-                          setCompanyForm((current) => ({
-                            ...current,
-                            defaultClaimPercentage: roundPercentage(Number(event.target.value))
-                          }))
-                        }
-                        disabled={!canManageCompanies}
-                        className="field mt-2 disabled:bg-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label" htmlFor="company-active">
-                        Active status
-                      </label>
-                      <select
-                        id="company-active"
-                        value={companyForm.active ? "active" : "inactive"}
-                        onChange={(event) =>
-                          setCompanyForm((current) => ({
-                            ...current,
-                            active: event.target.value === "active"
-                          }))
-                        }
-                        disabled={!canManageCompanies}
-                        className="field mt-2 disabled:bg-slate-100"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="company-notes">
-                      Notes
-                    </label>
-                    <textarea
-                      id="company-notes"
-                      value={companyForm.notes}
-                      onChange={(event) =>
-                        setCompanyForm((current) => ({ ...current, notes: event.target.value }))
-                      }
-                      disabled={!canManageCompanies}
-                      className="field mt-2 min-h-24 disabled:bg-slate-100"
-                    />
-                  </div>
-                  {companyError ? (
-                    <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                      {companyError}
-                    </p>
-                  ) : null}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={saveCompany}
-                      disabled={!canManageCompanies}
-                      className={buttonClass("primary", "flex-1")}
-                    >
-                      {companyForm.id ? "Update Company" : "Add Company"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetCompanyForm}
-                      className={buttonClass("secondary")}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className={tableStyles.wrapper}>
-                <table className={tableStyles.table}>
-                  <thead className={tableStyles.head}>
-                    <tr>
-                      <th className={tableStyles.headerCell}>Company</th>
-                      <th className={tableStyles.headerCell}>Contact</th>
-                      <th className={tableStyles.numericHeaderCell}>Default Claim %</th>
-                      <th className={tableStyles.headerCell}>Status</th>
-                      <th className={tableStyles.headerCell}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#efefef]">
-                    {companies.map((company) => {
-                      const used = companyHasClaims(company);
+          <div className={tableStyles.wrapper}>
+            <table className={tableStyles.table}>
+              <thead className={tableStyles.head}>
+                <tr>
+                  <th className={tableStyles.headerCell}>Company Name</th>
+                  <th className={tableStyles.numericHeaderCell}>Default Claim %</th>
+                  <th className={tableStyles.headerCell}>Status</th>
+                  <th className={tableStyles.headerCell}>Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#efefef]">
+                {companies.map((company) => {
+                  const used = companyHasClaims(company);
+                  const isExpanded = expandedCompanyId === company.id;
+                  const stats = companyStats.get(company.id) ?? {
+                    patientCount: 0,
+                    outstandingClaims: 0,
+                    paidClaims: 0,
+                    lastClaimDate: ""
+                  };
 
-                      return (
-                        <tr key={company.id} className={tableStyles.row}>
-                          <td className={tableStyles.strongCell}>{company.name}</td>
-                          <td className={tableStyles.cell}>
-                            <div>{company.contactPerson ?? "N/A"}</div>
-                            <div className="text-xs text-[#46484a]">{company.email ?? ""}</div>
-                          </td>
-                          <td className={tableStyles.numericCell}>
-                            {company.defaultClaimPercentage}%
-                          </td>
-                          <td className={tableStyles.cell}>
-                            <StatusPill tone={company.active ? "green" : "slate"}>
-                              {company.active ? "Active" : "Inactive"}
-                            </StatusPill>
-                          </td>
-                          <td className={tableStyles.cell}>
-                            <div className="flex min-w-[260px] flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => editCompany(company)}
-                                className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleCompanyActive(company.id)}
-                                disabled={!canManageCompanies}
-                                className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                              >
-                                {company.active ? "Deactivate" : "Activate"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => deleteCompany(company)}
-                                disabled={!canManageCompanies || used}
-                                className={buttonClass(
-                                  !used ? "danger" : "muted",
-                                  "px-3 py-2 text-xs"
-                                )}
-                              >
-                                Delete
-                              </button>
+                  return (
+                    <Fragment key={company.id}>
+                      <tr className={tableStyles.row}>
+                        <td className={tableStyles.strongCell}>{company.name}</td>
+                        <td className={tableStyles.numericCell}>
+                          {company.defaultClaimPercentage}%
+                        </td>
+                        <td className={tableStyles.cell}>
+                          <StatusPill tone={company.active ? "green" : "slate"}>
+                            {company.active ? "Active" : "Inactive"}
+                          </StatusPill>
+                        </td>
+                        <td className={tableStyles.cell}>
+                          <div className="flex min-w-[420px] flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCompanyId(isExpanded ? "" : company.id)
+                              }
+                              className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                            >
+                              {isExpanded ? "Hide Details" : "View Details"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => editCompany(company)}
+                              disabled={!canManageCompanies}
+                              className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleCompanyActive(company.id)}
+                              disabled={!canManageCompanies}
+                              className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                            >
+                              {company.active ? "Deactivate" : "Activate"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteCompany(company)}
+                              disabled={!canManageCompanies || used}
+                              className={buttonClass(
+                                !used ? "danger" : "muted",
+                                "px-3 py-2 text-xs"
+                              )}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded ? (
+                        <tr>
+                          <td className="bg-[#efefef]/35 px-5 py-5" colSpan={4}>
+                            <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                              <CompanyDetail label="Company Name" value={company.name} />
+                              <CompanyDetail
+                                label="Contact Person"
+                                value={company.contactPerson ?? "N/A"}
+                              />
+                              <CompanyDetail label="Email" value={company.email ?? "N/A"} />
+                              <CompanyDetail label="Phone" value={company.phone ?? "N/A"} />
+                              <CompanyDetail
+                                label="Default Claim Percentage"
+                                value={`${company.defaultClaimPercentage}%`}
+                              />
+                              <CompanyDetail
+                                label="Status"
+                                value={company.active ? "Active" : "Inactive"}
+                              />
+                              <CompanyDetail
+                                label="Insurance Patients"
+                                value={String(stats.patientCount)}
+                              />
+                              <CompanyDetail
+                                label="Outstanding Claims USD"
+                                value={usdWhole(stats.outstandingClaims)}
+                              />
+                              <CompanyDetail
+                                label="Paid Claims USD"
+                                value={usdWhole(stats.paidClaims)}
+                              />
+                              <CompanyDetail
+                                label="Last Claim Date"
+                                value={stats.lastClaimDate ? shortDate(stats.lastClaimDate) : "N/A"}
+                              />
+                              <div className="rounded-lg border border-[#efefef] bg-white p-3 md:col-span-2">
+                                <span className="label">Notes</span>
+                                <p className="mt-1 font-semibold text-[#224770]">
+                                  {company.notes ?? "N/A"}
+                                </p>
+                              </div>
                             </div>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
 
@@ -1252,6 +1382,16 @@ export function InsuranceClaimsDashboard({
             Total claim amount {usdWhole(selectedStatement.totalClaimAmount)}
           </div>
         </section>
+      ) : null}
+
+      {companyModalOpen ? (
+        <CompanyFormModal
+          companyForm={companyForm}
+          companyError={companyError}
+          onCompanyFormChange={setCompanyForm}
+          onCancel={closeCompanyModal}
+          onSave={saveCompany}
+        />
       ) : null}
     </div>
   );

@@ -15,7 +15,7 @@ export default async function InsuranceClaimsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Insurance Claims"
+        title="Insurance"
       />
 
       <InsuranceClaimsDashboard

@@ -11,8 +11,6 @@ type InvoicesDashboardProps = {
   invoices: Invoice[];
 };
 
-type PaymentTypeFilter = Extract<PaymentMethod, "cash" | "card" | "insurance"> | "all";
-
 const paymentTypeLabels = {
   cash: "Cash",
   card: "Card",
@@ -20,28 +18,6 @@ const paymentTypeLabels = {
   insurance: "Insurance",
   other: "Other"
 } satisfies Record<PaymentMethod, string>;
-
-const paymentTypeOptions: Array<{ value: PaymentTypeFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "cash", label: "Cash" },
-  { value: "card", label: "Card" },
-  { value: "insurance", label: "Insurance" }
-];
-
-const monthOptions = [
-  { value: "01", label: "January" },
-  { value: "02", label: "February" },
-  { value: "03", label: "March" },
-  { value: "04", label: "April" },
-  { value: "05", label: "May" },
-  { value: "06", label: "June" },
-  { value: "07", label: "July" },
-  { value: "08", label: "August" },
-  { value: "09", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" }
-];
 
 function escapeHtml(value: string | number | undefined) {
   return String(value ?? "")
@@ -94,47 +70,35 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
 }
 
 export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps) {
-  const [yearFilter, setYearFilter] = useState("all");
-  const [monthFilter, setMonthFilter] = useState("all");
-  const [paymentTypeFilter, setPaymentTypeFilter] = useState<PaymentTypeFilter>("all");
-  const [registrySearch, setRegistrySearch] = useState("");
-
-  const yearOptions = useMemo(
-    () =>
-      [...new Set(invoices.map((invoice) => invoice.date.slice(0, 4)))]
-        .sort((a, b) => b.localeCompare(a)),
-    [invoices]
-  );
+  const [invoiceDateFilter, setInvoiceDateFilter] = useState("");
+  const [invoiceNumberSearch, setInvoiceNumberSearch] = useState("");
+  const [patientNameSearch, setPatientNameSearch] = useState("");
 
   const filteredInvoices = useMemo(() => {
-    const searchTerm = registrySearch.trim().toLowerCase();
+    const invoiceNumberTerm = invoiceNumberSearch.trim().toLowerCase();
+    const patientNameTerm = patientNameSearch.trim().toLowerCase();
 
     return invoices.filter((invoice) => {
-      const searchableText = [
-        invoice.invoiceNo,
-        invoice.patientName,
-        invoice.passport ?? ""
-      ].join(" ").toLowerCase();
-
-      if (yearFilter !== "all" && !invoice.date.startsWith(yearFilter)) {
+      if (invoiceDateFilter && invoice.date !== invoiceDateFilter) {
         return false;
       }
 
-      if (monthFilter !== "all" && invoice.date.slice(5, 7) !== monthFilter) {
+      if (invoiceNumberTerm && !invoice.invoiceNo.toLowerCase().includes(invoiceNumberTerm)) {
         return false;
       }
 
-      if (paymentTypeFilter !== "all" && invoice.paymentMethod !== paymentTypeFilter) {
-        return false;
-      }
-
-      if (searchTerm && !searchableText.includes(searchTerm)) {
+      if (patientNameTerm && !invoice.patientName.toLowerCase().includes(patientNameTerm)) {
         return false;
       }
 
       return true;
     });
-  }, [invoices, monthFilter, paymentTypeFilter, registrySearch, yearFilter]);
+  }, [invoiceDateFilter, invoiceNumberSearch, invoices, patientNameSearch]);
+
+  const hasActiveFilters =
+    Boolean(invoiceDateFilter) ||
+    Boolean(invoiceNumberSearch.trim()) ||
+    Boolean(patientNameSearch.trim());
 
   function doctorNameForInvoice(invoice: Invoice) {
     return doctors.find((candidate) => candidate.id === invoice.doctorId)?.name ?? "Unassigned";
@@ -153,81 +117,69 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
     printWindow.print();
   }
 
+  function clearFilters() {
+    setInvoiceDateFilter("");
+    setInvoiceNumberSearch("");
+    setPatientNameSearch("");
+  }
+
   return (
     <div className="space-y-6">
       <section className="panel p-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[180px_180px_220px_minmax(260px,1fr)]">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_160px] xl:items-end">
           <div>
-            <label className="label" htmlFor="invoice-year-filter">
-              Year
-            </label>
-            <select
-              id="invoice-year-filter"
-              value={yearFilter}
-              onChange={(event) => setYearFilter(event.target.value)}
-              className="field mt-2"
-            >
-              <option value="all">All years</option>
-              {yearOptions.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="invoice-month-filter">
-              Month
-            </label>
-            <select
-              id="invoice-month-filter"
-              value={monthFilter}
-              onChange={(event) => setMonthFilter(event.target.value)}
-              className="field mt-2"
-            >
-              <option value="all">All months</option>
-              {monthOptions.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="payment-type-filter">
-              Payment Type
-            </label>
-            <select
-              id="payment-type-filter"
-              value={paymentTypeFilter}
-              onChange={(event) => setPaymentTypeFilter(event.target.value as PaymentTypeFilter)}
-              className="field mt-2"
-            >
-              {paymentTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="registry-search">
-              Search
+            <label className="label" htmlFor="invoice-date-filter">
+              Invoice Date
             </label>
             <input
-              id="registry-search"
-              value={registrySearch}
-              onChange={(event) => setRegistrySearch(event.target.value)}
-              className="field mt-2"
-              placeholder="Invoice number, patient name, passport/ID"
+              id="invoice-date-filter"
+              type="date"
+              value={invoiceDateFilter}
+              onChange={(event) => setInvoiceDateFilter(event.target.value)}
+              className="field mt-2 min-h-12"
             />
           </div>
+          <div>
+            <label className="label" htmlFor="invoice-number-search">
+              Invoice Number
+            </label>
+            <input
+              id="invoice-number-search"
+              value={invoiceNumberSearch}
+              onChange={(event) => setInvoiceNumberSearch(event.target.value)}
+              className="field mt-2 min-h-12"
+              placeholder="Search invoice no."
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="patient-name-search">
+              Patient Name
+            </label>
+            <input
+              id="patient-name-search"
+              value={patientNameSearch}
+              onChange={(event) => setPatientNameSearch(event.target.value)}
+              className="field mt-2 min-h-12"
+              placeholder="Search patient name"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            className={buttonClass(
+              hasActiveFilters ? "secondary" : "muted",
+              "min-h-12 w-full px-4 py-3"
+            )}
+          >
+            Clear Filters
+          </button>
         </div>
       </section>
 
       <section className="panel overflow-hidden">
         <div className="border-b border-[#efefef] p-5">
-          <h2 className="text-lg font-semibold text-[#224770]">General Invoice Registry</h2>
+          <h2 className="text-lg font-semibold text-[#224770]">Invoice Registry</h2>
         </div>
         <div className={tableStyles.wrapper}>
           <table className={tableStyles.table}>
@@ -271,7 +223,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
               {!filteredInvoices.length ? (
                 <tr>
                   <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={8}>
-                    No invoices match the selected filters.
+                    No invoices found.
                   </td>
                 </tr>
               ) : null}

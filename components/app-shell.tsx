@@ -38,7 +38,7 @@ const navItems: Array<{
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
   { href: "/invoices/new", label: "Invoice POS", icon: ReceiptText, permission: "createInvoices" },
   { href: "/invoices", label: "Invoices", icon: ClipboardList, permission: "viewInvoices" },
-  { href: "/insurance-claims", label: "Insurance Claims", icon: FileCheck2, permission: "insuranceClaims" },
+  { href: "/insurance-claims", label: "Insurance", icon: FileCheck2, permission: "insuranceClaims" },
   { href: "/services", label: "Services", icon: ShieldCheck, permission: "manageServices" },
   { href: "/doctors", label: "Doctors", icon: UserRoundCog, permission: "manageDoctors" },
   { href: "/doctor-portal", label: "My Earnings", icon: Stethoscope, permission: "doctorPortal" },
