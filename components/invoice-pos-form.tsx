@@ -46,7 +46,6 @@ type InvoicePosFormProps = {
   services: Service[];
   initialInvoices: Invoice[];
   createdBy: string;
-  canEditInsurancePercentage: boolean;
 };
 
 const paymentLabels: Record<PaymentMethod, string> = {
@@ -171,8 +170,7 @@ export function InvoicePosForm({
   doctors,
   services,
   initialInvoices,
-  createdBy,
-  canEditInsurancePercentage
+  createdBy
 }: InvoicePosFormProps) {
   const [doctorCatalog, setDoctorCatalog] = useState(() =>
     doctors.map(normalizeDoctorCatalog)
@@ -318,10 +316,14 @@ export function InvoicePosForm({
       (company) => company.id === assistanceCompanyId
     );
 
-    if (!selectedCompany) {
-      const firstCompany = activeAssistanceCompanies[0];
-      setAssistanceCompanyId(firstCompany.id);
-      setClaimPercentage(roundPercentage(firstCompany.defaultClaimPercentage));
+    if (assistanceCompanyId && !selectedCompany) {
+      setAssistanceCompanyId("");
+      setClaimPercentage(0);
+      return;
+    }
+
+    if (selectedCompany) {
+      setClaimPercentage(roundPercentage(selectedCompany.defaultClaimPercentage));
     }
   }, [activeAssistanceCompanies, assistanceCompanyId, paymentMethod]);
 
@@ -504,9 +506,7 @@ export function InvoicePosForm({
     <p><strong>Doctor:</strong> ${escapeHtml(invoiceDoctor?.name ?? "Unassigned")}</p>
     ${
       targetInvoice.paymentMethod === "insurance"
-        ? `<p><strong>Assistance company:</strong> ${escapeHtml(targetInvoice.assistanceCompanyName ?? "Unassigned")}</p>
-    <p><strong>Claim percentage:</strong> ${escapeHtml(targetInvoice.claimPercentage ?? 0)}%</p>
-    <p><strong>Claim amount:</strong> ${usdWhole(targetInvoice.claimAmount ?? 0)}</p>`
+        ? `<p><strong>Assistance company:</strong> ${escapeHtml(targetInvoice.assistanceCompanyName ?? "Unassigned")}</p>`
         : ""
     }
     <h2>Services and charges</h2>
@@ -615,16 +615,6 @@ export function InvoicePosForm({
     if (method !== "insurance") {
       setAssistanceCompanyId("");
       setClaimPercentage(0);
-      return;
-    }
-
-    const selectedCompany =
-      activeAssistanceCompanies.find((company) => company.id === assistanceCompanyId) ??
-      activeAssistanceCompanies[0];
-
-    if (selectedCompany) {
-      setAssistanceCompanyId(selectedCompany.id);
-      setClaimPercentage(roundPercentage(selectedCompany.defaultClaimPercentage));
     }
   }
 
@@ -675,13 +665,9 @@ export function InvoicePosForm({
                 doctorId={doctorId}
                 paymentMethod={paymentMethod}
                 assistanceCompanyId={assistanceCompanyId}
-                claimPercentage={claimPercentage}
-                claimAmount={claimAmount}
-                canEditClaimPercentage={canEditInsurancePercentage}
                 onDoctorIdChange={setDoctorId}
                 onPaymentMethodChange={selectPaymentMethod}
                 onAssistanceCompanyChange={selectAssistanceCompany}
-                onClaimPercentageChange={(value) => setClaimPercentage(roundPercentage(value))}
               />
             </WorkflowSection>
 
@@ -1026,26 +1012,18 @@ function BillingDetailsFields({
   doctorId,
   paymentMethod,
   assistanceCompanyId,
-  claimPercentage,
-  claimAmount,
-  canEditClaimPercentage,
   onDoctorIdChange,
   onPaymentMethodChange,
-  onAssistanceCompanyChange,
-  onClaimPercentageChange
+  onAssistanceCompanyChange
 }: {
   activeDoctors: Doctor[];
   assistanceCompanies: AssistanceCompany[];
   doctorId: string;
   paymentMethod: PaymentMethod;
   assistanceCompanyId: string;
-  claimPercentage: number;
-  claimAmount: number;
-  canEditClaimPercentage: boolean;
   onDoctorIdChange: (value: string) => void;
   onPaymentMethodChange: (value: (typeof invoicePaymentMethods)[number]) => void;
   onAssistanceCompanyChange: (value: string) => void;
-  onClaimPercentageChange: (value: number) => void;
 }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] lg:items-start">
@@ -1057,7 +1035,7 @@ function BillingDetailsFields({
           id="doctor"
           value={doctorId}
           onChange={(event) => onDoctorIdChange(event.target.value)}
-          className="field mt-2"
+          className="field mt-2 min-h-12"
         >
           {activeDoctors.length ? (
             activeDoctors.map((doctor) => (
@@ -1075,19 +1053,17 @@ function BillingDetailsFields({
           paymentMethod={paymentMethod}
           onPaymentMethodChange={onPaymentMethodChange}
         />
+      </div>
 
-        {paymentMethod === "insurance" ? (
+      {paymentMethod === "insurance" ? (
+        <div className="lg:col-span-2">
           <InsuranceClaimFields
             assistanceCompanies={assistanceCompanies}
             assistanceCompanyId={assistanceCompanyId}
-            claimPercentage={claimPercentage}
-            claimAmount={claimAmount}
-            canEditClaimPercentage={canEditClaimPercentage}
             onAssistanceCompanyChange={onAssistanceCompanyChange}
-            onClaimPercentageChange={onClaimPercentageChange}
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1122,7 +1098,7 @@ function PaymentMethodButtons({
               className={cn(
                 "focus-ring min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 ease-out",
                 isSelected
-                  ? "border-[#224770] bg-[#224770] text-white shadow-sm"
+                  ? "border-[#84BC3F] bg-[#84BC3F] text-white shadow-sm"
                   : "border-[#efefef] bg-white text-[#46484a] shadow-sm hover:-translate-y-0.5 hover:border-[#0eb6ef]/40 hover:shadow-md"
               )}
             >
@@ -1138,22 +1114,14 @@ function PaymentMethodButtons({
 function InsuranceClaimFields({
   assistanceCompanies,
   assistanceCompanyId,
-  claimPercentage,
-  claimAmount,
-  canEditClaimPercentage,
-  onAssistanceCompanyChange,
-  onClaimPercentageChange
+  onAssistanceCompanyChange
 }: {
   assistanceCompanies: AssistanceCompany[];
   assistanceCompanyId: string;
-  claimPercentage: number;
-  claimAmount: number;
-  canEditClaimPercentage: boolean;
   onAssistanceCompanyChange: (value: string) => void;
-  onClaimPercentageChange: (value: number) => void;
 }) {
   return (
-    <div className="grid gap-4 rounded-xl border border-[#d7e1ec] bg-[#efefef]/30 p-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+    <div className="rounded-xl border border-[#efefef] bg-white p-3 shadow-sm">
       <FieldShell>
         <label className="label" htmlFor="assistance-company">
           Assistance Company
@@ -1163,7 +1131,7 @@ function InsuranceClaimFields({
           value={assistanceCompanyId}
           onChange={(event) => onAssistanceCompanyChange(event.target.value)}
           disabled={!assistanceCompanies.length}
-          className="field mt-2"
+          className="field mt-2 min-h-12"
           required
         >
           <option value="">
@@ -1176,33 +1144,6 @@ function InsuranceClaimFields({
           ))}
         </select>
       </FieldShell>
-      <FieldShell>
-        <label className="label" htmlFor="claim-percentage">
-          Claim Percentage
-        </label>
-        <div className="relative mt-2">
-          <input
-            id="claim-percentage"
-            type="number"
-            min={0}
-            max={100}
-            step="1"
-            value={claimPercentage}
-            onChange={(event) => onClaimPercentageChange(Number(event.target.value))}
-            disabled={!canEditClaimPercentage}
-            className="field min-h-12 pr-9 disabled:bg-slate-100"
-          />
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-[#46484a]">
-            %
-          </span>
-        </div>
-      </FieldShell>
-      <div className="rounded-xl border border-[#efefef] bg-white p-3">
-        <p className="label">Claim Amount</p>
-        <p className="mt-2 min-h-12 text-lg font-bold leading-[3rem] text-[#224770]">
-          {usdWhole(claimAmount)}
-        </p>
-      </div>
     </div>
   );
 }
