@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
+import { isSupabaseConfigured, withSupabaseTimeout } from "@/lib/supabase/config";
 
 const protectedRoutes = [
   "/dashboard",
@@ -12,14 +13,14 @@ const protectedRoutes = [
   "/reports"
 ];
 
-function hasSupabaseEnv() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
-
 export async function middleware(request: NextRequest) {
-  if (!hasSupabaseEnv()) {
+  if (request.nextUrl.pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  if (!isSupabaseConfigured()) {
     return NextResponse.next();
   }
 
@@ -48,21 +49,30 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let hasUser = false;
+
+  try {
+    const authResult = await withSupabaseTimeout(
+      supabase.auth.getUser(),
+      "Supabase middleware auth"
+    );
+    hasUser = Boolean(authResult.data.user);
+  } catch (error) {
+    console.warn("Supabase middleware auth unavailable; continuing in demo/local mode.", error);
+    return response;
+  }
 
   const isProtected = protectedRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
   );
 
-  if (!user && isProtected) {
+  if (!hasUser && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname === "/login") {
+  if (hasUser && request.nextUrl.pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

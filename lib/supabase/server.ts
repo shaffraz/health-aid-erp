@@ -1,12 +1,9 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-export function isSupabaseConfigured() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
+export { isSupabaseConfigured };
 
 export async function createSupabaseServerClient() {
   if (!isSupabaseConfigured()) {

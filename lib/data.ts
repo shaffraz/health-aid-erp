@@ -1,4 +1,5 @@
 import { demoWorkspaceData } from "@/lib/demo-data";
+import { withSupabaseTimeout } from "@/lib/supabase/config";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import type {
   Doctor,
@@ -44,8 +45,8 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
 
   const supabase = await createSupabaseServerClient();
 
-  const [doctors, services, paymentRules, invoices, payouts, vouchers, auditLogs] =
-    await Promise.all([
+  const workspaceResult = await withSupabaseTimeout(
+    Promise.all([
       supabase.from("doctors").select("*").order("full_name"),
       supabase.from("services").select("*").order("category").order("name"),
       supabase.from("doctor_payment_rules").select("*").order("priority", { ascending: false }),
@@ -55,9 +56,24 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
         .order("invoice_date", { ascending: false })
         .order("invoice_no", { ascending: false }),
       supabase.from("doctor_payouts").select("*").order("invoice_date", { ascending: false }),
-      supabase.from("payout_vouchers").select("*, payout_voucher_items(payout_id)").order("created_at", { ascending: false }),
+      supabase
+        .from("payout_vouchers")
+        .select("*, payout_voucher_items(payout_id)")
+        .order("created_at", { ascending: false }),
       supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50)
-    ]);
+    ]),
+    "Supabase workspace data"
+  ).catch((error) => {
+    console.warn("Supabase workspace data unavailable; using demo/local data.", error);
+    return null;
+  });
+
+  if (!workspaceResult) {
+    return demoWorkspaceData;
+  }
+
+  const [doctors, services, paymentRules, invoices, payouts, vouchers, auditLogs] =
+    workspaceResult;
 
   if (
     doctors.error ||
