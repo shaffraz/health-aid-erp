@@ -265,7 +265,14 @@ export function InvoicePosForm({
 
       const parsed = JSON.parse(storedServices);
       if (Array.isArray(parsed)) {
-        setCatalogServices(parsed as Service[]);
+        setCatalogServices(
+          (parsed as Service[]).map((service) => ({
+            ...service,
+            sellingPrice: Math.max(0, Math.round(service.sellingPrice)),
+            defaultPayoutValue: Math.max(0, Math.round(service.defaultPayoutValue)),
+            active: service.active ?? true
+          }))
+        );
       }
     } catch {
       setCatalogServices(services);

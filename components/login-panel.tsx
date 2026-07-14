@@ -45,7 +45,7 @@ export function LoginPanel() {
     window.location.assign(
       role === "doctor"
         ? "/doctor-portal"
-        : role === "insurance_partner"
+        : role === "assistance_company"
           ? "/insurance-claims"
           : "/dashboard"
     );
@@ -65,7 +65,7 @@ export function LoginPanel() {
           </p>
           <div className="mt-8 grid gap-3 text-sm">
             {[
-              "Role-aware access for admin, staff, doctor, accountant, and insurance partners",
+              "Role-aware access for administrator, director, staff, doctor, and assistance company users",
               "Automatic doctor payout generation from invoice services",
               "PostgreSQL RLS policies keep doctor earnings private"
             ].map((item) => (
@@ -99,7 +99,7 @@ export function LoginPanel() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className="field mt-2"
-                placeholder="admin@healthaid.lk"
+                placeholder="administrator@healthaid.lk"
                 required={!demo}
               />
             </div>

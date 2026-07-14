@@ -15,9 +15,7 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Reports"
-        title="Operational and finance reports"
-        description="Daily revenue, category income, invoices, doctor payout summaries, paid/unpaid status, and monthly doctor payment exports."
+        title="Reports"
       />
       <ReportsDashboard
         doctors={data.doctors}

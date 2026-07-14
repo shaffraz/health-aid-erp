@@ -23,7 +23,7 @@ export function DemoRoleSwitcher({ activeRole }: DemoRoleSwitcherProps) {
     window.location.assign(
       role === "doctor"
         ? "/doctor-portal"
-        : role === "insurance_partner"
+        : role === "assistance_company"
           ? "/insurance-claims"
           : "/dashboard"
     );

@@ -12,6 +12,7 @@ import type {
   InsuranceReceivable,
   Invoice,
   InvoiceItem,
+  ManagedUser,
   PayoutVoucher,
   Service,
   WorkspaceData
@@ -67,6 +68,62 @@ export const demoAssistanceCompanies: AssistanceCompany[] = [
   }
 ];
 
+export const demoUsers: ManagedUser[] = [
+  {
+    id: "user-administrator",
+    name: "Demo Administrator",
+    email: "administrator@healthaid.local",
+    phone: "+94 77 100 1000",
+    username: "administrator",
+    password: "demo-password",
+    role: "administrator",
+    status: "active"
+  },
+  {
+    id: "user-director",
+    name: "Demo Director",
+    email: "director@healthaid.local",
+    phone: "+94 77 100 1001",
+    username: "director",
+    password: "demo-password",
+    role: "director",
+    status: "active"
+  },
+  {
+    id: "user-staff",
+    name: "Demo Staff",
+    email: "staff@healthaid.local",
+    phone: "+94 77 100 1002",
+    username: "staff",
+    password: "demo-password",
+    role: "staff",
+    status: "active"
+  },
+  {
+    id: "user-doctor",
+    name: "Dr. Ameer Hassan",
+    email: "doctor@healthaid.local",
+    phone: "+94 77 412 1098",
+    username: "doctor",
+    password: "demo-password",
+    role: "doctor",
+    status: "active",
+    doctorId: "doc-ameer"
+  },
+  {
+    id: "user-assistance-company",
+    name: "Global Travel Assist",
+    email: "assistance@healthaid.local",
+    phone: "+94 77 420 1188",
+    username: "global-travel",
+    password: "demo-password",
+    role: "assistance_company",
+    status: "active",
+    assistanceCompanyId: "assist-global-travel",
+    assistanceCompany: "Global Travel Assist"
+  }
+];
+
 export const demoDoctors: Doctor[] = [
   {
     id: "doc-ameer",
@@ -102,7 +159,7 @@ export const demoServices: Service[] = [
     id: "svc-consult",
     name: "General consultation",
     category: "Consultation",
-    sellingPrice: 11.67,
+    sellingPrice: 12,
     payoutEnabled: true,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 1800,
@@ -113,7 +170,7 @@ export const demoServices: Service[] = [
     id: "svc-emergency-consult",
     name: "Emergency consultation",
     category: "Consultation",
-    sellingPrice: 21.67,
+    sellingPrice: 22,
     payoutEnabled: true,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 3500,
@@ -124,7 +181,7 @@ export const demoServices: Service[] = [
     id: "svc-cbc",
     name: "CBC lab test",
     category: "Lab Services",
-    sellingPrice: 9.33,
+    sellingPrice: 9,
     payoutEnabled: false,
     defaultPayoutType: "none",
     defaultPayoutValue: 0,
@@ -135,7 +192,7 @@ export const demoServices: Service[] = [
     id: "svc-iv",
     name: "IV rehydration therapy",
     category: "IV Therapy",
-    sellingPrice: 31.67,
+    sellingPrice: 32,
     payoutEnabled: true,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 2200,
@@ -146,7 +203,7 @@ export const demoServices: Service[] = [
     id: "svc-wound",
     name: "Wound cleaning and dressing",
     category: "Wound Care",
-    sellingPrice: 17.33,
+    sellingPrice: 17,
     payoutEnabled: true,
     defaultPayoutType: "fixed",
     defaultPayoutValue: 1600,
@@ -201,7 +258,7 @@ export const demoServices: Service[] = [
     id: "svc-daycare",
     name: "Day care admission package",
     category: "Day Care Admissions",
-    sellingPrice: 61.67,
+    sellingPrice: 62,
     payoutEnabled: false,
     defaultPayoutType: "none",
     defaultPayoutValue: 0,
@@ -310,7 +367,7 @@ export const demoInvoices: Invoice[] = [
     claimAmount: 43,
     claimStatus: "Submitted",
     notes: "Traveller with dehydration symptoms. Billed to insurance.",
-    createdBy: "demo-admin"
+    createdBy: "demo-administrator"
   }),
   invoice({
     id: "inv-002",
@@ -346,7 +403,7 @@ export const demoInvoices: Invoice[] = [
     claimAmount: 21,
     claimStatus: "Paid",
     notes: "Fever screen and basic labs.",
-    createdBy: "demo-admin"
+    createdBy: "demo-administrator"
   })
 ];
 
@@ -424,7 +481,7 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
 export const demoAuditLogs: AuditLog[] = [
   {
     id: "audit-001",
-    actor: "Admin",
+    actor: "Administrator",
     action: "invoice.created",
     entityType: "invoice",
     entityId: "inv-001",
@@ -433,7 +490,7 @@ export const demoAuditLogs: AuditLog[] = [
   },
   {
     id: "audit-002",
-    actor: "Accountant",
+    actor: "Director",
     action: "voucher.status_changed",
     entityType: "payout_voucher",
     entityId: "voucher-001",
@@ -449,6 +506,8 @@ export const demoWorkspaceData: WorkspaceData = {
   invoices: demoInvoices,
   payouts: demoPayouts,
   vouchers: demoVouchers,
+  assistanceCompanies: demoAssistanceCompanies,
   insuranceReceivables: demoInsuranceReceivables,
+  users: demoUsers,
   auditLogs: demoAuditLogs
 };

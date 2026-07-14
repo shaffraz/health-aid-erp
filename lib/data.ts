@@ -171,7 +171,9 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
       paymentDate: voucher.payment_date ?? undefined,
       notes: voucher.notes ?? undefined
     })) satisfies PayoutVoucher[],
+    assistanceCompanies: demoWorkspaceData.assistanceCompanies,
     insuranceReceivables: [],
+    users: demoWorkspaceData.users,
     auditLogs: (auditLogs.data ?? []).map((log) => ({
       id: log.id,
       actor: log.actor_name ?? "System",

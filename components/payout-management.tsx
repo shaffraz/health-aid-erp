@@ -12,9 +12,11 @@ type PayoutManagementProps = {
   doctors: Doctor[];
   initialPayouts: DoctorPayout[];
   initialVouchers: PayoutVoucher[];
+  canEdit: boolean;
 };
 
 export function PayoutManagement({
+  canEdit,
   doctors,
   initialPayouts,
   initialVouchers
@@ -58,6 +60,10 @@ export function PayoutManagement({
   const doctorsAwaitingPayout = new Set(unpaidPayouts.map((payout) => payout.doctorId)).size;
 
   async function generateVoucher() {
+    if (!canEdit) {
+      return;
+    }
+
     const eligible = unpaidFiltered.filter((payout) => doctorId !== "all" && payout.doctorId === doctorId);
 
     if (!eligible.length || doctorId === "all") {
@@ -106,6 +112,10 @@ export function PayoutManagement({
   }
 
   async function markVoucher(nextStatus: "paid" | "unpaid") {
+    if (!canEdit) {
+      return;
+    }
+
     if (!selectedVoucher) {
       return;
     }
@@ -300,9 +310,9 @@ export function PayoutManagement({
             <button
               type="button"
               onClick={generateVoucher}
-              disabled={pending || doctorId === "all" || unpaidFiltered.length === 0}
+              disabled={!canEdit || pending || doctorId === "all" || unpaidFiltered.length === 0}
               className={buttonClass(
-                !pending && doctorId !== "all" && unpaidFiltered.length ? "primary" : "muted",
+                canEdit && !pending && doctorId !== "all" && unpaidFiltered.length ? "primary" : "muted",
                 "w-full"
               )}
             >
@@ -407,6 +417,7 @@ export function PayoutManagement({
                     id="payment-ref"
                     value={paymentReference}
                     onChange={(event) => setPaymentReference(event.target.value)}
+                    disabled={!canEdit}
                     className="field mt-2"
                     placeholder={selectedVoucher.paymentReference ?? "Bank transfer reference"}
                   />
@@ -420,6 +431,7 @@ export function PayoutManagement({
                     type="date"
                     value={paymentDate}
                     onChange={(event) => setPaymentDate(event.target.value)}
+                    disabled={!canEdit}
                     className="field mt-2"
                   />
                 </div>
@@ -431,6 +443,7 @@ export function PayoutManagement({
                     id="voucher-notes"
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
+                    disabled={!canEdit}
                     className="field mt-2 min-h-24"
                     placeholder={selectedVoucher.notes ?? "Payment notes"}
                   />
@@ -439,16 +452,16 @@ export function PayoutManagement({
                   <button
                     type="button"
                     onClick={() => markVoucher("paid")}
-                    disabled={pending}
-                    className={buttonClass("success", "px-3 py-2")}
+                    disabled={!canEdit || pending}
+                    className={buttonClass(canEdit ? "success" : "muted", "px-3 py-2")}
                   >
                     Paid
                   </button>
                   <button
                     type="button"
                     onClick={() => markVoucher("unpaid")}
-                    disabled={pending}
-                    className={buttonClass("secondary", "px-3 py-2")}
+                    disabled={!canEdit || pending}
+                    className={buttonClass(canEdit ? "secondary" : "muted", "px-3 py-2")}
                   >
                     Unpaid
                   </button>

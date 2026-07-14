@@ -1,4 +1,10 @@
-export const roles = ["admin", "staff", "doctor", "accountant", "insurance_partner"] as const;
+export const roles = [
+  "administrator",
+  "director",
+  "staff",
+  "doctor",
+  "assistance_company"
+] as const;
 export type Role = (typeof roles)[number];
 
 export const serviceCategories = [
@@ -22,6 +28,7 @@ export const doctorStorageKey = "health-aid-doctors-v1";
 export const doctorPaymentSettingsStorageKey = "health-aid-doctor-payment-settings-v1";
 export const assistanceCompanyStorageKey = "health-aid-assistance-companies-v1";
 export const insuranceClaimStatusStorageKey = "health-aid-insurance-claim-status-v1";
+export const userStorageKey = "health-aid-users-v1";
 
 export const amountOnlyInvoiceServiceNames = [
   "Medication Charges",
@@ -95,6 +102,20 @@ export type AppUser = {
   email: string;
   role: Role;
   doctorId?: string;
+  assistanceCompany?: string;
+};
+
+export type ManagedUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  username: string;
+  password: string;
+  role: Role;
+  status: "active" | "inactive";
+  doctorId?: string;
+  assistanceCompanyId?: string;
   assistanceCompany?: string;
 };
 
@@ -242,6 +263,8 @@ export type WorkspaceData = {
   invoices: Invoice[];
   payouts: DoctorPayout[];
   vouchers: PayoutVoucher[];
+  assistanceCompanies: AssistanceCompany[];
   insuranceReceivables: InsuranceReceivable[];
+  users: ManagedUser[];
   auditLogs: AuditLog[];
 };

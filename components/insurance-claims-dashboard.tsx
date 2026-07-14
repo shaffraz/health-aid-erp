@@ -658,33 +658,31 @@ function StatementActions({
       >
         Download CSV
       </button>
-      {statement.status === "Draft" ? (
+      {statement.status === "Draft" && canConfirm ? (
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!canConfirm}
-          className={buttonClass(canConfirm ? "primary" : "muted", "min-h-11 px-3 text-xs")}
+          className={buttonClass("primary", "min-h-11 px-3 text-xs")}
         >
           Confirm Statement
         </button>
       ) : null}
-      {statement.status === "Confirmed" ? (
+      {statement.status === "Confirmed" && canSubmit ? (
         <button
           type="button"
           onClick={onSubmit}
-          disabled={!canSubmit}
-          className={buttonClass(canSubmit ? "primary" : "muted", "min-h-11 px-3 text-xs")}
+          className={buttonClass("primary", "min-h-11 px-3 text-xs")}
         >
           Mark Submitted
         </button>
       ) : null}
-      {["Submitted", "Partially Paid", "Overdue"].includes(statement.status) ? (
+      {["Submitted", "Partially Paid", "Overdue"].includes(statement.status) && canRecordPayment ? (
         <button
           type="button"
           onClick={onRecordPayment}
-          disabled={!canRecordPayment || statement.outstanding <= 0}
+          disabled={statement.outstanding <= 0}
           className={buttonClass(
-            canRecordPayment && statement.outstanding > 0 ? "success" : "muted",
+            statement.outstanding > 0 ? "success" : "muted",
             "min-h-11 px-3 text-xs"
           )}
         >
@@ -849,7 +847,7 @@ export function InsuranceClaimsDashboard({
 }: InsuranceClaimsDashboardProps) {
   const currentMonth = todayISO().slice(0, 7);
   const partnerCompany =
-    currentUser.role === "insurance_partner" ? currentUser.assistanceCompany ?? "" : "";
+    currentUser.role === "assistance_company" ? currentUser.assistanceCompany ?? "" : "";
   const [companies, setCompanies] = useState<AssistanceCompany[]>(demoAssistanceCompanies);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
@@ -867,10 +865,12 @@ export function InsuranceClaimsDashboard({
   );
   const [seasonalError, setSeasonalError] = useState("");
 
-  const canManageCompanies = currentUser.role === "admin";
-  const canConfirmStatements = currentUser.role === "admin";
-  const canSubmitStatements = currentUser.role === "admin" || currentUser.role === "accountant";
-  const canRecordPayments = currentUser.role === "admin" || currentUser.role === "accountant";
+  const canManageCompanies = currentUser.role === "administrator";
+  const canConfirmStatements =
+    currentUser.role === "administrator" || currentUser.role === "staff";
+  const canSubmitStatements = currentUser.role === "administrator" || currentUser.role === "staff";
+  const canRecordPayments = currentUser.role === "administrator" || currentUser.role === "staff";
+  const canConfirmSeasonalSummary = currentUser.role === "administrator";
 
   useEffect(() => {
     try {
@@ -927,7 +927,7 @@ export function InsuranceClaimsDashboard({
   );
 
   const roleScopedClaims = useMemo(() => {
-    if (currentUser.role !== "insurance_partner") {
+    if (currentUser.role !== "assistance_company") {
       return allClaims;
     }
 
@@ -935,7 +935,7 @@ export function InsuranceClaimsDashboard({
   }, [allClaims, currentUser.role, partnerCompany]);
 
   const companyOptions = useMemo(() => {
-    if (currentUser.role === "insurance_partner" && partnerCompany) {
+    if (currentUser.role === "assistance_company" && partnerCompany) {
       return [partnerCompany];
     }
 
@@ -981,7 +981,7 @@ export function InsuranceClaimsDashboard({
     const visibleRecordIds = new Set<string>();
 
     statementRecords.forEach((record) => {
-      if (currentUser.role === "insurance_partner" && record.assistanceCompany !== partnerCompany) {
+      if (currentUser.role === "assistance_company" && record.assistanceCompany !== partnerCompany) {
         return;
       }
 
@@ -1306,13 +1306,13 @@ export function InsuranceClaimsDashboard({
     }
 
     if (receivedNow > paymentStatement.outstanding) {
-      if (currentUser.role !== "admin") {
+      if (currentUser.role !== "administrator") {
         setPaymentError("Amount received cannot exceed the outstanding amount.");
         return;
       }
 
       const confirmed = window.confirm(
-        "Amount received is higher than the outstanding amount. Continue with admin override?"
+        "Amount received is higher than the outstanding amount. Continue with administrator override?"
       );
 
       if (!confirmed) {
@@ -1340,7 +1340,7 @@ export function InsuranceClaimsDashboard({
   }
 
   function openSeasonalModal() {
-    if (!canConfirmStatements) {
+    if (!canConfirmSeasonalSummary) {
       return;
     }
 
@@ -1389,7 +1389,7 @@ export function InsuranceClaimsDashboard({
   const seasonalOutstanding = Math.max(0, seasonalClaimTotal - seasonalReceived);
 
   function saveSeasonalConfirmation() {
-    if (!canConfirmStatements) {
+    if (!canConfirmSeasonalSummary) {
       return;
     }
 
@@ -1442,7 +1442,7 @@ export function InsuranceClaimsDashboard({
 
   return (
     <div className="space-y-6">
-      {currentUser.role === "insurance_partner" ? (
+      {currentUser.role === "assistance_company" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <KpiCard
             label="Insurance Patients This Month"
@@ -1485,7 +1485,7 @@ export function InsuranceClaimsDashboard({
         </div>
       )}
 
-      {currentUser.role !== "insurance_partner" ? (
+      {currentUser.role !== "assistance_company" ? (
         <section className="panel overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-semibold text-[#224770]">Assistance Companies</h2>
@@ -1637,7 +1637,7 @@ export function InsuranceClaimsDashboard({
               </p>
             ) : null}
           </div>
-          {canConfirmStatements ? (
+          {canConfirmSeasonalSummary ? (
             <button
               type="button"
               onClick={openSeasonalModal}
@@ -1652,7 +1652,7 @@ export function InsuranceClaimsDashboard({
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Month</th>
-                {currentUser.role !== "insurance_partner" ? (
+                {currentUser.role !== "assistance_company" ? (
                   <th className={tableStyles.headerCell}>Assistance Company</th>
                 ) : null}
                 <th className={tableStyles.numericHeaderCell}>Insurance Patients</th>
@@ -1669,7 +1669,7 @@ export function InsuranceClaimsDashboard({
               {monthlyStatements.map((statement) => (
                 <tr key={statement.id} className={tableStyles.row}>
                   <td className={tableStyles.strongCell}>{monthLabel(statement.month)}</td>
-                  {currentUser.role !== "insurance_partner" ? (
+                  {currentUser.role !== "assistance_company" ? (
                     <td className={tableStyles.cell}>{statement.assistanceCompany}</td>
                   ) : null}
                   <td className={tableStyles.numericCell}>{statement.insurancePatients}</td>
@@ -1704,7 +1704,7 @@ export function InsuranceClaimsDashboard({
                 <tr>
                   <td
                     className="px-5 py-8 text-center text-sm text-[#46484a]"
-                    colSpan={currentUser.role === "insurance_partner" ? 9 : 10}
+                    colSpan={currentUser.role === "assistance_company" ? 9 : 10}
                   >
                     No monthly insurance statements found.
                   </td>
@@ -1715,7 +1715,7 @@ export function InsuranceClaimsDashboard({
         </div>
       </section>
 
-      {currentUser.role === "insurance_partner" ? (
+      {currentUser.role === "assistance_company" ? (
         <section className="panel overflow-hidden">
           <div className="border-b border-[#efefef] p-5">
             <h2 className="text-lg font-semibold text-[#224770]">Payment History</h2>

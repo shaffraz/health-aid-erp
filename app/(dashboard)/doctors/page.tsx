@@ -8,14 +8,13 @@ import { hasPermission } from "@/lib/permissions";
 export default async function DoctorsPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "manageDoctors")) {
+  if (!hasPermission(user.role, "viewDoctors")) {
     return <AccessDenied />;
   }
 
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Admin setup"
         title="Doctors Management"
       />
       <DoctorsAdmin

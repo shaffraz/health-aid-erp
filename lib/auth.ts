@@ -8,10 +8,25 @@ import type { AppUser, Role } from "@/lib/types";
 
 export { hasPermission, roleLabels };
 
+function normalizeRole(value?: string): Role {
+  if (value === "admin") {
+    return "administrator";
+  }
+
+  if (value === "accountant") {
+    return "director";
+  }
+
+  if (value === "insurance_partner") {
+    return "assistance_company";
+  }
+
+  return value && value in roleLabels ? (value as Role) : "administrator";
+}
+
 async function getDemoUser(): Promise<AppUser> {
   const cookieStore = await cookies();
-  const roleCookie = cookieStore.get("demo_role")?.value as Role | undefined;
-  const role: Role = roleCookie && roleCookie in roleLabels ? roleCookie : "admin";
+  const role = normalizeRole(cookieStore.get("demo_role")?.value);
   const doctor = demoDoctors[0];
 
   return {
@@ -19,13 +34,13 @@ async function getDemoUser(): Promise<AppUser> {
     name:
       role === "doctor"
         ? doctor.name
-        : role === "insurance_partner"
+        : role === "assistance_company"
           ? "Global Travel Assist"
           : `Demo ${roleLabels[role]}`,
     email: `${role}@healthaid.local`,
     role,
     doctorId: role === "doctor" ? doctor.id : undefined,
-    assistanceCompany: role === "insurance_partner" ? "Global Travel Assist" : undefined
+    assistanceCompany: role === "assistance_company" ? "Global Travel Assist" : undefined
   };
 }
 
@@ -72,7 +87,7 @@ export async function getCurrentUser(): Promise<AppUser> {
       id: profile.id,
       name: profile.full_name ?? user.email ?? "Health Aid user",
       email: user.email ?? "",
-      role: profile.role,
+      role: normalizeRole(profile.role),
       doctorId: profile.doctor_id ?? undefined
     };
   } catch (error) {

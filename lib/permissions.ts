@@ -1,24 +1,31 @@
 import type { Role } from "@/lib/types";
 
 export const roleLabels: Record<Role, string> = {
-  admin: "Admin",
+  administrator: "Administrator",
+  director: "Director",
   staff: "Staff",
   doctor: "Doctor",
-  accountant: "Accountant",
-  insurance_partner: "Insurance Partner"
+  assistance_company: "Assistance Company"
 };
 
 export const permissions = {
-  dashboard: ["admin", "staff", "accountant", "doctor"],
-  createInvoices: ["admin", "staff"],
-  viewInvoices: ["admin", "staff", "accountant"],
-  insuranceClaims: ["admin", "accountant", "insurance_partner"],
-  manageServices: ["admin"],
-  manageDoctors: ["admin"],
+  dashboard: ["administrator", "director", "staff"],
+  createInvoices: ["administrator", "staff"],
+  viewInvoices: ["administrator", "director", "staff"],
+  deleteInvoices: ["administrator"],
+  viewInsurance: ["administrator", "director", "staff", "assistance_company"],
+  manageInsurance: ["administrator", "staff"],
+  manageAssistanceCompanies: ["administrator"],
+  viewServices: ["administrator", "staff"],
+  manageServices: ["administrator"],
+  viewDoctors: ["administrator", "director", "staff"],
+  manageDoctors: ["administrator"],
   doctorPortal: ["doctor"],
-  managePayouts: ["admin", "accountant"],
-  reports: ["admin", "accountant"],
-  auditLogs: ["admin", "accountant"]
+  viewPayouts: ["administrator", "director"],
+  managePayouts: ["administrator"],
+  reports: ["administrator", "director"],
+  manageUsers: ["administrator"],
+  auditLogs: ["administrator", "director"]
 } satisfies Record<string, Role[]>;
 
 export function hasPermission(role: Role, permission: keyof typeof permissions) {

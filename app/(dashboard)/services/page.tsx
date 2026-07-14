@@ -8,14 +8,13 @@ import { hasPermission } from "@/lib/permissions";
 export default async function ServicesPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "manageServices")) {
+  if (!hasPermission(user.role, "viewServices")) {
     return <AccessDenied />;
   }
 
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Admin setup"
         title="Services Management"
       />
       <ServicesAdmin

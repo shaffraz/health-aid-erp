@@ -681,7 +681,7 @@ export function DoctorsAdmin({
             <div className="space-y-4 p-5">
               {!canEdit ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                  Doctor setup is admin-only.
+                  Doctor setup is administrator-only.
                 </div>
               ) : null}
 

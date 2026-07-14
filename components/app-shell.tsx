@@ -13,6 +13,7 @@ import {
   ReceiptText,
   ShieldCheck,
   Stethoscope,
+  UsersRound,
   UserRoundCog,
   X
 } from "lucide-react";
@@ -38,25 +39,26 @@ const navItems: Array<{
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
   { href: "/invoices/new", label: "Invoice POS", icon: ReceiptText, permission: "createInvoices" },
   { href: "/invoices", label: "Invoices", icon: ClipboardList, permission: "viewInvoices" },
-  { href: "/insurance-claims", label: "Insurance", icon: FileCheck2, permission: "insuranceClaims" },
-  { href: "/services", label: "Services", icon: ShieldCheck, permission: "manageServices" },
-  { href: "/doctors", label: "Doctors", icon: UserRoundCog, permission: "manageDoctors" },
+  { href: "/insurance-claims", label: "Insurance", icon: FileCheck2, permission: "viewInsurance" },
+  { href: "/services", label: "Services", icon: ShieldCheck, permission: "viewServices" },
+  { href: "/doctors", label: "Doctors", icon: UserRoundCog, permission: "viewDoctors" },
+  { href: "/users", label: "Users", icon: UsersRound, permission: "manageUsers" },
   { href: "/doctor-portal", label: "My Earnings", icon: Stethoscope, permission: "doctorPortal" },
-  { href: "/payouts", label: "Payouts", icon: CreditCard, permission: "managePayouts" },
+  { href: "/payouts", label: "Payouts", icon: CreditCard, permission: "viewPayouts" },
   { href: "/reports", label: "Reports", icon: BarChart3, permission: "reports" }
 ];
 
 function roleTone(role: Role) {
-  if (role === "admin") {
+  if (role === "administrator") {
     return "cyan" as const;
   }
   if (role === "doctor") {
     return "green" as const;
   }
-  if (role === "accountant") {
+  if (role === "director") {
     return "amber" as const;
   }
-  if (role === "insurance_partner") {
+  if (role === "assistance_company") {
     return "cyan" as const;
   }
   return "slate" as const;

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
+import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount } from "@/lib/calculations";
 import { money, usd } from "@/lib/format";
 import { generateId } from "@/lib/id";
@@ -36,6 +37,19 @@ const emptyForm: ServiceForm = {
   payoutAmount: "0"
 };
 
+const serviceGroups: Array<{
+  title: string;
+  categories: ServiceCategory[];
+}> = [
+  { title: "Consultations", categories: ["Consultation"] },
+  { title: "Procedures", categories: ["Procedures", "Wound Care"] },
+  { title: "Day Care", categories: ["IV Therapy", "Day Care Admissions"] },
+  { title: "Laboratory", categories: ["Lab Services"] },
+  { title: "Vaccinations", categories: ["Vaccines / ARV"] },
+  { title: "Medication", categories: ["Medication Charges", "Consumables Charges"] },
+  { title: "Other Charges", categories: ["Hospital Charges", "Other Charges"] }
+];
+
 function serviceToForm(service: Service): ServiceForm {
   return {
     id: service.id,
@@ -50,6 +64,15 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
+function normalizeService(service: Service): Service {
+  return {
+    ...service,
+    sellingPrice: Math.max(0, Math.round(service.sellingPrice)),
+    defaultPayoutValue: Math.max(0, Math.round(service.defaultPayoutValue)),
+    active: service.active ?? true
+  };
+}
+
 export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAdminProps) {
   const [services, setServices] = useState(initialServices);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
@@ -58,6 +81,9 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
   const [categoryFilter, setCategoryFilter] = useState<"all" | ServiceCategory>("all");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(serviceGroups.map((group) => [group.title, true]))
+  );
 
   useEffect(() => {
     try {
@@ -65,7 +91,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
       if (storedServices) {
         const parsed = JSON.parse(storedServices);
         if (Array.isArray(parsed)) {
-          setServices((parsed as Service[]).map((service) => ({ ...service, active: true })));
+          setServices((parsed as Service[]).map(normalizeService));
         }
       }
     } finally {
@@ -168,8 +194,8 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
       return;
     }
 
-    const sellingPrice = Math.max(0, Number(form.sellingPrice));
-    const payoutAmount = categoryCanPayout ? Math.max(0, Number(form.payoutAmount)) : 0;
+    const sellingPrice = Math.max(0, Math.round(Number(form.sellingPrice)));
+    const payoutAmount = categoryCanPayout ? Math.max(0, Math.round(Number(form.payoutAmount))) : 0;
     const payoutEnabled = payoutAmount > 0;
     const nextService: Service = {
       id: form.id ?? generateId(),
@@ -205,6 +231,25 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
     }
 
     setServices((current) => current.filter((candidate) => candidate.id !== serviceId));
+  }
+
+  function toggleServiceActive(serviceId: string) {
+    if (!canEdit) {
+      return;
+    }
+
+    setServices((current) =>
+      current.map((service) =>
+        service.id === serviceId ? { ...service, active: !service.active } : service
+      )
+    );
+  }
+
+  function toggleGroup(groupTitle: string) {
+    setExpandedGroups((current) => ({
+      ...current,
+      [groupTitle]: !current[groupTitle]
+    }));
   }
 
   function formatPayout(service: Service) {
@@ -268,74 +313,144 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={openAddForm}
-            disabled={!canEdit}
-            className={buttonClass("primary", "lg:ml-auto")}
-          >
-            Add Service
-          </button>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={openAddForm}
+              className={buttonClass("primary", "min-h-12 lg:ml-auto")}
+            >
+              Add Service
+            </button>
+          ) : null}
         </div>
 
-        <div className={tableStyles.wrapper}>
-          <table className={tableStyles.table}>
-            <thead className={tableStyles.head}>
-              <tr>
-                <th className={tableStyles.headerCell}>Service name</th>
-                <th className={tableStyles.headerCell}>Category</th>
-                <th className={tableStyles.numericHeaderCell}>Selling price USD</th>
-                <th className={tableStyles.numericHeaderCell}>Doctor payout amount LKR</th>
-                <th className={tableStyles.numericHeaderCell}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefef]">
-              {filteredServices.map((service) => (
-                <tr key={service.id} className={tableStyles.row}>
-                  <td className={tableStyles.strongCell}>
-                    <p>{service.name}</p>
-                  </td>
-                  <td className={tableStyles.cell}>
-                    {service.category}
-                  </td>
-                  <td className={tableStyles.numericCell}>
-                    {usd(service.sellingPrice)}
-                  </td>
-                  <td className={tableStyles.numericCell}>
-                    {formatPayout(service)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editService(service)}
-                        disabled={!canEdit}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteService(service.id)}
-                        disabled={!canEdit}
-                        title="Delete service"
-                        className={buttonClass("danger", "px-3 py-2 text-xs")}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!filteredServices.length ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-[#46484a]">
-                    No services match your search.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        <div className="divide-y divide-[#efefef]">
+          {serviceGroups.map((group) => {
+            const groupServices = filteredServices.filter((service) =>
+              group.categories.includes(service.category)
+            );
+            const expanded = expandedGroups[group.title] ?? true;
+
+            if (!groupServices.length && (query.trim() || categoryFilter !== "all")) {
+              return null;
+            }
+
+            return (
+              <section key={group.title} className="bg-white">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  className="flex min-h-14 w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-[#efefef]/45"
+                  aria-expanded={expanded}
+                >
+                  <span className="flex items-center gap-3">
+                    {expanded ? (
+                      <ChevronDown className="h-4 w-4 text-[#46484a]" aria-hidden="true" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-[#46484a]" aria-hidden="true" />
+                    )}
+                    <span className="font-semibold text-[#224770]">{group.title}</span>
+                  </span>
+                  <span className="rounded-full bg-[#efefef] px-3 py-1 text-xs font-semibold text-[#46484a]">
+                    {groupServices.length} service{groupServices.length === 1 ? "" : "s"}
+                  </span>
+                </button>
+
+                {expanded ? (
+                  <div className={tableStyles.wrapper}>
+                    <table className="min-w-[1080px] divide-y divide-[#efefef] text-sm">
+                      <thead className={tableStyles.head}>
+                        <tr>
+                          <th className={tableStyles.headerCell}>Service Name</th>
+                          <th className={tableStyles.numericHeaderCell}>Selling Price USD</th>
+                          <th className={tableStyles.headerCell}>Doctor Payout Eligible</th>
+                          <th className={tableStyles.numericHeaderCell}>Doctor Payout Amount LKR</th>
+                          <th className={tableStyles.headerCell}>Status</th>
+                          <th className={tableStyles.headerCell}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#efefef]">
+                        {groupServices.map((service) => (
+                          <tr key={service.id} className={tableStyles.row}>
+                            <td className={tableStyles.strongCell}>
+                              <p>{service.name}</p>
+                              <p className="mt-1 text-xs font-normal text-[#46484a]">
+                                {service.category}
+                              </p>
+                            </td>
+                            <td className={tableStyles.numericCell}>{usd(service.sellingPrice)}</td>
+                            <td className={tableStyles.cell}>
+                              {service.payoutEnabled && service.defaultPayoutValue > 0 ? "Yes" : "No"}
+                            </td>
+                            <td className={tableStyles.numericCell}>{formatPayout(service)}</td>
+                            <td className={tableStyles.cell}>
+                              <StatusPill tone={service.active ? "green" : "slate"}>
+                                {service.active ? "Active" : "Inactive"}
+                              </StatusPill>
+                            </td>
+                            <td className={tableStyles.cell}>
+                              <div className="flex min-w-[260px] flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => editService(service)}
+                                  disabled={!canEdit}
+                                  className={buttonClass(
+                                    canEdit ? "secondary" : "muted",
+                                    "min-h-11 px-3 text-xs"
+                                  )}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleServiceActive(service.id)}
+                                  disabled={!canEdit}
+                                  className={buttonClass(
+                                    canEdit ? "secondary" : "muted",
+                                    "min-h-11 px-3 text-xs"
+                                  )}
+                                >
+                                  {service.active ? "Deactivate" : "Activate"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteService(service.id)}
+                                  disabled={!canEdit}
+                                  title="Delete service"
+                                  className={buttonClass(
+                                    canEdit ? "danger" : "muted",
+                                    "min-h-11 px-3 text-xs"
+                                  )}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {!groupServices.length ? (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-5 py-8 text-center text-sm text-[#46484a]"
+                            >
+                              No services configured in this category.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+
+          {!filteredServices.length ? (
+            <div className="px-5 py-10 text-center text-sm text-[#46484a]">
+              No services match your search.
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -418,7 +533,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                     id="selling-price"
                     type="number"
                     min={0}
-                    step="0.01"
+                    step="1"
                     value={form.sellingPrice}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, sellingPrice: event.target.value }))
