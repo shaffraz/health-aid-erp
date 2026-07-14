@@ -70,7 +70,7 @@ export function AppShell({ user, children }: AppShellProps) {
   const sidebar = (
     <aside className="flex h-full flex-col gap-5">
       <div className="px-3 py-1">
-        <BrandLogo className="mx-auto max-w-[250px]" priority />
+        <BrandLogo className="mx-auto max-w-[250px]" maxWidth={250} priority />
       </div>
 
       <DemoRoleSwitcher activeRole={user.role} />

@@ -26,6 +26,37 @@ export function calculateInvoiceTotals(items: InvoiceItem[], discount: number) {
   };
 }
 
+function roundCurrency(value: number) {
+  return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+}
+
+export function invoiceRevenueAmount(invoice: Invoice) {
+  if (invoice.paymentMethod !== "insurance") {
+    return roundCurrency(invoice.totalAmount);
+  }
+
+  if (typeof invoice.claimAmount === "number") {
+    return roundCurrency(invoice.claimAmount);
+  }
+
+  if (typeof invoice.claimPercentage === "number") {
+    return roundCurrency((invoice.totalAmount * invoice.claimPercentage) / 100);
+  }
+
+  return roundCurrency(invoice.totalAmount);
+}
+
+export function invoiceItemRevenueAmount(invoice: Invoice, item: InvoiceItem) {
+  const invoiceRevenue = invoiceRevenueAmount(invoice);
+  const allocationBase = invoice.subtotal > 0 ? invoice.subtotal : invoice.totalAmount;
+
+  if (allocationBase <= 0) {
+    return 0;
+  }
+
+  return roundCurrency((item.lineTotal * invoiceRevenue) / allocationBase);
+}
+
 export function resolvePayoutRule(
   doctorId: string,
   service: Service,

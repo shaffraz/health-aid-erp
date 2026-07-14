@@ -5,6 +5,7 @@ import { BarChart3, CalendarDays, Download, ReceiptText, Stethoscope } from "luc
 import { KpiCard, tableStyles } from "@/components/erp-ui";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
+import { invoiceItemRevenueAmount, invoiceRevenueAmount } from "@/lib/calculations";
 import { money, monthKey, shortDate, todayISO, usd, usdWhole } from "@/lib/format";
 import type {
   Doctor,
@@ -27,10 +28,6 @@ const receivableStatusTones = {
   Paid: "green",
   Overdue: "red"
 } satisfies Record<InsuranceReceivable["status"], "green" | "amber" | "cyan" | "red">;
-
-function receivableOutstanding(receivable: InsuranceReceivable) {
-  return Math.max(0, receivable.totalBilled - receivable.paidAmount);
-}
 
 function downloadCsv(fileName: string, rows: string[][]) {
   const csv = rows
@@ -63,11 +60,31 @@ export function ReportsDashboard({
     (payout) => monthKey(payout.date) === month && payout.payoutMode !== "pending_shift"
   );
 
+  function receivableClaimTotal(receivable: InsuranceReceivable) {
+    const matchedInvoices = invoices.filter(
+      (invoice) =>
+        invoice.paymentMethod === "insurance" && receivable.invoices.includes(invoice.invoiceNo)
+    );
+
+    if (matchedInvoices.length) {
+      return matchedInvoices.reduce((sum, invoice) => sum + invoiceRevenueAmount(invoice), 0);
+    }
+
+    return receivable.totalBilled;
+  }
+
+  function receivableOutstanding(receivable: InsuranceReceivable) {
+    return Math.max(0, receivableClaimTotal(receivable) - receivable.paidAmount);
+  }
+
   const categoryIncome = useMemo(() => {
     const totals = new Map<ServiceCategory, number>();
     monthlyInvoices.forEach((invoice) => {
       invoice.items.forEach((item) => {
-        totals.set(item.category, (totals.get(item.category) ?? 0) + item.lineTotal);
+        totals.set(
+          item.category,
+          (totals.get(item.category) ?? 0) + invoiceItemRevenueAmount(invoice, item)
+        );
       });
     });
 
@@ -98,8 +115,14 @@ export function ReportsDashboard({
     [doctors, monthlyPayouts]
   );
 
-  const dailySales = dailyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-  const monthlySales = monthlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const dailySales = dailyInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
+  );
+  const monthlySales = monthlyInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
+  );
   const monthlyPaid = monthlyPayouts
     .filter((payout) => payout.status === "paid")
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
@@ -111,7 +134,7 @@ export function ReportsDashboard({
     (receivable) => monthKey(receivable.billedDate) === month
   );
   const insuranceBilledThisMonth = monthlyInsuranceReceivables.reduce(
-    (sum, receivable) => sum + receivable.totalBilled,
+    (sum, receivable) => sum + receivableClaimTotal(receivable),
     0
   );
   const insurancePaidThisMonth = insuranceReceivables
@@ -182,14 +205,14 @@ export function ReportsDashboard({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Daily sales"
+          label="Daily revenue"
           value={invoiceUsd(dailySales)}
           helper={`${dailyInvoices.length} invoices on ${shortDate(date)}`}
           icon={CalendarDays}
           tone="lagoon"
         />
         <MetricCard
-          label="Monthly sales"
+          label="Monthly revenue"
           value={invoiceUsd(monthlySales)}
           helper={`${monthlyInvoices.length} invoices in selected month`}
           icon={ReceiptText}
@@ -270,7 +293,7 @@ export function ReportsDashboard({
                       Billed {shortDate(receivable.billedDate)}
                     </p>
                   </td>
-                  <td className={tableStyles.numericCell}>{usdWhole(receivable.totalBilled)}</td>
+                  <td className={tableStyles.numericCell}>{usdWhole(receivableClaimTotal(receivable))}</td>
                   <td className={tableStyles.numericCell}>{usdWhole(receivable.paidAmount)}</td>
                   <td className={tableStyles.numericCell}>
                     {usdWhole(receivableOutstanding(receivable))}
@@ -297,7 +320,7 @@ export function ReportsDashboard({
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <section className="panel p-5">
           <h2 className="font-semibold text-ink">Income by category</h2>
-          <p className="mt-1 text-sm text-slate-500">Based on monthly invoice line items.</p>
+          <p className="mt-1 text-sm text-slate-500">Based on monthly recognized invoice revenue.</p>
           <div className="mt-5 space-y-4">
             {categoryIncome.map((item) => (
               <div key={item.category}>
@@ -328,7 +351,7 @@ export function ReportsDashboard({
                   <th className="px-5 py-3">Invoice</th>
                   <th className="px-5 py-3">Patient</th>
                   <th className="px-5 py-3">Payment</th>
-                  <th className="px-5 py-3 text-right">Total</th>
+                  <th className="px-5 py-3 text-right">Revenue</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -340,7 +363,7 @@ export function ReportsDashboard({
                       <StatusPill tone="cyan">{invoice.paymentMethod.replace("_", " ")}</StatusPill>
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
-                      {invoiceUsd(invoice.totalAmount)}
+                      {invoiceUsd(invoiceRevenueAmount(invoice))}
                     </td>
                   </tr>
                 ))}

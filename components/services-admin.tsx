@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
+import { invoiceItemRevenueAmount } from "@/lib/calculations";
 import { money, usd } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
@@ -101,7 +102,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
       invoice.items.forEach((item) => {
         revenueByService.set(
           item.serviceId,
-          (revenueByService.get(item.serviceId) ?? 0) + item.lineTotal
+          (revenueByService.get(item.serviceId) ?? 0) + invoiceItemRevenueAmount(invoice, item)
         );
         usageByService.set(
           item.serviceId,

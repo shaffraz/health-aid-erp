@@ -8,7 +8,6 @@ import { shortDate, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
   assistanceCompanyStorageKey,
-  insuranceClaimStatusStorageKey,
   type AppUser,
   type AssistanceCompany,
   type InsuranceClaimStatus,
@@ -25,19 +24,72 @@ type InsuranceClaim = {
   passport?: string;
   assistanceCompanyId?: string;
   assistanceCompany: string;
-  services: string[];
   invoiceTotal: number;
   claimPercentage: number;
   claimAmount: number;
   status: InsuranceClaimStatus;
 };
 
-type StatementGroup = {
-  key: string;
+type MonthlyStatementStatus =
+  | "Draft"
+  | "Confirmed"
+  | "Submitted"
+  | "Partially Paid"
+  | "Paid"
+  | "Overdue";
+
+type StatementPayment = {
+  id: string;
+  paymentDate: string;
+  amountReceived: number;
+  reference: string;
+  notes: string;
+};
+
+type MonthlyStatementRecord = {
+  id: string;
   assistanceCompany: string;
-  period: string;
+  assistanceCompanyId?: string;
+  month: string;
+  invoiceIds: string[];
+  invoiceNos: string[];
+  status: MonthlyStatementStatus;
+  confirmedDate?: string;
+  submittedDate?: string;
+  payments: StatementPayment[];
+};
+
+type MonthlyStatement = {
+  id: string;
+  assistanceCompany: string;
+  assistanceCompanyId?: string;
+  month: string;
   claims: InsuranceClaim[];
+  insurancePatients: number;
+  invoiceCount: number;
+  fullInvoiceTotal: number;
+  claimAmount: number;
+  amountReceived: number;
+  outstanding: number;
+  status: MonthlyStatementStatus;
+  confirmedDate?: string;
+  submittedDate?: string;
+  payments: StatementPayment[];
+};
+
+type SeasonalConfirmation = {
+  id: string;
+  assistanceCompany: string;
+  fromDate: string;
+  toDate: string;
+  confirmationDate: string;
+  notes: string;
+  totalPatients: number;
+  totalInvoices: number;
+  totalInvoiceAmount: number;
   totalClaimAmount: number;
+  totalReceived: number;
+  totalOutstanding: number;
 };
 
 type CompanyForm = {
@@ -51,54 +103,39 @@ type CompanyForm = {
   notes: string;
 };
 
+type PaymentForm = {
+  paymentDate: string;
+  amountReceived: string;
+  reference: string;
+  notes: string;
+};
+
+type SeasonalForm = {
+  assistanceCompany: string;
+  fromDate: string;
+  toDate: string;
+  confirmationDate: string;
+  notes: string;
+};
+
 type InsuranceClaimsDashboardProps = {
   invoices: Invoice[];
   insuranceReceivables: InsuranceReceivable[];
   currentUser: AppUser;
 };
 
-const claimStatuses: InsuranceClaimStatus[] = [
-  "Draft",
-  "Submitted",
-  "Under Review",
-  "Approved",
-  "Paid",
-  "Rejected",
-  "Overdue"
-];
+const monthlyStatementStorageKey = "health-aid-insurance-monthly-statements-v1";
+const seasonalConfirmationStorageKey =
+  "health-aid-insurance-seasonal-confirmations-v1";
 
-const partnerVisibleStatuses = new Set<InsuranceClaimStatus>([
-  "Submitted",
-  "Under Review",
-  "Approved",
-  "Paid",
-  "Rejected"
-]);
-
-const claimStatusTones = {
+const statementStatusTones = {
   Draft: "slate",
+  Confirmed: "cyan",
   Submitted: "cyan",
-  "Under Review": "amber",
-  Approved: "green",
+  "Partially Paid": "amber",
   Paid: "green",
-  Rejected: "red",
   Overdue: "red"
-} satisfies Record<InsuranceClaimStatus, "green" | "amber" | "cyan" | "red" | "slate">;
-
-const monthOptions = [
-  { value: "01", label: "January" },
-  { value: "02", label: "February" },
-  { value: "03", label: "March" },
-  { value: "04", label: "April" },
-  { value: "05", label: "May" },
-  { value: "06", label: "June" },
-  { value: "07", label: "July" },
-  { value: "08", label: "August" },
-  { value: "09", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" }
-];
+} satisfies Record<MonthlyStatementStatus, "green" | "amber" | "cyan" | "red" | "slate">;
 
 const emptyCompanyForm: CompanyForm = {
   name: "",
@@ -110,12 +147,12 @@ const emptyCompanyForm: CompanyForm = {
   notes: ""
 };
 
-function formatMonth(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric"
-  }).format(new Date(`${value}-01T00:00:00`));
-}
+const emptyPaymentForm: PaymentForm = {
+  paymentDate: "",
+  amountReceived: "",
+  reference: "",
+  notes: ""
+};
 
 function escapeHtml(value: string | number | undefined) {
   return String(value ?? "")
@@ -148,6 +185,72 @@ function roundPercentage(value: number) {
   return Math.min(100, roundUsd(value));
 }
 
+function currentMonthDateRange() {
+  const today = todayISO();
+  const [year, month] = today.slice(0, 7).split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+
+  return {
+    fromDate: `${today.slice(0, 7)}-01`,
+    toDate: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}`
+  };
+}
+
+function defaultSeasonalForm(company = ""): SeasonalForm {
+  const range = currentMonthDateRange();
+
+  return {
+    assistanceCompany: company,
+    ...range,
+    confirmationDate: todayISO(),
+    notes: ""
+  };
+}
+
+function dateRangeIsValid(fromDate: string, toDate: string) {
+  return Boolean(fromDate && toDate && toDate >= fromDate);
+}
+
+function monthKey(date: string) {
+  return date.slice(0, 7);
+}
+
+function monthLabel(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(year, monthNumber - 1, 1).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric"
+  });
+}
+
+function statementIdFor(assistanceCompany: string, month: string) {
+  return `${month}-${assistanceCompany.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function paymentsTotal(payments: StatementPayment[]) {
+  return payments.reduce((sum, payment) => sum + roundUsd(payment.amountReceived), 0);
+}
+
+function claimStatusFromReceivable(status?: InsuranceReceivable["status"]): InsuranceClaimStatus {
+  if (status === "Paid") {
+    return "Paid";
+  }
+
+  if (status === "Partially Paid") {
+    return "Under Review";
+  }
+
+  if (status === "Overdue") {
+    return "Overdue";
+  }
+
+  if (status === "Pending") {
+    return "Submitted";
+  }
+
+  return "Draft";
+}
+
 function companyToForm(company: AssistanceCompany): CompanyForm {
   return {
     id: company.id,
@@ -178,31 +281,10 @@ function claimMatchesCompany(claim: InsuranceClaim, company: AssistanceCompany) 
   return claim.assistanceCompanyId === company.id || claim.assistanceCompany === company.name;
 }
 
-function claimStatusFromReceivable(status?: InsuranceReceivable["status"]): InsuranceClaimStatus {
-  if (status === "Paid") {
-    return "Paid";
-  }
-
-  if (status === "Partially Paid") {
-    return "Under Review";
-  }
-
-  if (status === "Overdue") {
-    return "Overdue";
-  }
-
-  if (status === "Pending") {
-    return "Submitted";
-  }
-
-  return "Draft";
-}
-
 function buildClaims(
   invoices: Invoice[],
   insuranceReceivables: InsuranceReceivable[],
-  companies: AssistanceCompany[],
-  statusOverrides: Record<string, InsuranceClaimStatus>
+  companies: AssistanceCompany[]
 ): InsuranceClaim[] {
   return invoices
     .filter((invoice) => invoice.paymentMethod === "insurance")
@@ -224,10 +306,9 @@ function buildClaims(
         invoice.claimPercentage ?? company?.defaultClaimPercentage ?? 80
       );
       const claimAmount = roundUsd(invoice.claimAmount ?? (invoiceTotal * claimPercentage) / 100);
-      const id = `claim-${invoice.id}`;
 
       return {
-        id,
+        id: `claim-${invoice.id}`,
         invoiceId: invoice.id,
         invoiceNo: invoice.invoiceNo,
         date: invoice.date,
@@ -235,56 +316,15 @@ function buildClaims(
         passport: invoice.passport,
         assistanceCompanyId: invoice.assistanceCompanyId ?? company?.id,
         assistanceCompany,
-        services: invoice.items.map((item) => item.serviceName),
         invoiceTotal,
         claimPercentage,
         claimAmount,
-        status:
-          statusOverrides[id] ??
-          invoice.claimStatus ??
-          claimStatusFromReceivable(receivable?.status)
+        status: invoice.claimStatus ?? claimStatusFromReceivable(receivable?.status)
       };
     });
 }
 
-function buildInvoiceDocument(claim: InsuranceClaim) {
-  const rows = claim.services
-    .map((service) => `<tr><td>${escapeHtml(service)}</td></tr>`)
-    .join("");
-
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${escapeHtml(claim.invoiceNo)}</title>
-    <style>
-      body { color: #0b1726; font-family: Arial, sans-serif; margin: 32px; }
-      table { border-collapse: collapse; margin-top: 16px; width: 100%; }
-      th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; }
-      th { background: #f1f5f9; }
-      .meta { color: #46484a; margin: 4px 0; }
-      .total { font-size: 18px; font-weight: 700; margin-top: 24px; text-align: right; }
-    </style>
-  </head>
-  <body>
-    <h1>Health Aid Arugambay</h1>
-    <p class="meta">Invoice ${escapeHtml(claim.invoiceNo)}</p>
-    <p class="meta">Date: ${escapeHtml(claim.date)}</p>
-    <p class="meta">Patient: ${escapeHtml(claim.patientName)}</p>
-    <p class="meta">Passport / ID: ${escapeHtml(claim.passport ?? "N/A")}</p>
-    <p class="meta">Assistance company: ${escapeHtml(claim.assistanceCompany)}</p>
-    <p class="meta">Claim percentage: ${escapeHtml(claim.claimPercentage)}%</p>
-    <table>
-      <thead><tr><th>Services</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p class="total">Invoice total ${usdWhole(claim.invoiceTotal)}</p>
-    <p class="total">Claim amount ${usdWhole(claim.claimAmount)}</p>
-  </body>
-</html>`;
-}
-
-function buildStatementDocument(statement: StatementGroup) {
+function buildStatementDocument(statement: MonthlyStatement) {
   const rows = statement.claims
     .map(
       (claim) => `<tr>
@@ -292,11 +332,10 @@ function buildStatementDocument(statement: StatementGroup) {
         <td>${escapeHtml(claim.date)}</td>
         <td>${escapeHtml(claim.patientName)}</td>
         <td>${escapeHtml(claim.passport ?? "N/A")}</td>
-        <td>${escapeHtml(claim.services.join(", "))}</td>
         <td>${usdWhole(claim.invoiceTotal)}</td>
         <td>${escapeHtml(claim.claimPercentage)}%</td>
         <td>${usdWhole(claim.claimAmount)}</td>
-        <td>${escapeHtml(claim.status)}</td>
+        <td>${escapeHtml(statement.status)}</td>
       </tr>`
     )
     .join("");
@@ -305,21 +344,27 @@ function buildStatementDocument(statement: StatementGroup) {
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>${escapeHtml(statement.assistanceCompany)} ${escapeHtml(statement.period)}</title>
+    <title>${escapeHtml(statement.assistanceCompany)} ${escapeHtml(monthLabel(statement.month))}</title>
     <style>
       body { color: #0b1726; font-family: Arial, sans-serif; margin: 32px; }
       h1 { margin: 0 0 6px; }
+      h2 { margin: 0 0 18px; font-size: 18px; }
       .meta { color: #46484a; margin: 4px 0; }
       table { border-collapse: collapse; margin-top: 18px; width: 100%; }
       th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; vertical-align: top; }
       th { background: #f1f5f9; }
-      .total { font-size: 18px; font-weight: 700; margin-top: 24px; text-align: right; }
+      .summary { margin-top: 22px; margin-left: auto; width: 360px; }
+      .summary div { display: flex; justify-content: space-between; padding: 6px 0; }
+      .summary strong { color: #0b1726; }
     </style>
   </head>
   <body>
     <h1>Health Aid Arugambay</h1>
+    <h2>Monthly Insurance Statement</h2>
     <p class="meta">Assistance company: ${escapeHtml(statement.assistanceCompany)}</p>
-    <p class="meta">Statement period: ${escapeHtml(formatMonth(statement.period))}</p>
+    <p class="meta">Statement month: ${escapeHtml(monthLabel(statement.month))}</p>
+    <p class="meta">Statement status: ${escapeHtml(statement.status)}</p>
+    <p class="meta">Statement generation date: ${escapeHtml(todayISO())}</p>
     <table>
       <thead>
         <tr>
@@ -327,63 +372,69 @@ function buildStatementDocument(statement: StatementGroup) {
           <th>Invoice date</th>
           <th>Patient name</th>
           <th>Passport / ID</th>
-          <th>Services provided</th>
-          <th>Invoice total USD</th>
-          <th>Claim percentage</th>
-          <th>Claim amount USD</th>
-          <th>Claim status</th>
+          <th>Full invoice amount</th>
+          <th>Claim percentage used</th>
+          <th>Claim amount</th>
+          <th>Payment status</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="total">Total claim amount ${usdWhole(statement.totalClaimAmount)}</p>
+    <div class="summary">
+      <div><span>Insurance patients</span><strong>${escapeHtml(statement.insurancePatients)}</strong></div>
+      <div><span>Number of invoices</span><strong>${escapeHtml(statement.invoiceCount)}</strong></div>
+      <div><span>Full invoice total</span><strong>${usdWhole(statement.fullInvoiceTotal)}</strong></div>
+      <div><span>Claim amount</span><strong>${usdWhole(statement.claimAmount)}</strong></div>
+      <div><span>Amount received</span><strong>${usdWhole(statement.amountReceived)}</strong></div>
+      <div><span>Outstanding</span><strong>${usdWhole(statement.outstanding)}</strong></div>
+    </div>
   </body>
 </html>`;
 }
 
-function statementCsv(statement: StatementGroup) {
+function statementCsv(statement: MonthlyStatement) {
   const rows = [
     [
       "Health Aid Arugambay",
       "Assistance company",
-      "Statement period",
+      "Statement month",
+      "Statement status",
       "Invoice number",
       "Invoice date",
       "Patient name",
       "Passport / ID",
-      "Services provided",
-      "Invoice total USD",
-      "Claim percentage",
+      "Full invoice amount USD",
+      "Claim percentage used",
       "Claim amount USD",
-      "Claim status"
+      "Payment status"
     ],
     ...statement.claims.map((claim) => [
       "Health Aid Arugambay",
       statement.assistanceCompany,
-      formatMonth(statement.period),
+      monthLabel(statement.month),
+      statement.status,
       claim.invoiceNo,
       claim.date,
       claim.patientName,
       claim.passport ?? "N/A",
-      claim.services.join("; "),
       String(claim.invoiceTotal),
       `${claim.claimPercentage}%`,
       String(claim.claimAmount),
-      claim.status
+      statement.status
     ]),
     [
       "Health Aid Arugambay",
       statement.assistanceCompany,
-      formatMonth(statement.period),
-      "Total claim amount USD",
+      monthLabel(statement.month),
+      statement.status,
+      "Summary",
       "",
+      `Insurance patients: ${statement.insurancePatients}`,
+      `Invoices: ${statement.invoiceCount}`,
+      `Full invoice total: ${statement.fullInvoiceTotal}`,
       "",
-      "",
-      "",
-      "",
-      "",
-      String(statement.totalClaimAmount),
-      ""
+      `Claim amount: ${statement.claimAmount}`,
+      `Amount received: ${statement.amountReceived}; Outstanding: ${statement.outstanding}`
     ]
   ];
 
@@ -557,30 +608,269 @@ function CompanyFormModal({
   );
 }
 
+function StatementActions({
+  canConfirm,
+  canRecordPayment,
+  canSubmit,
+  onConfirm,
+  onDownloadCsv,
+  onDownloadPdf,
+  onRecordPayment,
+  onSubmit,
+  onView,
+  showView = true,
+  statement
+}: {
+  canConfirm: boolean;
+  canRecordPayment: boolean;
+  canSubmit: boolean;
+  onConfirm: () => void;
+  onDownloadCsv: () => void;
+  onDownloadPdf: () => void;
+  onRecordPayment: () => void;
+  onSubmit: () => void;
+  onView: () => void;
+  showView?: boolean;
+  statement: MonthlyStatement;
+}) {
+  return (
+    <div className="flex min-w-[620px] flex-wrap gap-2">
+      {showView ? (
+        <button
+          type="button"
+          onClick={onView}
+          className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
+        >
+          View
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onDownloadPdf}
+        className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
+      >
+        Download PDF
+      </button>
+      <button
+        type="button"
+        onClick={onDownloadCsv}
+        className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
+      >
+        Download CSV
+      </button>
+      {statement.status === "Draft" ? (
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={!canConfirm}
+          className={buttonClass(canConfirm ? "primary" : "muted", "min-h-11 px-3 text-xs")}
+        >
+          Confirm Statement
+        </button>
+      ) : null}
+      {statement.status === "Confirmed" ? (
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={!canSubmit}
+          className={buttonClass(canSubmit ? "primary" : "muted", "min-h-11 px-3 text-xs")}
+        >
+          Mark Submitted
+        </button>
+      ) : null}
+      {["Submitted", "Partially Paid", "Overdue"].includes(statement.status) ? (
+        <button
+          type="button"
+          onClick={onRecordPayment}
+          disabled={!canRecordPayment || statement.outstanding <= 0}
+          className={buttonClass(
+            canRecordPayment && statement.outstanding > 0 ? "success" : "muted",
+            "min-h-11 px-3 text-xs"
+          )}
+        >
+          Record Payment
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function StatementDetailsModal({
+  canConfirm,
+  canRecordPayment,
+  canSubmit,
+  onClose,
+  onConfirm,
+  onDownloadCsv,
+  onDownloadPdf,
+  onRecordPayment,
+  onSubmit,
+  statement
+}: {
+  canConfirm: boolean;
+  canRecordPayment: boolean;
+  canSubmit: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  onDownloadCsv: () => void;
+  onDownloadPdf: () => void;
+  onRecordPayment: () => void;
+  onSubmit: () => void;
+  statement: MonthlyStatement;
+}) {
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-3 sm:p-5"
+      role="dialog"
+    >
+      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+        <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="label">Assistance Company</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-[#224770]">
+              {statement.assistanceCompany}
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-[#46484a]">
+              {monthLabel(statement.month)}
+            </p>
+          </div>
+          <StatusPill tone={statementStatusTones[statement.status]}>
+            {statement.status}
+          </StatusPill>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-5">
+          <section>
+            <h3 className="mb-3 font-semibold text-[#224770]">Summary</h3>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              <CompanyDetail
+                label="Insurance Patients"
+                value={String(statement.insurancePatients)}
+              />
+              <CompanyDetail label="Number of Invoices" value={String(statement.invoiceCount)} />
+              <CompanyDetail
+                label="Full Invoice Total USD"
+                value={usdWhole(statement.fullInvoiceTotal)}
+              />
+              <CompanyDetail label="Claim Amount USD" value={usdWhole(statement.claimAmount)} />
+              <CompanyDetail
+                label="Amount Received USD"
+                value={usdWhole(statement.amountReceived)}
+              />
+              <CompanyDetail label="Outstanding USD" value={usdWhole(statement.outstanding)} />
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[#efefef] bg-white">
+            <div className="border-b border-[#efefef] px-4 py-3">
+              <h3 className="font-semibold text-[#224770]">Invoice List</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[980px] text-sm">
+                <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+                  <tr>
+                    <th className="px-4 py-3">Invoice Number</th>
+                    <th className="px-4 py-3">Invoice Date</th>
+                    <th className="px-4 py-3">Patient Name</th>
+                    <th className="px-4 py-3">Passport / ID</th>
+                    <th className="px-4 py-3 text-right">Full Invoice Amount USD</th>
+                    <th className="px-4 py-3 text-right">Claim Percentage Used</th>
+                    <th className="px-4 py-3 text-right">Claim Amount USD</th>
+                    <th className="px-4 py-3">Payment Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#efefef]">
+                  {statement.claims.map((claim) => (
+                    <tr key={claim.id}>
+                      <td className="px-4 py-3 font-semibold text-[#224770]">
+                        {claim.invoiceNo}
+                      </td>
+                      <td className="px-4 py-3 text-[#46484a]">{shortDate(claim.date)}</td>
+                      <td className="px-4 py-3 text-[#46484a]">{claim.patientName}</td>
+                      <td className="px-4 py-3 text-[#46484a]">{claim.passport ?? "N/A"}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                        {usdWhole(claim.invoiceTotal)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                        {claim.claimPercentage}%
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                        {usdWhole(claim.claimAmount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill tone={statementStatusTones[statement.status]}>
+                          {statement.status}
+                        </StatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#efefef] bg-white p-4">
+          <div className="overflow-x-auto">
+            <StatementActions
+              canConfirm={canConfirm}
+              canRecordPayment={canRecordPayment}
+              canSubmit={canSubmit}
+              onConfirm={onConfirm}
+              onDownloadCsv={onDownloadCsv}
+              onDownloadPdf={onDownloadPdf}
+              onRecordPayment={onRecordPayment}
+              onSubmit={onSubmit}
+              onView={() => undefined}
+              showView={false}
+              statement={statement}
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className={buttonClass("secondary", "min-h-12 px-6")}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function InsuranceClaimsDashboard({
   invoices,
   insuranceReceivables,
   currentUser
 }: InsuranceClaimsDashboardProps) {
   const currentMonth = todayISO().slice(0, 7);
-  const [yearFilter, setYearFilter] = useState("all");
-  const [monthFilter, setMonthFilter] = useState("all");
-  const [companyFilter, setCompanyFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<InsuranceClaimStatus | "all">("all");
-  const [claimSearch, setClaimSearch] = useState("");
-  const [selectedStatementKey, setSelectedStatementKey] = useState("");
-  const [selectedClaim, setSelectedClaim] = useState<InsuranceClaim | null>(null);
+  const partnerCompany =
+    currentUser.role === "insurance_partner" ? currentUser.assistanceCompany ?? "" : "";
   const [companies, setCompanies] = useState<AssistanceCompany[]>(demoAssistanceCompanies);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [expandedCompanyId, setExpandedCompanyId] = useState("");
   const [companyError, setCompanyError] = useState("");
-  const [claimStatusOverrides, setClaimStatusOverrides] = useState<
-    Record<string, InsuranceClaimStatus>
-  >({});
+  const [statementRecords, setStatementRecords] = useState<MonthlyStatementRecord[]>([]);
+  const [seasonalConfirmations, setSeasonalConfirmations] = useState<SeasonalConfirmation[]>([]);
+  const [selectedStatementId, setSelectedStatementId] = useState("");
+  const [paymentStatementId, setPaymentStatementId] = useState("");
+  const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
+  const [paymentError, setPaymentError] = useState("");
+  const [seasonalModalOpen, setSeasonalModalOpen] = useState(false);
+  const [seasonalForm, setSeasonalForm] = useState<SeasonalForm>(() =>
+    defaultSeasonalForm(partnerCompany)
+  );
+  const [seasonalError, setSeasonalError] = useState("");
 
   const canManageCompanies = currentUser.role === "admin";
-  const canUpdateStatus = currentUser.role === "admin" || currentUser.role === "accountant";
+  const canConfirmStatements = currentUser.role === "admin";
+  const canSubmitStatements = currentUser.role === "admin" || currentUser.role === "accountant";
+  const canRecordPayments = currentUser.role === "admin" || currentUser.role === "accountant";
 
   useEffect(() => {
     try {
@@ -592,13 +882,27 @@ export function InsuranceClaimsDashboard({
         }
       }
 
-      const storedStatuses = window.localStorage.getItem(insuranceClaimStatusStorageKey);
-      if (storedStatuses) {
-        setClaimStatusOverrides(JSON.parse(storedStatuses));
+      const storedStatements = window.localStorage.getItem(monthlyStatementStorageKey);
+      if (storedStatements) {
+        const parsed = JSON.parse(storedStatements);
+        if (Array.isArray(parsed)) {
+          setStatementRecords(parsed as MonthlyStatementRecord[]);
+        }
+      }
+
+      const storedSeasonalConfirmations = window.localStorage.getItem(
+        seasonalConfirmationStorageKey
+      );
+      if (storedSeasonalConfirmations) {
+        const parsed = JSON.parse(storedSeasonalConfirmations);
+        if (Array.isArray(parsed)) {
+          setSeasonalConfirmations(parsed as SeasonalConfirmation[]);
+        }
       }
     } catch {
       setCompanies(demoAssistanceCompanies);
-      setClaimStatusOverrides({});
+      setStatementRecords([]);
+      setSeasonalConfirmations([]);
     }
   }, []);
 
@@ -607,15 +911,19 @@ export function InsuranceClaimsDashboard({
   }, [companies]);
 
   useEffect(() => {
+    window.localStorage.setItem(monthlyStatementStorageKey, JSON.stringify(statementRecords));
+  }, [statementRecords]);
+
+  useEffect(() => {
     window.localStorage.setItem(
-      insuranceClaimStatusStorageKey,
-      JSON.stringify(claimStatusOverrides)
+      seasonalConfirmationStorageKey,
+      JSON.stringify(seasonalConfirmations)
     );
-  }, [claimStatusOverrides]);
+  }, [seasonalConfirmations]);
 
   const allClaims = useMemo(
-    () => buildClaims(invoices, insuranceReceivables, companies, claimStatusOverrides),
-    [claimStatusOverrides, companies, insuranceReceivables, invoices]
+    () => buildClaims(invoices, insuranceReceivables, companies),
+    [companies, insuranceReceivables, invoices]
   );
 
   const roleScopedClaims = useMemo(() => {
@@ -623,146 +931,190 @@ export function InsuranceClaimsDashboard({
       return allClaims;
     }
 
-    return allClaims.filter(
-      (claim) =>
-        claim.assistanceCompany === currentUser.assistanceCompany &&
-        partnerVisibleStatuses.has(claim.status)
-    );
-  }, [allClaims, currentUser.assistanceCompany, currentUser.role]);
+    return allClaims.filter((claim) => claim.assistanceCompany === partnerCompany);
+  }, [allClaims, currentUser.role, partnerCompany]);
 
-  const companyOptions = useMemo(
-    () =>
-      [...new Set(roleScopedClaims.map((claim) => claim.assistanceCompany))]
-        .sort((a, b) => a.localeCompare(b)),
-    [roleScopedClaims]
-  );
+  const companyOptions = useMemo(() => {
+    if (currentUser.role === "insurance_partner" && partnerCompany) {
+      return [partnerCompany];
+    }
 
-  const yearOptions = useMemo(
-    () =>
-      [...new Set(roleScopedClaims.map((claim) => claim.date.slice(0, 4)))]
-        .sort((a, b) => b.localeCompare(a)),
-    [roleScopedClaims]
-  );
+    return [
+      ...new Set([
+        ...companies.map((company) => company.name),
+        ...roleScopedClaims.map((claim) => claim.assistanceCompany)
+      ])
+    ].sort((a, b) => a.localeCompare(b));
+  }, [companies, currentUser.role, partnerCompany, roleScopedClaims]);
 
-  const statusOptions =
-    currentUser.role === "insurance_partner"
-      ? claimStatuses.filter((status) => partnerVisibleStatuses.has(status))
-      : claimStatuses;
-
-  const filteredClaims = useMemo(() => {
-    const searchTerm = claimSearch.trim().toLowerCase();
-
-    return roleScopedClaims.filter((claim) => {
-      const searchableText = [
-        claim.invoiceNo,
-        claim.patientName,
-        claim.passport ?? ""
-      ].join(" ").toLowerCase();
-
-      if (yearFilter !== "all" && !claim.date.startsWith(yearFilter)) {
-        return false;
+  const monthlyStatements = useMemo<MonthlyStatement[]>(() => {
+    const claimsByStatement = new Map<
+      string,
+      {
+        assistanceCompany: string;
+        assistanceCompanyId?: string;
+        month: string;
+        claims: InsuranceClaim[];
       }
+    >();
 
-      if (monthFilter !== "all" && claim.date.slice(5, 7) !== monthFilter) {
-        return false;
-      }
+    roleScopedClaims
+      .filter((claim) => claim.status !== "Rejected")
+      .forEach((claim) => {
+        const month = monthKey(claim.date);
+        const id = statementIdFor(claim.assistanceCompany, month);
+        const existing = claimsByStatement.get(id);
 
-      if (companyFilter !== "all" && claim.assistanceCompany !== companyFilter) {
-        return false;
-      }
+        if (existing) {
+          existing.claims.push(claim);
+          return;
+        }
 
-      if (statusFilter !== "all" && claim.status !== statusFilter) {
-        return false;
-      }
-
-      return !searchTerm || searchableText.includes(searchTerm);
-    });
-  }, [claimSearch, companyFilter, monthFilter, roleScopedClaims, statusFilter, yearFilter]);
-
-  const currentMonthClaims = roleScopedClaims.filter((claim) =>
-    claim.date.startsWith(currentMonth)
-  );
-  const insurancePatientsThisMonth = new Set(
-    currentMonthClaims.map((claim) => claim.patientName)
-  ).size;
-  const insurancePatientsThisSeason = new Set(
-    roleScopedClaims.map((claim) => claim.patientName)
-  ).size;
-  const outstandingClaims = roleScopedClaims
-    .filter((claim) => !["Paid", "Rejected"].includes(claim.status))
-    .reduce((sum, claim) => sum + claim.claimAmount, 0);
-  const overdueClaims = roleScopedClaims
-    .filter((claim) => claim.status === "Overdue")
-    .reduce((sum, claim) => sum + claim.claimAmount, 0);
-
-  const statementGroups = useMemo(() => {
-    const groups = new Map<string, StatementGroup>();
-
-    filteredClaims.forEach((claim) => {
-      const period = claim.date.slice(0, 7);
-      const key = `${claim.assistanceCompany}-${period}`;
-      const existing = groups.get(key);
-
-      if (existing) {
-        existing.claims.push(claim);
-        existing.totalClaimAmount += claim.claimAmount;
-      } else {
-        groups.set(key, {
-          key,
+        claimsByStatement.set(id, {
           assistanceCompany: claim.assistanceCompany,
-          period,
-          claims: [claim],
-          totalClaimAmount: claim.claimAmount
+          assistanceCompanyId: claim.assistanceCompanyId,
+          month,
+          claims: [claim]
+        });
+      });
+
+    const visibleRecordIds = new Set<string>();
+
+    statementRecords.forEach((record) => {
+      if (currentUser.role === "insurance_partner" && record.assistanceCompany !== partnerCompany) {
+        return;
+      }
+
+      visibleRecordIds.add(record.id);
+      if (!claimsByStatement.has(record.id)) {
+        claimsByStatement.set(record.id, {
+          assistanceCompany: record.assistanceCompany,
+          assistanceCompanyId: record.assistanceCompanyId,
+          month: record.month,
+          claims: []
         });
       }
     });
 
-    return [...groups.values()].sort(
-      (a, b) =>
-        b.period.localeCompare(a.period) ||
-        a.assistanceCompany.localeCompare(b.assistanceCompany)
-    );
-  }, [filteredClaims]);
+    return [...claimsByStatement.entries()]
+      .map(([id, group]) => {
+        const record = statementRecords.find((candidate) => candidate.id === id);
+        const frozenClaims =
+          record && record.status !== "Draft"
+            ? roleScopedClaims.filter((claim) => record.invoiceIds.includes(claim.invoiceId))
+            : group.claims;
+        const claims = frozenClaims.sort((a, b) => a.date.localeCompare(b.date));
+        const payments = record?.payments ?? [];
+        const amountReceived = paymentsTotal(payments);
+        const fullInvoiceTotal = claims.reduce((sum, claim) => sum + claim.invoiceTotal, 0);
+        const claimAmount = claims.reduce((sum, claim) => sum + claim.claimAmount, 0);
+        const status =
+          amountReceived >= claimAmount && claimAmount > 0
+            ? "Paid"
+            : amountReceived > 0
+              ? "Partially Paid"
+              : record?.status ?? "Draft";
 
-  const selectedStatement = statementGroups.find(
-    (statement) => statement.key === selectedStatementKey
+        return {
+          id,
+          assistanceCompany: record?.assistanceCompany ?? group.assistanceCompany,
+          assistanceCompanyId: record?.assistanceCompanyId ?? group.assistanceCompanyId,
+          month: record?.month ?? group.month,
+          claims,
+          insurancePatients: new Set(
+            claims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
+          ).size,
+          invoiceCount: claims.length,
+          fullInvoiceTotal,
+          claimAmount,
+          amountReceived,
+          outstanding: Math.max(0, claimAmount - amountReceived),
+          status,
+          confirmedDate: record?.confirmedDate,
+          submittedDate: record?.submittedDate,
+          payments
+        };
+      })
+      .filter((statement) => visibleRecordIds.has(statement.id) || statement.invoiceCount > 0)
+      .sort((a, b) => b.month.localeCompare(a.month) || a.assistanceCompany.localeCompare(b.assistanceCompany));
+  }, [currentUser.role, partnerCompany, roleScopedClaims, statementRecords]);
+
+  const currentMonthClaims = roleScopedClaims.filter((claim) => claim.date.startsWith(currentMonth));
+  const insurancePatientsThisMonth = new Set(
+    currentMonthClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
+  ).size;
+  const insurancePatientsThisSeason = new Set(
+    roleScopedClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
+  ).size;
+  const paidClaims = monthlyStatements.reduce(
+    (sum, statement) => sum + Math.min(statement.amountReceived, statement.claimAmount),
+    0
   );
+  const outstandingClaims = monthlyStatements.reduce((sum, statement) => sum + statement.outstanding, 0);
+  const overdueClaims = monthlyStatements
+    .filter((statement) => statement.status === "Overdue")
+    .reduce((sum, statement) => sum + statement.outstanding, 0);
+  const submittedClaimAmount = monthlyStatements
+    .filter((statement) =>
+      ["Submitted", "Partially Paid", "Paid", "Overdue"].includes(statement.status)
+    )
+    .reduce((sum, statement) => sum + statement.claimAmount, 0);
 
   const companyStats = useMemo(() => {
     const stats = new Map<
       string,
       {
         patientCount: number;
-        outstandingClaims: number;
+        outstandingReceivables: number;
         paidClaims: number;
-        lastClaimDate: string;
+        lastInvoiceDate: string;
       }
     >();
 
     companies.forEach((company) => {
       const companyClaims = allClaims.filter((claim) => claimMatchesCompany(claim, company));
-      const patientCount = new Set(companyClaims.map((claim) => claim.patientName)).size;
-      const outstandingClaims = companyClaims
-        .filter((claim) => !["Paid", "Rejected"].includes(claim.status))
+      const companyStatements = monthlyStatements.filter(
+        (statement) => statement.assistanceCompany === company.name
+      );
+      const patientCount = new Set(
+        companyClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
+      ).size;
+      const totalClaims = companyClaims
+        .filter((claim) => claim.status !== "Rejected")
         .reduce((sum, claim) => sum + claim.claimAmount, 0);
-      const paidClaims = companyClaims
-        .filter((claim) => claim.status === "Paid")
-        .reduce((sum, claim) => sum + claim.claimAmount, 0);
-      const lastClaimDate =
-        companyClaims
-          .map((claim) => claim.date)
-          .sort((a, b) => b.localeCompare(a))[0] ?? "";
+      const paid = companyStatements.reduce(
+        (sum, statement) => sum + Math.min(statement.amountReceived, statement.claimAmount),
+        0
+      );
+      const lastInvoiceDate =
+        companyClaims.map((claim) => claim.date).sort((a, b) => b.localeCompare(a))[0] ?? "";
 
       stats.set(company.id, {
         patientCount,
-        outstandingClaims,
-        paidClaims,
-        lastClaimDate
+        outstandingReceivables: Math.max(0, totalClaims - paid),
+        paidClaims: paid,
+        lastInvoiceDate
       });
     });
 
     return stats;
-  }, [allClaims, companies]);
+  }, [allClaims, companies, monthlyStatements]);
+
+  const selectedStatement = monthlyStatements.find(
+    (statement) => statement.id === selectedStatementId
+  );
+  const paymentStatement = monthlyStatements.find(
+    (statement) => statement.id === paymentStatementId
+  );
+  const partnerPaymentHistory = monthlyStatements
+    .flatMap((statement) =>
+      statement.payments.map((payment) => ({
+        ...payment,
+        statementMonth: statement.month,
+        assistanceCompany: statement.assistanceCompany
+      }))
+    )
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 
   function companyHasClaims(company: AssistanceCompany) {
     return allClaims.some((claim) => claimMatchesCompany(claim, company));
@@ -841,28 +1193,7 @@ export function InsuranceClaimsDashboard({
     }
   }
 
-  function updateClaimStatus(claimId: string, status: InsuranceClaimStatus) {
-    if (!canUpdateStatus) {
-      return;
-    }
-
-    setClaimStatusOverrides((current) => ({ ...current, [claimId]: status }));
-  }
-
-  function downloadInvoicePdf(claim: InsuranceClaim) {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-
-    if (!printWindow) {
-      return;
-    }
-
-    printWindow.document.write(buildInvoiceDocument(claim));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  }
-
-  function downloadStatementPdf(statement: StatementGroup) {
+  function downloadStatementPdf(statement: MonthlyStatement) {
     const statementWindow = window.open("", "_blank", "noopener,noreferrer");
 
     if (!statementWindow) {
@@ -875,37 +1206,284 @@ export function InsuranceClaimsDashboard({
     statementWindow.print();
   }
 
-  function downloadStatementCsv(statement: StatementGroup) {
+  function downloadStatementCsv(statement: MonthlyStatement) {
     downloadFile(
-      `${statement.assistanceCompany}-${statement.period}-claims.csv`,
+      `${statement.assistanceCompany}-${statement.month}-insurance-statement.csv`,
       statementCsv(statement),
       "text/csv;charset=utf-8"
     );
   }
 
+  function upsertStatementRecord(
+    statement: MonthlyStatement,
+    update: Partial<MonthlyStatementRecord>
+  ) {
+    setStatementRecords((current) => {
+      const existing = current.find((record) => record.id === statement.id);
+      const base: MonthlyStatementRecord = existing ?? {
+        id: statement.id,
+        assistanceCompany: statement.assistanceCompany,
+        assistanceCompanyId: statement.assistanceCompanyId,
+        month: statement.month,
+        invoiceIds: statement.claims.map((claim) => claim.invoiceId),
+        invoiceNos: statement.claims.map((claim) => claim.invoiceNo),
+        status: "Draft",
+        payments: []
+      };
+      const nextRecord: MonthlyStatementRecord = {
+        ...base,
+        ...update,
+        invoiceIds:
+          update.status && update.status !== "Draft"
+            ? statement.claims.map((claim) => claim.invoiceId)
+            : update.invoiceIds ?? base.invoiceIds,
+        invoiceNos:
+          update.status && update.status !== "Draft"
+            ? statement.claims.map((claim) => claim.invoiceNo)
+            : update.invoiceNos ?? base.invoiceNos,
+        payments: update.payments ?? base.payments
+      };
+
+      return existing
+        ? current.map((record) => (record.id === statement.id ? nextRecord : record))
+        : [nextRecord, ...current];
+    });
+  }
+
+  function confirmStatement(statement: MonthlyStatement) {
+    if (!canConfirmStatements || statement.status !== "Draft") {
+      return;
+    }
+
+    upsertStatementRecord(statement, {
+      status: "Confirmed",
+      confirmedDate: todayISO()
+    });
+  }
+
+  function submitStatement(statement: MonthlyStatement) {
+    if (!canSubmitStatements || statement.status !== "Confirmed") {
+      return;
+    }
+
+    upsertStatementRecord(statement, {
+      status: "Submitted",
+      submittedDate: todayISO()
+    });
+  }
+
+  function openPaymentModal(statement: MonthlyStatement) {
+    if (!canRecordPayments || statement.outstanding <= 0) {
+      return;
+    }
+
+    setPaymentStatementId(statement.id);
+    setPaymentForm({
+      paymentDate: todayISO(),
+      amountReceived: String(statement.outstanding),
+      reference: "",
+      notes: ""
+    });
+    setPaymentError("");
+  }
+
+  function closePaymentModal() {
+    setPaymentStatementId("");
+    setPaymentForm(emptyPaymentForm);
+    setPaymentError("");
+  }
+
+  function savePayment() {
+    if (!paymentStatement || !canRecordPayments) {
+      return;
+    }
+
+    const receivedNow = roundUsd(Number(paymentForm.amountReceived));
+
+    if (receivedNow <= 0) {
+      setPaymentError("Amount received is required.");
+      return;
+    }
+
+    if (receivedNow > paymentStatement.outstanding) {
+      if (currentUser.role !== "admin") {
+        setPaymentError("Amount received cannot exceed the outstanding amount.");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "Amount received is higher than the outstanding amount. Continue with admin override?"
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    const nextPayment: StatementPayment = {
+      id: generateId(),
+      paymentDate: paymentForm.paymentDate || todayISO(),
+      amountReceived: receivedNow,
+      reference: paymentForm.reference.trim(),
+      notes: paymentForm.notes.trim()
+    };
+    const nextPayments = [...paymentStatement.payments, nextPayment];
+    const nextReceived = paymentsTotal(nextPayments);
+    const nextStatus: MonthlyStatementStatus =
+      nextReceived >= paymentStatement.claimAmount ? "Paid" : "Partially Paid";
+
+    upsertStatementRecord(paymentStatement, {
+      status: nextStatus,
+      payments: nextPayments
+    });
+    closePaymentModal();
+  }
+
+  function openSeasonalModal() {
+    if (!canConfirmStatements) {
+      return;
+    }
+
+    setSeasonalForm(defaultSeasonalForm(partnerCompany));
+    setSeasonalError("");
+    setSeasonalModalOpen(true);
+  }
+
+  function closeSeasonalModal() {
+    setSeasonalModalOpen(false);
+    setSeasonalError("");
+  }
+
+  const seasonalDateRangeValid = dateRangeIsValid(seasonalForm.fromDate, seasonalForm.toDate);
+  const seasonalClaims = useMemo(() => {
+    if (!seasonalDateRangeValid || !seasonalForm.assistanceCompany) {
+      return [];
+    }
+
+    return allClaims.filter(
+      (claim) =>
+        claim.assistanceCompany === seasonalForm.assistanceCompany &&
+        claim.status !== "Rejected" &&
+        claim.date >= seasonalForm.fromDate &&
+        claim.date <= seasonalForm.toDate
+    );
+  }, [
+    allClaims,
+    seasonalDateRangeValid,
+    seasonalForm.assistanceCompany,
+    seasonalForm.fromDate,
+    seasonalForm.toDate
+  ]);
+  const seasonalStatementPayments = monthlyStatements
+    .filter(
+      (statement) =>
+        statement.assistanceCompany === seasonalForm.assistanceCompany &&
+        statement.claims.some(
+          (claim) => claim.date >= seasonalForm.fromDate && claim.date <= seasonalForm.toDate
+        )
+    )
+    .reduce((sum, statement) => sum + statement.amountReceived, 0);
+  const seasonalInvoiceTotal = seasonalClaims.reduce((sum, claim) => sum + claim.invoiceTotal, 0);
+  const seasonalClaimTotal = seasonalClaims.reduce((sum, claim) => sum + claim.claimAmount, 0);
+  const seasonalReceived = Math.min(seasonalClaimTotal, seasonalStatementPayments);
+  const seasonalOutstanding = Math.max(0, seasonalClaimTotal - seasonalReceived);
+
+  function saveSeasonalConfirmation() {
+    if (!canConfirmStatements) {
+      return;
+    }
+
+    if (!seasonalForm.assistanceCompany || !seasonalDateRangeValid) {
+      setSeasonalError("Assistance company and valid dates are required.");
+      return;
+    }
+
+    if (!seasonalClaims.length) {
+      setSeasonalError("No insurance invoices exist for this company and period.");
+      return;
+    }
+
+    setSeasonalConfirmations((current) => [
+      {
+        id: generateId(),
+        assistanceCompany: seasonalForm.assistanceCompany,
+        fromDate: seasonalForm.fromDate,
+        toDate: seasonalForm.toDate,
+        confirmationDate: seasonalForm.confirmationDate || todayISO(),
+        notes: seasonalForm.notes.trim(),
+        totalPatients: new Set(
+          seasonalClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
+        ).size,
+        totalInvoices: seasonalClaims.length,
+        totalInvoiceAmount: seasonalInvoiceTotal,
+        totalClaimAmount: seasonalClaimTotal,
+        totalReceived: seasonalReceived,
+        totalOutstanding: seasonalOutstanding
+      },
+      ...current
+    ]);
+    closeSeasonalModal();
+  }
+
+  const renderStatementActions = (statement: MonthlyStatement) => (
+    <StatementActions
+      canConfirm={canConfirmStatements}
+      canRecordPayment={canRecordPayments}
+      canSubmit={canSubmitStatements}
+      onConfirm={() => confirmStatement(statement)}
+      onDownloadCsv={() => downloadStatementCsv(statement)}
+      onDownloadPdf={() => downloadStatementPdf(statement)}
+      onRecordPayment={() => openPaymentModal(statement)}
+      onSubmit={() => submitStatement(statement)}
+      onView={() => setSelectedStatementId(statement.id)}
+      statement={statement}
+    />
+  );
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Insurance Patients This Month"
-          value={String(insurancePatientsThisMonth)}
-          tone="primary"
-        />
-        <KpiCard
-          label="Insurance Patients This Season"
-          value={String(insurancePatientsThisSeason)}
-        />
-        <KpiCard
-          label="Outstanding Claims (USD)"
-          value={usdWhole(outstandingClaims)}
-          tone={outstandingClaims > 0 ? "warning" : "default"}
-        />
-        <KpiCard
-          label="Overdue Claims (USD)"
-          value={usdWhole(overdueClaims)}
-          tone={overdueClaims > 0 ? "danger" : "default"}
-        />
-      </div>
+      {currentUser.role === "insurance_partner" ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard
+            label="Insurance Patients This Month"
+            value={String(insurancePatientsThisMonth)}
+            tone="primary"
+          />
+          <KpiCard
+            label="Insurance Patients This Season"
+            value={String(insurancePatientsThisSeason)}
+          />
+          <KpiCard label="Submitted Claim Amount" value={usdWhole(submittedClaimAmount)} />
+          <KpiCard
+            label="Outstanding Amount"
+            value={usdWhole(outstandingClaims)}
+            tone={outstandingClaims > 0 ? "warning" : "default"}
+          />
+          <KpiCard label="Paid Amount" value={usdWhole(paidClaims)} tone="success" />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Insurance Patients This Month"
+            value={String(insurancePatientsThisMonth)}
+            tone="primary"
+          />
+          <KpiCard
+            label="Insurance Patients This Season"
+            value={String(insurancePatientsThisSeason)}
+          />
+          <KpiCard
+            label="Outstanding Claims (USD)"
+            value={usdWhole(outstandingClaims)}
+            tone={outstandingClaims > 0 ? "warning" : "default"}
+          />
+          <KpiCard
+            label="Overdue Claims (USD)"
+            value={usdWhole(overdueClaims)}
+            tone={overdueClaims > 0 ? "danger" : "default"}
+          />
+        </div>
+      )}
 
       {currentUser.role !== "insurance_partner" ? (
         <section className="panel overflow-hidden">
@@ -922,13 +1500,13 @@ export function InsuranceClaimsDashboard({
             ) : null}
           </div>
           <div className={tableStyles.wrapper}>
-            <table className={tableStyles.table}>
+            <table className="min-w-[1080px] divide-y divide-[#efefef] text-sm">
               <thead className={tableStyles.head}>
                 <tr>
-                  <th className={tableStyles.headerCell}>Company Name</th>
-                  <th className={tableStyles.numericHeaderCell}>Default Claim %</th>
-                  <th className={tableStyles.headerCell}>Status</th>
-                  <th className={tableStyles.headerCell}>Actions</th>
+                  <th className="w-[38%] px-5 py-3">Company Name</th>
+                  <th className="w-[18%] px-5 py-3 text-right">Default Claim %</th>
+                  <th className="w-[16%] px-5 py-3">Status</th>
+                  <th className="w-[28%] px-5 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efefef]">
@@ -937,16 +1515,18 @@ export function InsuranceClaimsDashboard({
                   const isExpanded = expandedCompanyId === company.id;
                   const stats = companyStats.get(company.id) ?? {
                     patientCount: 0,
-                    outstandingClaims: 0,
+                    outstandingReceivables: 0,
                     paidClaims: 0,
-                    lastClaimDate: ""
+                    lastInvoiceDate: ""
                   };
 
                   return (
                     <Fragment key={company.id}>
                       <tr className={tableStyles.row}>
-                        <td className={tableStyles.strongCell}>{company.name}</td>
-                        <td className={tableStyles.numericCell}>
+                        <td className="px-5 py-4 font-semibold text-[#224770]">
+                          {company.name}
+                        </td>
+                        <td className="px-5 py-4 text-right font-semibold text-[#224770]">
                           {company.defaultClaimPercentage}%
                         </td>
                         <td className={tableStyles.cell}>
@@ -955,13 +1535,11 @@ export function InsuranceClaimsDashboard({
                           </StatusPill>
                         </td>
                         <td className={tableStyles.cell}>
-                          <div className="flex min-w-[420px] flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
-                              onClick={() =>
-                                setExpandedCompanyId(isExpanded ? "" : company.id)
-                              }
-                              className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                              onClick={() => setExpandedCompanyId(isExpanded ? "" : company.id)}
+                              className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
                             >
                               {isExpanded ? "Hide Details" : "View Details"}
                             </button>
@@ -969,7 +1547,7 @@ export function InsuranceClaimsDashboard({
                               type="button"
                               onClick={() => editCompany(company)}
                               disabled={!canManageCompanies}
-                              className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                              className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
                             >
                               Edit
                             </button>
@@ -977,7 +1555,7 @@ export function InsuranceClaimsDashboard({
                               type="button"
                               onClick={() => toggleCompanyActive(company.id)}
                               disabled={!canManageCompanies}
-                              className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                              className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
                             >
                               {company.active ? "Deactivate" : "Activate"}
                             </button>
@@ -987,7 +1565,7 @@ export function InsuranceClaimsDashboard({
                               disabled={!canManageCompanies || used}
                               className={buttonClass(
                                 !used ? "danger" : "muted",
-                                "px-3 py-2 text-xs"
+                                "min-h-11 px-3 text-xs"
                               )}
                             >
                               Delete
@@ -1019,16 +1597,16 @@ export function InsuranceClaimsDashboard({
                                 value={String(stats.patientCount)}
                               />
                               <CompanyDetail
-                                label="Outstanding Claims USD"
-                                value={usdWhole(stats.outstandingClaims)}
+                                label="Outstanding Receivables"
+                                value={usdWhole(stats.outstandingReceivables)}
                               />
                               <CompanyDetail
-                                label="Paid Claims USD"
+                                label="Paid Claims"
                                 value={usdWhole(stats.paidClaims)}
                               />
                               <CompanyDetail
-                                label="Last Claim Date"
-                                value={stats.lastClaimDate ? shortDate(stats.lastClaimDate) : "N/A"}
+                                label="Last Invoice Date"
+                                value={stats.lastInvoiceDate ? shortDate(stats.lastInvoiceDate) : "N/A"}
                               />
                               <div className="rounded-lg border border-[#efefef] bg-white p-3 md:col-span-2">
                                 <span className="label">Notes</span>
@@ -1049,339 +1627,438 @@ export function InsuranceClaimsDashboard({
         </section>
       ) : null}
 
-      <section className="panel p-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_150px_220px_200px_minmax(260px,1fr)]">
-          <div>
-            <label className="label" htmlFor="claim-year-filter">
-              Year
-            </label>
-            <select
-              id="claim-year-filter"
-              value={yearFilter}
-              onChange={(event) => setYearFilter(event.target.value)}
-              className="field mt-2"
-            >
-              <option value="all">All years</option>
-              {yearOptions.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="claim-month-filter">
-              Month
-            </label>
-            <select
-              id="claim-month-filter"
-              value={monthFilter}
-              onChange={(event) => setMonthFilter(event.target.value)}
-              className="field mt-2"
-            >
-              <option value="all">All months</option>
-              {monthOptions.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="assistance-company-filter">
-              Assistance Company
-            </label>
-            <select
-              id="assistance-company-filter"
-              value={companyFilter}
-              onChange={(event) => setCompanyFilter(event.target.value)}
-              disabled={currentUser.role === "insurance_partner"}
-              className="field mt-2"
-            >
-              <option value="all">All companies</option>
-              {companyOptions.map((company) => (
-                <option key={company} value={company}>
-                  {company}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="claim-status-filter">
-              Claim Status
-            </label>
-            <select
-              id="claim-status-filter"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as InsuranceClaimStatus | "all")
-              }
-              className="field mt-2"
-            >
-              <option value="all">All statuses</option>
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="claim-search">
-              Search
-            </label>
-            <input
-              id="claim-search"
-              value={claimSearch}
-              onChange={(event) => setClaimSearch(event.target.value)}
-              className="field mt-2"
-              placeholder="Invoice number, patient name, passport/ID"
-            />
-          </div>
-        </div>
-      </section>
-
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] p-5">
-          <h2 className="text-lg font-semibold text-[#224770]">Insurance Claim Registry</h2>
-        </div>
-        <div className={tableStyles.wrapper}>
-          <table className={tableStyles.table}>
-            <thead className={tableStyles.head}>
-              <tr>
-                <th className={tableStyles.headerCell}>Invoice No.</th>
-                <th className={tableStyles.headerCell}>Date</th>
-                <th className={tableStyles.headerCell}>Patient</th>
-                <th className={tableStyles.headerCell}>Passport / ID</th>
-                <th className={tableStyles.headerCell}>Assistance Company</th>
-                <th className={tableStyles.numericHeaderCell}>Invoice Total USD</th>
-                <th className={tableStyles.numericHeaderCell}>Claim %</th>
-                <th className={tableStyles.numericHeaderCell}>Claim Amount USD</th>
-                <th className={tableStyles.headerCell}>Claim Status</th>
-                <th className={tableStyles.headerCell}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefef]">
-              {filteredClaims.map((claim) => (
-                <tr key={claim.id} className={tableStyles.row}>
-                  <td className={tableStyles.strongCell}>{claim.invoiceNo}</td>
-                  <td className={tableStyles.cell}>{shortDate(claim.date)}</td>
-                  <td className={tableStyles.cell}>{claim.patientName}</td>
-                  <td className={tableStyles.cell}>{claim.passport ?? "N/A"}</td>
-                  <td className={tableStyles.cell}>{claim.assistanceCompany}</td>
-                  <td className={tableStyles.numericCell}>{usdWhole(claim.invoiceTotal)}</td>
-                  <td className={tableStyles.numericCell}>{claim.claimPercentage}%</td>
-                  <td className={tableStyles.numericCell}>{usdWhole(claim.claimAmount)}</td>
-                  <td className={tableStyles.cell}>
-                    <StatusPill tone={claimStatusTones[claim.status]}>{claim.status}</StatusPill>
-                  </td>
-                  <td className={tableStyles.cell}>
-                    <div className="flex min-w-[360px] flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedClaim(claim)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadInvoicePdf(claim)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        Download Invoice PDF
-                      </button>
-                      <select
-                        value={claim.status}
-                        onChange={(event) =>
-                          updateClaimStatus(
-                            claim.id,
-                            event.target.value as InsuranceClaimStatus
-                          )
-                        }
-                        disabled={!canUpdateStatus}
-                        className="field h-9 w-40 py-1 text-xs disabled:bg-slate-100"
-                        aria-label={`Update status for ${claim.invoiceNo}`}
-                      >
-                        {claimStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!filteredClaims.length ? (
-                <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={10}>
-                    No insurance claims match the selected filters.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] p-5">
-          <h2 className="text-lg font-semibold text-[#224770]">Assistance Company Statements</h2>
-        </div>
-        <div className={tableStyles.wrapper}>
-          <table className={tableStyles.table}>
-            <thead className={tableStyles.head}>
-              <tr>
-                <th className={tableStyles.headerCell}>Assistance Company</th>
-                <th className={tableStyles.headerCell}>Statement Period</th>
-                <th className={tableStyles.numericHeaderCell}>Invoices</th>
-                <th className={tableStyles.numericHeaderCell}>Total Claim Amount USD</th>
-                <th className={tableStyles.headerCell}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefef]">
-              {statementGroups.map((statement) => (
-                <tr key={statement.key} className={tableStyles.row}>
-                  <td className={tableStyles.strongCell}>{statement.assistanceCompany}</td>
-                  <td className={tableStyles.cell}>{formatMonth(statement.period)}</td>
-                  <td className={tableStyles.numericCell}>{statement.claims.length}</td>
-                  <td className={tableStyles.numericCell}>
-                    {usdWhole(statement.totalClaimAmount)}
-                  </td>
-                  <td className={tableStyles.cell}>
-                    <div className="flex min-w-[380px] flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStatementKey(statement.key)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        View Statement
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadStatementPdf(statement)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        Download Monthly Statement PDF
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadStatementCsv(statement)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        Download Monthly Statement CSV
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!statementGroups.length ? (
-                <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={5}>
-                    No assistance company statements for the selected filters.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {selectedClaim ? (
-        <section className="panel p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-[#224770]">{selectedClaim.invoiceNo}</h2>
+        <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold text-[#224770]">Monthly Insurance Statements</h2>
+            {seasonalConfirmations.length ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+                {seasonalConfirmations.length} seasonal confirmations recorded
+              </p>
+            ) : null}
+          </div>
+          {canConfirmStatements ? (
             <button
               type="button"
-              onClick={() => setSelectedClaim(null)}
-              className={buttonClass("secondary", "px-3 py-2")}
+              onClick={openSeasonalModal}
+              className={buttonClass("secondary", "min-h-12 px-5")}
             >
-              Close
+              Confirm Seasonal Summary
             </button>
+          ) : null}
+        </div>
+        <div className={tableStyles.wrapper}>
+          <table className="min-w-[1420px] divide-y divide-[#efefef] text-sm">
+            <thead className={tableStyles.head}>
+              <tr>
+                <th className={tableStyles.headerCell}>Month</th>
+                {currentUser.role !== "insurance_partner" ? (
+                  <th className={tableStyles.headerCell}>Assistance Company</th>
+                ) : null}
+                <th className={tableStyles.numericHeaderCell}>Insurance Patients</th>
+                <th className={tableStyles.numericHeaderCell}>Number of Invoices</th>
+                <th className={tableStyles.numericHeaderCell}>Full Invoice Total USD</th>
+                <th className={tableStyles.numericHeaderCell}>Claim Amount USD</th>
+                <th className={tableStyles.numericHeaderCell}>Amount Received USD</th>
+                <th className={tableStyles.numericHeaderCell}>Outstanding USD</th>
+                <th className={tableStyles.headerCell}>Statement Status</th>
+                <th className={tableStyles.headerCell}>Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#efefef]">
+              {monthlyStatements.map((statement) => (
+                <tr key={statement.id} className={tableStyles.row}>
+                  <td className={tableStyles.strongCell}>{monthLabel(statement.month)}</td>
+                  {currentUser.role !== "insurance_partner" ? (
+                    <td className={tableStyles.cell}>{statement.assistanceCompany}</td>
+                  ) : null}
+                  <td className={tableStyles.numericCell}>{statement.insurancePatients}</td>
+                  <td className={tableStyles.numericCell}>{statement.invoiceCount}</td>
+                  <td className={tableStyles.numericCell}>
+                    {usdWhole(statement.fullInvoiceTotal)}
+                  </td>
+                  <td className={tableStyles.numericCell}>{usdWhole(statement.claimAmount)}</td>
+                  <td className={tableStyles.numericCell}>
+                    {usdWhole(statement.amountReceived)}
+                  </td>
+                  <td className={tableStyles.numericCell}>
+                    <span
+                      className={
+                        statement.outstanding > 0 ? "font-bold text-amber-700" : undefined
+                      }
+                    >
+                      {usdWhole(statement.outstanding)}
+                    </span>
+                  </td>
+                  <td className={tableStyles.cell}>
+                    <StatusPill tone={statementStatusTones[statement.status]}>
+                      {statement.status}
+                    </StatusPill>
+                  </td>
+                  <td className={tableStyles.cell}>
+                    {renderStatementActions(statement)}
+                  </td>
+                </tr>
+              ))}
+              {!monthlyStatements.length ? (
+                <tr>
+                  <td
+                    className="px-5 py-8 text-center text-sm text-[#46484a]"
+                    colSpan={currentUser.role === "insurance_partner" ? 9 : 10}
+                  >
+                    No monthly insurance statements found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {currentUser.role === "insurance_partner" ? (
+        <section className="panel overflow-hidden">
+          <div className="border-b border-[#efefef] p-5">
+            <h2 className="text-lg font-semibold text-[#224770]">Payment History</h2>
           </div>
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg bg-[#efefef]/60 p-3">
-              <span className="label">Patient</span>
-              <p className="mt-1 font-semibold text-[#224770]">{selectedClaim.patientName}</p>
-            </div>
-            <div className="rounded-lg bg-[#efefef]/60 p-3">
-              <span className="label">Assistance Company</span>
-              <p className="mt-1 font-semibold text-[#224770]">
-                {selectedClaim.assistanceCompany}
-              </p>
-            </div>
-            <div className="rounded-lg bg-[#efefef]/60 p-3">
-              <span className="label">Claim %</span>
-              <p className="mt-1 font-semibold text-[#224770]">
-                {selectedClaim.claimPercentage}%
-              </p>
-            </div>
-            <div className="rounded-lg bg-[#efefef]/60 p-3">
-              <span className="label">Claim Amount</span>
-              <p className="mt-1 font-semibold text-[#224770]">
-                {usdWhole(selectedClaim.claimAmount)}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 rounded-lg border border-[#efefef] p-3 text-sm text-[#46484a]">
-            {selectedClaim.services.join(", ")}
+          <div className={tableStyles.wrapper}>
+            <table className={tableStyles.table}>
+              <thead className={tableStyles.head}>
+                <tr>
+                  <th className={tableStyles.headerCell}>Statement Month</th>
+                  <th className={tableStyles.headerCell}>Payment Date</th>
+                  <th className={tableStyles.numericHeaderCell}>Amount Received USD</th>
+                  <th className={tableStyles.headerCell}>Reference</th>
+                  <th className={tableStyles.headerCell}>Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#efefef]">
+                {partnerPaymentHistory.map((payment) => (
+                  <tr key={payment.id} className={tableStyles.row}>
+                    <td className={tableStyles.strongCell}>{monthLabel(payment.statementMonth)}</td>
+                    <td className={tableStyles.cell}>{shortDate(payment.paymentDate)}</td>
+                    <td className={tableStyles.numericCell}>
+                      {usdWhole(payment.amountReceived)}
+                    </td>
+                    <td className={tableStyles.cell}>{payment.reference || "N/A"}</td>
+                    <td className={tableStyles.cell}>{payment.notes || "N/A"}</td>
+                  </tr>
+                ))}
+                {!partnerPaymentHistory.length ? (
+                  <tr>
+                    <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={5}>
+                      No payment history recorded.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         </section>
       ) : null}
 
       {selectedStatement ? (
-        <section className="panel p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-[#224770]">
-              {selectedStatement.assistanceCompany} - {formatMonth(selectedStatement.period)}
-            </h2>
-            <button
-              type="button"
-              onClick={() => setSelectedStatementKey("")}
-              className={buttonClass("secondary", "px-3 py-2")}
-            >
-              Close
-            </button>
+        <StatementDetailsModal
+          canConfirm={canConfirmStatements}
+          canRecordPayment={canRecordPayments}
+          canSubmit={canSubmitStatements}
+          onClose={() => setSelectedStatementId("")}
+          onConfirm={() => confirmStatement(selectedStatement)}
+          onDownloadCsv={() => downloadStatementCsv(selectedStatement)}
+          onDownloadPdf={() => downloadStatementPdf(selectedStatement)}
+          onRecordPayment={() => openPaymentModal(selectedStatement)}
+          onSubmit={() => submitStatement(selectedStatement)}
+          statement={selectedStatement}
+        />
+      ) : null}
+
+      {paymentStatement ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+          role="dialog"
+        >
+          <div className="w-full max-w-2xl rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+            <div className="border-b border-[#efefef] p-5">
+              <h2 className="text-lg font-semibold text-[#224770]">Record Payment</h2>
+              <p className="mt-1 text-sm font-semibold text-[#46484a]">
+                {paymentStatement.assistanceCompany} - {monthLabel(paymentStatement.month)}
+              </p>
+            </div>
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <CompanyDetail
+                label="Outstanding USD"
+                value={usdWhole(paymentStatement.outstanding)}
+              />
+              <CompanyDetail
+                label="Claim Amount USD"
+                value={usdWhole(paymentStatement.claimAmount)}
+              />
+              <div>
+                <label className="label" htmlFor="statement-payment-date">
+                  Payment Date
+                </label>
+                <input
+                  id="statement-payment-date"
+                  type="date"
+                  value={paymentForm.paymentDate}
+                  onChange={(event) =>
+                    setPaymentForm((current) => ({
+                      ...current,
+                      paymentDate: event.target.value
+                    }))
+                  }
+                  className="field mt-2 min-h-12"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="statement-amount-received">
+                  Amount Received USD
+                </label>
+                <input
+                  id="statement-amount-received"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={paymentForm.amountReceived}
+                  onChange={(event) =>
+                    setPaymentForm((current) => ({
+                      ...current,
+                      amountReceived: event.target.value
+                    }))
+                  }
+                  className="field mt-2 min-h-12"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label" htmlFor="statement-payment-reference">
+                  Payment Reference
+                </label>
+                <input
+                  id="statement-payment-reference"
+                  value={paymentForm.reference}
+                  onChange={(event) =>
+                    setPaymentForm((current) => ({
+                      ...current,
+                      reference: event.target.value
+                    }))
+                  }
+                  className="field mt-2 min-h-12"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label" htmlFor="statement-payment-notes">
+                  Notes
+                </label>
+                <textarea
+                  id="statement-payment-notes"
+                  value={paymentForm.notes}
+                  onChange={(event) =>
+                    setPaymentForm((current) => ({
+                      ...current,
+                      notes: event.target.value
+                    }))
+                  }
+                  className="field mt-2 min-h-24"
+                />
+              </div>
+              {paymentError ? (
+                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 sm:col-span-2">
+                  {paymentError}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-[#efefef] p-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closePaymentModal}
+                className={buttonClass("secondary", "min-h-12")}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={savePayment}
+                disabled={roundUsd(Number(paymentForm.amountReceived)) <= 0}
+                className={buttonClass(
+                  roundUsd(Number(paymentForm.amountReceived)) > 0 ? "primary" : "muted",
+                  "min-h-12"
+                )}
+              >
+                Save Payment
+              </button>
+            </div>
           </div>
-          <div className="mt-5 overflow-hidden rounded-xl border border-[#efefef]">
-            <table className={tableStyles.table}>
-              <thead className={tableStyles.head}>
-                <tr>
-                  <th className={tableStyles.headerCell}>Invoice number</th>
-                  <th className={tableStyles.headerCell}>Invoice date</th>
-                  <th className={tableStyles.headerCell}>Patient name</th>
-                  <th className={tableStyles.headerCell}>Passport / ID</th>
-                  <th className={tableStyles.headerCell}>Services provided</th>
-                  <th className={tableStyles.numericHeaderCell}>Invoice total USD</th>
-                  <th className={tableStyles.numericHeaderCell}>Claim %</th>
-                  <th className={tableStyles.numericHeaderCell}>Claim amount USD</th>
-                  <th className={tableStyles.headerCell}>Claim status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#efefef]">
-                {selectedStatement.claims.map((claim) => (
-                  <tr key={claim.id} className={tableStyles.row}>
-                    <td className={tableStyles.strongCell}>{claim.invoiceNo}</td>
-                    <td className={tableStyles.cell}>{shortDate(claim.date)}</td>
-                    <td className={tableStyles.cell}>{claim.patientName}</td>
-                    <td className={tableStyles.cell}>{claim.passport ?? "N/A"}</td>
-                    <td className={tableStyles.cell}>{claim.services.join(", ")}</td>
-                    <td className={tableStyles.numericCell}>{usdWhole(claim.invoiceTotal)}</td>
-                    <td className={tableStyles.numericCell}>{claim.claimPercentage}%</td>
-                    <td className={tableStyles.numericCell}>{usdWhole(claim.claimAmount)}</td>
-                    <td className={tableStyles.cell}>
-                      <StatusPill tone={claimStatusTones[claim.status]}>{claim.status}</StatusPill>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        </div>
+      ) : null}
+
+      {seasonalModalOpen ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+          role="dialog"
+        >
+          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+            <div className="border-b border-[#efefef] p-5">
+              <h2 className="text-lg font-semibold text-[#224770]">
+                Confirm Seasonal Summary
+              </h2>
+            </div>
+            <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="seasonal-company">
+                    Assistance Company
+                  </label>
+                  <select
+                    id="seasonal-company"
+                    value={seasonalForm.assistanceCompany}
+                    onChange={(event) =>
+                      setSeasonalForm((current) => ({
+                        ...current,
+                        assistanceCompany: event.target.value
+                      }))
+                    }
+                    className="field mt-2 min-h-12"
+                  >
+                    <option value="">Select company</option>
+                    {companyOptions.map((company) => (
+                      <option key={company} value={company}>
+                        {company}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label" htmlFor="seasonal-confirmation-date">
+                    Confirmation Date
+                  </label>
+                  <input
+                    id="seasonal-confirmation-date"
+                    type="date"
+                    value={seasonalForm.confirmationDate}
+                    onChange={(event) =>
+                      setSeasonalForm((current) => ({
+                        ...current,
+                        confirmationDate: event.target.value
+                      }))
+                    }
+                    className="field mt-2 min-h-12"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="seasonal-from-date">
+                    From Date
+                  </label>
+                  <input
+                    id="seasonal-from-date"
+                    type="date"
+                    value={seasonalForm.fromDate}
+                    onChange={(event) =>
+                      setSeasonalForm((current) => ({
+                        ...current,
+                        fromDate: event.target.value,
+                        toDate:
+                          current.toDate && event.target.value && current.toDate < event.target.value
+                            ? event.target.value
+                            : current.toDate
+                      }))
+                    }
+                    className="field mt-2 min-h-12"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="seasonal-to-date">
+                    To Date
+                  </label>
+                  <input
+                    id="seasonal-to-date"
+                    type="date"
+                    min={seasonalForm.fromDate || undefined}
+                    value={seasonalForm.toDate}
+                    onChange={(event) =>
+                      setSeasonalForm((current) => ({
+                        ...current,
+                        toDate:
+                          current.fromDate && event.target.value < current.fromDate
+                            ? current.fromDate
+                            : event.target.value
+                      }))
+                    }
+                    className="field mt-2 min-h-12"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="label" htmlFor="seasonal-notes">
+                    Notes
+                  </label>
+                  <textarea
+                    id="seasonal-notes"
+                    value={seasonalForm.notes}
+                    onChange={(event) =>
+                      setSeasonalForm((current) => ({
+                        ...current,
+                        notes: event.target.value
+                      }))
+                    }
+                    className="field mt-2 min-h-24"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <CompanyDetail
+                  label="Total Insurance Patients"
+                  value={String(
+                    new Set(
+                      seasonalClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
+                    ).size
+                  )}
+                />
+                <CompanyDetail label="Total Invoices" value={String(seasonalClaims.length)} />
+                <CompanyDetail
+                  label="Total Full Invoice Amount USD"
+                  value={usdWhole(seasonalInvoiceTotal)}
+                />
+                <CompanyDetail
+                  label="Total Claim Amount USD"
+                  value={usdWhole(seasonalClaimTotal)}
+                />
+                <CompanyDetail label="Total Received USD" value={usdWhole(seasonalReceived)} />
+                <CompanyDetail
+                  label="Total Outstanding USD"
+                  value={usdWhole(seasonalOutstanding)}
+                />
+              </div>
+
+              {seasonalError ? (
+                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {seasonalError}
+                </p>
+              ) : null}
+              {!seasonalDateRangeValid ? (
+                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  To Date cannot be earlier than From Date.
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-[#efefef] bg-white p-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeSeasonalModal}
+                className={buttonClass("secondary", "min-h-12")}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveSeasonalConfirmation}
+                className={buttonClass("primary", "min-h-12")}
+              >
+                Confirm Summary
+              </button>
+            </div>
           </div>
-          <div className="mt-4 flex justify-end text-base font-bold text-[#224770]">
-            Total claim amount {usdWhole(selectedStatement.totalClaimAmount)}
-          </div>
-        </section>
+        </div>
       ) : null}
 
       {companyModalOpen ? (

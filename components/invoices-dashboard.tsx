@@ -4,7 +4,13 @@ import { useMemo, useState } from "react";
 import { buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { shortDate, usdWhole } from "@/lib/format";
-import type { Doctor, Invoice, PaymentMethod } from "@/lib/types";
+import {
+  isAmountOnlyInvoiceServiceName,
+  type Doctor,
+  type Invoice,
+  type InvoiceItem,
+  type PaymentMethod
+} from "@/lib/types";
 
 type InvoicesDashboardProps = {
   doctors: Doctor[];
@@ -29,14 +35,10 @@ function escapeHtml(value: string | number | undefined) {
 }
 
 function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
-  const rows = invoice.items
-    .map(
-      (item) => `<tr>
-        <td>${escapeHtml(item.serviceName)}</td>
-        <td>${usdWhole(item.lineTotal)}</td>
-      </tr>`
-    )
-    .join("");
+  const clinicalTotal = totalForItems(clinicalItems(invoice));
+  const medicationTotal = totalForItems(medicationItems(invoice));
+  const consumableTotal = totalForItems(consumableItems(invoice));
+  const isInsurance = invoice.paymentMethod === "insurance";
 
   return `<!doctype html>
 <html>
@@ -55,24 +57,219 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
   </head>
   <body>
     <h1>Health Aid Arugambay</h1>
-    <p class="meta">Invoice ${escapeHtml(invoice.invoiceNo)}</p>
-    <p class="meta">${escapeHtml(invoice.date)} ${escapeHtml(invoice.time)}</p>
+    <h2>Invoice Information</h2>
+    <p class="meta">Invoice number: ${escapeHtml(invoice.invoiceNo)}</p>
+    <p class="meta">Date: ${escapeHtml(invoice.date)}</p>
+    <p class="meta">Time: ${escapeHtml(invoice.time ?? "N/A")}</p>
+    <p class="meta">Invoice status: ${escapeHtml(invoiceStatus(invoice))}</p>
+    <h2>Patient Information</h2>
     <p class="meta">Patient: ${escapeHtml(invoice.patientName)}</p>
     <p class="meta">Passport / ID: ${escapeHtml(invoice.passport ?? "N/A")}</p>
+    <p class="meta">Mobile: ${escapeHtml(invoice.phone ?? "N/A")}</p>
+    <p class="meta">Nationality: ${escapeHtml(invoice.nationality ?? "N/A")}</p>
+    ${invoice.email ? `<p class="meta">Email: ${escapeHtml(invoice.email)}</p>` : ""}
+    <h2>Billing Information</h2>
     <p class="meta">Doctor: ${escapeHtml(doctorName)}</p>
+    <p class="meta">Payment method: ${escapeHtml(paymentTypeLabels[invoice.paymentMethod])}</p>
+    ${
+      isInsurance
+        ? `<p class="meta">Assistance company: ${escapeHtml(invoice.assistanceCompanyName ?? "N/A")}</p>`
+        : ""
+    }
     <table>
-      <thead><tr><th>Service / charge</th><th>Amount</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <thead><tr><th>Invoice Summary</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr><td>Clinical Services Total</td><td>${usdWhole(clinicalTotal)}</td></tr>
+        <tr><td>Medication Charges</td><td>${usdWhole(medicationTotal)}</td></tr>
+        <tr><td>Consumable Charges</td><td>${usdWhole(consumableTotal)}</td></tr>
+        <tr><td>Discount</td><td>${usdWhole(invoice.discount)}</td></tr>
+        <tr><td><strong>Invoice Total</strong></td><td><strong>${usdWhole(invoice.totalAmount)}</strong></td></tr>
+        ${
+          isInsurance
+            ? `<tr><td>Claim Percentage</td><td>${escapeHtml(invoice.claimPercentage ?? 0)}%</td></tr>
+               <tr><td><strong>Claim Amount</strong></td><td><strong>${usdWhole(invoice.claimAmount ?? 0)}</strong></td></tr>`
+            : ""
+        }
+      </tbody>
     </table>
-    <p class="total">Total ${usdWhole(invoice.totalAmount)}</p>
   </body>
 </html>`;
+}
+
+function clinicalItems(invoice: Invoice) {
+  return invoice.items.filter((item) => !isAmountOnlyInvoiceServiceName(item.serviceName));
+}
+
+function medicationItems(invoice: Invoice) {
+  return invoice.items.filter((item) => item.serviceName.toLowerCase().includes("medication"));
+}
+
+function consumableItems(invoice: Invoice) {
+  return invoice.items.filter((item) => item.serviceName.toLowerCase().includes("consumable"));
+}
+
+function totalForItems(items: InvoiceItem[]) {
+  return items.reduce((sum, item) => sum + item.lineTotal, 0);
+}
+
+function invoiceStatus(invoice: Invoice) {
+  return invoice.paymentMethod === "insurance" ? (invoice.claimStatus ?? "Draft") : "Issued";
+}
+
+function InvoiceDetailBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[#efefef] bg-white p-3">
+      <p className="label">{label}</p>
+      <p className="mt-1 font-semibold text-[#224770]">{value || "N/A"}</p>
+    </div>
+  );
+}
+
+function InvoiceDetailsModal({
+  doctorName,
+  invoice,
+  onClose,
+  onDownload,
+  onPrint
+}: {
+  doctorName: string;
+  invoice: Invoice;
+  onClose: () => void;
+  onDownload: () => void;
+  onPrint: () => void;
+}) {
+  const clinicalTotal = totalForItems(clinicalItems(invoice));
+  const medicationTotal = totalForItems(medicationItems(invoice));
+  const consumableTotal = totalForItems(consumableItems(invoice));
+  const isInsurance = invoice.paymentMethod === "insurance";
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-3 sm:p-5"
+      role="dialog"
+    >
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+        <div className="border-b border-[#efefef] p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="label">Invoice Number</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-[#224770]">
+                {invoice.invoiceNo}
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-[#46484a]">
+                {shortDate(invoice.date)} {invoice.time ?? ""}
+              </p>
+            </div>
+            <StatusPill tone={isInsurance ? "cyan" : "green"}>
+              {invoiceStatus(invoice)}
+            </StatusPill>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-5">
+          <section>
+            <h3 className="mb-3 font-semibold text-[#224770]">Invoice Information</h3>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <InvoiceDetailBlock label="Invoice Number" value={invoice.invoiceNo} />
+              <InvoiceDetailBlock label="Date" value={shortDate(invoice.date)} />
+              <InvoiceDetailBlock label="Time" value={invoice.time ?? "N/A"} />
+              <InvoiceDetailBlock label="Invoice Status" value={invoiceStatus(invoice)} />
+            </div>
+          </section>
+
+          <section>
+            <h3 className="mb-3 font-semibold text-[#224770]">Patient Information</h3>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <InvoiceDetailBlock label="Patient Name" value={invoice.patientName} />
+              <InvoiceDetailBlock label="Passport / ID" value={invoice.passport ?? "N/A"} />
+              <InvoiceDetailBlock label="Mobile Number" value={invoice.phone ?? "N/A"} />
+              <InvoiceDetailBlock label="Nationality" value={invoice.nationality ?? "N/A"} />
+              {invoice.email ? <InvoiceDetailBlock label="Email" value={invoice.email} /> : null}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="mb-3 font-semibold text-[#224770]">Billing Information</h3>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <InvoiceDetailBlock label="Doctor" value={doctorName} />
+              <InvoiceDetailBlock
+                label="Payment Method"
+                value={paymentTypeLabels[invoice.paymentMethod]}
+              />
+              {isInsurance ? (
+                <InvoiceDetailBlock
+                  label="Assistance Company"
+                  value={invoice.assistanceCompanyName ?? "N/A"}
+                />
+              ) : null}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[#efefef] bg-white p-4">
+            <h3 className="font-semibold text-[#224770]">Invoice Summary</h3>
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+              <div className="flex justify-between rounded-lg bg-[#efefef]/55 px-3 py-2">
+                <span className="text-[#46484a]">Clinical Services Total</span>
+                <span className="font-semibold text-[#224770]">{usdWhole(clinicalTotal)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-[#efefef]/55 px-3 py-2">
+                <span className="text-[#46484a]">Medication Charges</span>
+                <span className="font-semibold text-[#224770]">{usdWhole(medicationTotal)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-[#efefef]/55 px-3 py-2">
+                <span className="text-[#46484a]">Consumable Charges</span>
+                <span className="font-semibold text-[#224770]">{usdWhole(consumableTotal)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-[#efefef]/55 px-3 py-2">
+                <span className="text-[#46484a]">Discount</span>
+                <span className="font-semibold text-[#224770]">{usdWhole(invoice.discount)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-[#224770] px-3 py-2 text-white">
+                <span className="font-semibold">Invoice Total</span>
+                <span className="font-bold">{usdWhole(invoice.totalAmount)}</span>
+              </div>
+              {isInsurance ? (
+                <>
+                  <div className="flex justify-between rounded-lg bg-[#efefef]/55 px-3 py-2">
+                    <span className="text-[#46484a]">Claim Percentage</span>
+                    <span className="font-semibold text-[#224770]">
+                      {invoice.claimPercentage ?? 0}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-[#84bc3f]/15 px-3 py-2">
+                    <span className="font-semibold text-[#4f7f22]">Claim Amount</span>
+                    <span className="font-bold text-[#4f7f22]">
+                      {usdWhole(invoice.claimAmount ?? 0)}
+                    </span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </section>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#efefef] bg-white p-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onPrint} className={buttonClass("secondary", "min-h-12")}>
+            Print
+          </button>
+          <button type="button" onClick={onDownload} className={buttonClass("primary", "min-h-12")}>
+            Download PDF
+          </button>
+          <button type="button" onClick={onClose} className={buttonClass("secondary", "min-h-12")}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps) {
   const [invoiceDateFilter, setInvoiceDateFilter] = useState("");
   const [invoiceNumberSearch, setInvoiceNumberSearch] = useState("");
   const [patientNameSearch, setPatientNameSearch] = useState("");
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   const filteredInvoices = useMemo(() => {
     const invoiceNumberTerm = invoiceNumberSearch.trim().toLowerCase();
@@ -198,7 +395,15 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
             <tbody className="divide-y divide-[#efefef]">
               {filteredInvoices.map((invoice) => (
                 <tr key={invoice.id} className={tableStyles.row}>
-                  <td className={tableStyles.strongCell}>{invoice.invoiceNo}</td>
+                  <td className={tableStyles.strongCell}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInvoice(invoice)}
+                      className="font-semibold text-[#224770] underline-offset-4 hover:underline"
+                    >
+                      {invoice.invoiceNo}
+                    </button>
+                  </td>
                   <td className={tableStyles.cell}>{shortDate(invoice.date)}</td>
                   <td className={tableStyles.cell}>{invoice.patientName}</td>
                   <td className={tableStyles.cell}>{invoice.passport ?? "N/A"}</td>
@@ -210,13 +415,22 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
                   </td>
                   <td className={tableStyles.numericCell}>{usdWhole(invoice.totalAmount)}</td>
                   <td className={tableStyles.cell}>
-                    <button
-                      type="button"
-                      onClick={() => downloadInvoicePdf(invoice)}
-                      className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                    >
-                      Download PDF
-                    </button>
+                    <div className="flex min-w-[210px] flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedInvoice(invoice)}
+                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadInvoicePdf(invoice)}
+                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
+                      >
+                        Download PDF
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -231,6 +445,16 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
           </table>
         </div>
       </section>
+
+      {selectedInvoice ? (
+        <InvoiceDetailsModal
+          invoice={selectedInvoice}
+          doctorName={doctorNameForInvoice(selectedInvoice)}
+          onClose={() => setSelectedInvoice(null)}
+          onDownload={() => downloadInvoicePdf(selectedInvoice)}
+          onPrint={() => downloadInvoicePdf(selectedInvoice)}
+        />
+      ) : null}
     </div>
   );
 }

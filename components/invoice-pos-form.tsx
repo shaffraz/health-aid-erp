@@ -85,8 +85,7 @@ type InvoiceSectionTone =
   | "notes"
   | "totals"
   | "preview"
-  | "payout"
-  | "recent";
+  | "payout";
 
 const invoiceSectionColors = {
   invoice: "#224770",
@@ -98,8 +97,7 @@ const invoiceSectionColors = {
   notes: "#46484a",
   totals: "#84bc3f",
   preview: "#224770",
-  payout: "#84bc3f",
-  recent: "#46484a"
+  payout: "#84bc3f"
 } satisfies Record<InvoiceSectionTone, string>;
 
 function WorkflowSection({
@@ -762,24 +760,6 @@ export function InvoicePosForm({
             </div>
           </SidePanel>
 
-          <SidePanel title="Recent Invoices" tone="recent">
-            <div className="space-y-3">
-              {invoices.slice(0, 5).map((invoice) => (
-                <div key={invoice.id} className="rounded-lg border border-[#efefef] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#224770]">{invoice.invoiceNo}</p>
-                      <p className="text-xs text-[#46484a]">{invoice.patientName}</p>
-                      <p className="text-xs text-[#46484a]">
-                        {invoice.date} {invoice.time ?? ""}
-                      </p>
-                    </div>
-                    <span className="text-sm font-bold text-[#224770]">{usdWhole(invoice.totalAmount)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SidePanel>
         </aside>
     </div>
   );

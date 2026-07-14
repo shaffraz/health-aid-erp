@@ -17,7 +17,7 @@ export default async function ReportsPage() {
       <SectionHeader
         eyebrow="Reports"
         title="Operational and finance reports"
-        description="Daily sales, category income, invoices, doctor payout summaries, paid/unpaid status, and monthly doctor payment exports."
+        description="Daily revenue, category income, invoices, doctor payout summaries, paid/unpaid status, and monthly doctor payment exports."
       />
       <ReportsDashboard
         doctors={data.doctors}

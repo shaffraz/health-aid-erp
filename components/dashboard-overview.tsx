@@ -3,7 +3,11 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { KpiCard, tableStyles } from "@/components/erp-ui";
-import { generatePayoutsForInvoices } from "@/lib/calculations";
+import {
+  generatePayoutsForInvoices,
+  invoiceItemRevenueAmount,
+  invoiceRevenueAmount
+} from "@/lib/calculations";
 import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
@@ -129,10 +133,6 @@ function periodCategoryForItem(item: InvoiceItem): PeriodCategory | null {
   }
 
   return null;
-}
-
-function receivableOutstanding(receivable: InsuranceReceivable) {
-  return Math.max(0, receivable.totalBilled - receivable.paidAmount);
 }
 
 type SectionTone = "operations" | "performance" | "services" | "season" | "yearly" | "insights";
@@ -288,8 +288,7 @@ export function DashboardOverview({
   initialDoctors,
   initialServices,
   invoices,
-  payouts,
-  insuranceReceivables
+  payouts
 }: DashboardOverviewProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
   const [services, setServices] = useState(initialServices);
@@ -355,11 +354,17 @@ export function DashboardOverview({
   );
   const activeDoctors = doctors.filter((doctor) => doctor.active);
   const activeServices = services.filter((service) => service.active);
-  const todayRevenue = todayInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const todayRevenue = todayInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
+  );
   const patientsSeenToday = todayInvoices.length;
-  const monthlyRevenue = monthlyInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+  const monthlyRevenue = monthlyInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
+  );
   const currentSeasonRevenue = currentSeasonInvoices.reduce(
-    (sum, invoice) => sum + invoice.totalAmount,
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
     0
   );
   const monthlyPendingPayouts = monthlyPayouts
@@ -381,7 +386,7 @@ export function DashboardOverview({
           revenue: 0
         };
         current.count += itemQuantity(item);
-        current.revenue += item.lineTotal;
+        current.revenue += invoiceItemRevenueAmount(invoice, item);
         totals.set(item.serviceName, current);
       });
     });
@@ -411,7 +416,7 @@ export function DashboardOverview({
 
         const current = totals.get(category) ?? { cases: 0, revenue: 0 };
         current.cases += itemQuantity(item);
-        current.revenue += item.lineTotal;
+        current.revenue += invoiceItemRevenueAmount(invoice, item);
         totals.set(category, current);
       });
     });
@@ -429,7 +434,7 @@ export function DashboardOverview({
 
     return {
       year,
-      revenue: yearInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
+      revenue: yearInvoices.reduce((sum, invoice) => sum + invoiceRevenueAmount(invoice), 0),
       newConsultations: yearItems
         .filter(isNewConsultation)
         .reduce((sum, item) => sum + itemQuantity(item), 0),
@@ -440,15 +445,15 @@ export function DashboardOverview({
   function paymentTotal(method: Extract<PaymentMethod, "cash" | "card" | "insurance">) {
     return monthlyInvoices
       .filter((invoice) => invoice.paymentMethod === method)
-      .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+      .reduce((sum, invoice) => sum + invoiceRevenueAmount(invoice), 0);
   }
 
   const averageInvoiceValue = monthlyInvoices.length
     ? monthlyRevenue / monthlyInvoices.length
     : 0;
-  const outstandingInsuranceReceivables = insuranceReceivables
-    .filter((receivable) => receivable.status !== "Paid")
-    .reduce((sum, receivable) => sum + receivableOutstanding(receivable), 0);
+  const outstandingInsuranceReceivables = invoices
+    .filter((invoice) => invoice.paymentMethod === "insurance" && invoice.claimStatus !== "Paid")
+    .reduce((sum, invoice) => sum + invoiceRevenueAmount(invoice), 0);
   const paymentDistributionRows = (["cash", "card", "insurance"] as const).map((method) => ({
     method,
     amount: paymentTotal(method)
