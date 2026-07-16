@@ -19,34 +19,34 @@ const kpiTones: Record<
     helper: "text-[#46484a]"
   },
   primary: {
-    panel: "border-[#d7e1ec] bg-white",
+    panel: "border-[#224770]/30 bg-white",
     label: "text-[#46484a]",
     value: "text-[#224770]",
     helper: "text-[#46484a]"
   },
   info: {
-    panel: "border-[#cceffa] bg-white",
+    panel: "border-[#0eb6ef]/35 bg-white",
     label: "text-[#46484a]",
     value: "text-[#224770]",
     helper: "text-[#46484a]"
   },
   success: {
-    panel: "border-[#dceccc] bg-white",
-    label: "text-[#3f6f18]",
-    value: "text-[#4f7f22]",
+    panel: "border-[#84bc3f]/45 bg-white",
+    label: "text-[#46484a]",
+    value: "text-[#224770]",
     helper: "text-[#46484a]"
   },
   warning: {
-    panel: "border-amber-200 bg-white",
-    label: "text-amber-700",
-    value: "text-amber-800",
+    panel: "border-[#46484a]/25 bg-white",
+    label: "text-[#46484a]",
+    value: "text-[#224770]",
     helper: "text-[#46484a]"
   },
   danger: {
-    panel: "border-rose-200 bg-rose-50/60",
-    label: "text-rose-700",
-    value: "text-rose-700",
-    helper: "text-rose-700"
+    panel: "border-[#224770]/30 bg-[#efefef]/60",
+    label: "text-[#46484a]",
+    value: "text-[#224770]",
+    helper: "text-[#46484a]"
   }
 };
 
@@ -103,13 +103,13 @@ export function buttonClass(variant: ButtonVariant = "secondary", className?: st
     variant === "primary" &&
       "bg-[#224770] text-white shadow-sm hover:bg-[#0eb6ef] disabled:bg-[#d9d9d9]",
     variant === "secondary" &&
-      "border border-[#dfe4e7] bg-white text-[#46484a] hover:border-[#0eb6ef] hover:text-[#224770] disabled:bg-[#efefef] disabled:text-slate-400",
+      "border border-[#dfe4e7] bg-white text-[#46484a] hover:border-[#0eb6ef] hover:text-[#224770] disabled:bg-[#efefef] disabled:text-[#46484a]/55",
     variant === "success" &&
       "bg-[#84bc3f] text-white shadow-sm hover:bg-[#73a832] disabled:bg-[#d9d9d9]",
     variant === "danger" &&
-      "border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 disabled:border-slate-200 disabled:bg-[#efefef] disabled:text-slate-400",
+      "border border-[#46484a]/25 bg-white text-[#46484a] hover:bg-[#efefef] disabled:border-[#efefef] disabled:bg-[#efefef] disabled:text-[#46484a]/55",
     variant === "muted" &&
-      "bg-[#efefef] text-[#46484a] hover:bg-slate-200 disabled:text-slate-400",
+      "bg-[#efefef] text-[#46484a] hover:bg-[#d9d9d9] disabled:text-[#46484a]/55",
     className
   );
 }
