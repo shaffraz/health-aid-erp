@@ -13,6 +13,7 @@ import {
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
 import { demoAssistanceCompanies } from "@/lib/demo-data";
+import { openEmailDraft } from "@/lib/email";
 import { money, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
@@ -553,6 +554,34 @@ export function InvoicePosForm({
     printWindow.print();
   }
 
+  function emailInvoice(targetInvoice: Invoice) {
+    const invoiceDoctor = doctorCatalog.find((doctor) => doctor.id === targetInvoice.doctorId);
+
+    openEmailDraft({
+      to: targetInvoice.email,
+      subject: `Health Aid Arugambay invoice ${targetInvoice.invoiceNo}`,
+      body: [
+        "Health Aid Arugambay",
+        "",
+        `Invoice: ${targetInvoice.invoiceNo}`,
+        `Date: ${targetInvoice.date} ${targetInvoice.time ?? ""}`.trim(),
+        `Patient: ${targetInvoice.patientName}`,
+        `Passport / ID: ${targetInvoice.passport ?? "N/A"}`,
+        `Doctor: ${invoiceDoctor?.name ?? "Unassigned"}`,
+        `Payment method: ${paymentLabels[targetInvoice.paymentMethod]}`,
+        targetInvoice.paymentMethod === "insurance"
+          ? `Assistance company: ${targetInvoice.assistanceCompanyName ?? "N/A"}`
+          : "",
+        `Invoice total: ${usdWhole(targetInvoice.totalAmount)}`,
+        targetInvoice.paymentMethod === "insurance"
+          ? `Claim amount: ${usdWhole(targetInvoice.claimAmount ?? 0)}`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("\n")
+    });
+  }
+
   function saveInvoice() {
     if (!formReady) {
       return;
@@ -638,11 +667,12 @@ export function InvoicePosForm({
             onInvoiceTimeChange={setInvoiceTime}
             onPrintInvoice={printInvoice}
             onDownloadInvoice={downloadInvoice}
+            onEmailInvoice={emailInvoice}
           />
 
           {savedInvoiceNo ? (
             <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              Saved {savedInvoiceNo}. Recent invoices were updated locally.
+              Saved {savedInvoiceNo}. The invoice is available in the local registry.
             </div>
           ) : null}
           </WorkflowSection>
@@ -840,7 +870,8 @@ function InvoiceHeader({
   onInvoiceDateChange,
   onInvoiceTimeChange,
   onPrintInvoice,
-  onDownloadInvoice
+  onDownloadInvoice,
+  onEmailInvoice
 }: {
   invoiceNo: string;
   invoiceDate: string;
@@ -852,6 +883,7 @@ function InvoiceHeader({
   onInvoiceTimeChange: (value: string) => void;
   onPrintInvoice: (invoice: Invoice) => void;
   onDownloadInvoice: (invoice: Invoice) => void;
+  onEmailInvoice: (invoice: Invoice) => void;
 }) {
   return (
     <div>
@@ -873,11 +905,15 @@ function InvoiceHeader({
             onInvoiceTimeChange={onInvoiceTimeChange}
           />
         </div>
-        <div className="flex gap-2 sm:justify-end">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <button
             type="button"
             onClick={() => onPrintInvoice(lastSavedInvoice ?? draftInvoice)}
-            className={buttonClass("secondary", "h-10 px-3 py-2")}
+            disabled={!formReady && !lastSavedInvoice}
+            className={buttonClass(
+              formReady || lastSavedInvoice ? "secondary" : "muted",
+              "min-h-11 px-3 py-2"
+            )}
           >
             Print
           </button>
@@ -887,10 +923,21 @@ function InvoiceHeader({
             disabled={!formReady && !lastSavedInvoice}
             className={buttonClass(
               formReady || lastSavedInvoice ? "secondary" : "muted",
-              "h-10 px-3 py-2"
+              "min-h-11 px-3 py-2"
             )}
           >
-            Download
+            Download HTML
+          </button>
+          <button
+            type="button"
+            onClick={() => onEmailInvoice(lastSavedInvoice ?? draftInvoice)}
+            disabled={!formReady && !lastSavedInvoice}
+            className={buttonClass(
+              formReady || lastSavedInvoice ? "secondary" : "muted",
+              "min-h-11 px-3 py-2"
+            )}
+          >
+            Email
           </button>
         </div>
       </div>

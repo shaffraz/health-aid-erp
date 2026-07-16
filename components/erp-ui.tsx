@@ -123,7 +123,7 @@ export function Button({
 }
 
 export const tableStyles = {
-  wrapper: "overflow-x-auto",
+  wrapper: "w-full overflow-x-auto",
   table: "min-w-full divide-y divide-[#efefef] text-sm",
   head: "bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]",
   row: "transition duration-150 hover:bg-[#efefef]/45",
@@ -131,5 +131,10 @@ export const tableStyles = {
   strongCell: "px-5 py-4 font-semibold text-[#224770]",
   headerCell: "px-5 py-3",
   numericHeaderCell: "px-5 py-3 text-right",
-  numericCell: "whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]"
+  numericCell: "whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]",
+  actionHeaderCell:
+    "sticky right-0 z-20 bg-[#e9edf1] px-5 py-3 text-right",
+  actionCell:
+    "sticky right-0 z-10 bg-[#f7f9fb] px-5 py-4",
+  actions: "flex min-w-max items-center justify-end gap-2"
 };

@@ -2,12 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { normalizeRole } from "@/lib/auth";
 import { generateId } from "@/lib/id";
+import { hasPermission, permissions } from "@/lib/permissions";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import {
   isAmountOnlyInvoiceServiceName,
   paymentMethods,
-  serviceCategories
+  serviceCategories,
+  type Role
 } from "@/lib/types";
 
 type ActionSuccess<T> = [T] extends [undefined]
@@ -15,9 +18,10 @@ type ActionSuccess<T> = [T] extends [undefined]
   : { ok: true; demo?: boolean; data: T };
 type ActionResult<T = undefined> = ActionSuccess<T> | { ok: false; error: string };
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type Permission = keyof typeof permissions;
 type SupabaseActionContext =
-  | { supabase: null; userId: string; error?: never }
-  | { supabase: SupabaseServerClient; userId: string; error?: never }
+  | { supabase: null; userId: string; role: Role; error?: never }
+  | { supabase: SupabaseServerClient; userId: string; role: Role; error?: never }
   | { supabase: SupabaseServerClient; userId?: never; error: string };
 
 const nonEmptyText = z.string().trim().min(1);
@@ -85,7 +89,7 @@ const voucherStatusSchema = z.object({
 
 async function getSupabaseUser(): Promise<SupabaseActionContext> {
   if (!isSupabaseConfigured()) {
-    return { supabase: null, userId: "demo-user" };
+    return { supabase: null, userId: "demo-user", role: "administrator" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -98,11 +102,33 @@ async function getSupabaseUser(): Promise<SupabaseActionContext> {
     return { supabase, error: "You must be signed in to perform this action." };
   }
 
-  return { supabase, userId: user.id };
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return { supabase, error: "Your user profile is missing. Please contact an administrator." };
+  }
+
+  return { supabase, userId: user.id, role: normalizeRole(profile.role) };
 }
 
 function emptyToNull(value?: string) {
   return value?.trim() ? value.trim() : null;
+}
+
+function requireActionPermission(auth: SupabaseActionContext, permission: Permission) {
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  if (!hasPermission(auth.role, permission)) {
+    return "Your role does not have permission to perform this action.";
+  }
+
+  return null;
 }
 
 export async function createInvoiceAction(input: unknown): Promise<ActionResult<{ invoiceNo: string; invoiceId: string; date: string }>> {
@@ -115,6 +141,10 @@ export async function createInvoiceAction(input: unknown): Promise<ActionResult<
   const auth = await getSupabaseUser();
   if (auth.error) {
     return { ok: false, error: auth.error };
+  }
+  const permissionError = requireActionPermission(auth, "createInvoices");
+  if (permissionError) {
+    return { ok: false, error: permissionError };
   }
 
   if (!auth.supabase) {
@@ -230,6 +260,10 @@ export async function createServiceAction(input: unknown): Promise<ActionResult<
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
+  const permissionError = requireActionPermission(auth, "manageServices");
+  if (permissionError) {
+    return { ok: false, error: permissionError };
+  }
 
   if (!auth.supabase) {
     return { ok: true, demo: true, data: { id: generateId() } };
@@ -270,6 +304,10 @@ export async function createDoctorAction(input: unknown): Promise<ActionResult<{
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
+  const permissionError = requireActionPermission(auth, "manageDoctors");
+  if (permissionError) {
+    return { ok: false, error: permissionError };
+  }
 
   if (!auth.supabase) {
     return { ok: true, demo: true, data: { id: generateId() } };
@@ -307,6 +345,10 @@ export async function createDoctorPaymentRuleAction(input: unknown): Promise<Act
   const auth = await getSupabaseUser();
   if (auth.error) {
     return { ok: false, error: auth.error };
+  }
+  const permissionError = requireActionPermission(auth, "manageDoctors");
+  if (permissionError) {
+    return { ok: false, error: permissionError };
   }
 
   if (!auth.supabase) {
@@ -348,6 +390,10 @@ export async function generatePayoutVoucherAction(input: unknown): Promise<Actio
   const auth = await getSupabaseUser();
   if (auth.error) {
     return { ok: false, error: auth.error };
+  }
+  const permissionError = requireActionPermission(auth, "managePayouts");
+  if (permissionError) {
+    return { ok: false, error: permissionError };
   }
 
   if (!auth.supabase) {
@@ -447,6 +493,10 @@ export async function updateVoucherStatusAction(input: unknown): Promise<ActionR
   const auth = await getSupabaseUser();
   if (auth.error) {
     return { ok: false, error: auth.error };
+  }
+  const permissionError = requireActionPermission(auth, "managePayouts");
+  if (permissionError) {
+    return { ok: false, error: permissionError };
   }
 
   if (!auth.supabase) {

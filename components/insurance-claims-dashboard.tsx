@@ -1,8 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { ActionSelect, type ActionSelectOption } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
+import { openEmailDraft } from "@/lib/email";
 import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { shortDate, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
@@ -615,6 +617,7 @@ function StatementActions({
   onConfirm,
   onDownloadCsv,
   onDownloadPdf,
+  onEmail,
   onRecordPayment,
   onSubmit,
   onView,
@@ -627,69 +630,65 @@ function StatementActions({
   onConfirm: () => void;
   onDownloadCsv: () => void;
   onDownloadPdf: () => void;
+  onEmail: () => void;
   onRecordPayment: () => void;
   onSubmit: () => void;
   onView: () => void;
   showView?: boolean;
   statement: MonthlyStatement;
 }) {
+  const actions = [
+    showView
+      ? {
+          value: "view",
+          label: "View",
+          onSelect: onView
+        }
+      : null,
+    {
+      value: "pdf",
+      label: "Print / Save PDF",
+      onSelect: onDownloadPdf
+    },
+    {
+      value: "csv",
+      label: "Download CSV",
+      onSelect: onDownloadCsv
+    },
+    {
+      value: "email",
+      label: "Email Statement",
+      onSelect: onEmail
+    },
+    statement.status === "Draft" && canConfirm
+      ? {
+          value: "confirm",
+          label: "Confirm Statement",
+          onSelect: onConfirm
+        }
+      : null,
+    statement.status === "Confirmed" && canSubmit
+      ? {
+          value: "submit",
+          label: "Mark Submitted",
+          onSelect: onSubmit
+        }
+      : null,
+    ["Submitted", "Partially Paid", "Overdue"].includes(statement.status) && canRecordPayment
+      ? {
+          value: "payment",
+          label: statement.outstanding > 0 ? "Record Payment" : "Payment unavailable",
+          disabled: statement.outstanding <= 0,
+          onSelect: onRecordPayment
+        }
+      : null
+  ].filter((action): action is ActionSelectOption => Boolean(action));
+
   return (
-    <div className="flex min-w-[620px] flex-wrap gap-2">
-      {showView ? (
-        <button
-          type="button"
-          onClick={onView}
-          className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-        >
-          View
-        </button>
-      ) : null}
-      <button
-        type="button"
-        onClick={onDownloadPdf}
-        className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-      >
-        Download PDF
-      </button>
-      <button
-        type="button"
-        onClick={onDownloadCsv}
-        className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-      >
-        Download CSV
-      </button>
-      {statement.status === "Draft" && canConfirm ? (
-        <button
-          type="button"
-          onClick={onConfirm}
-          className={buttonClass("primary", "min-h-11 px-3 text-xs")}
-        >
-          Confirm Statement
-        </button>
-      ) : null}
-      {statement.status === "Confirmed" && canSubmit ? (
-        <button
-          type="button"
-          onClick={onSubmit}
-          className={buttonClass("primary", "min-h-11 px-3 text-xs")}
-        >
-          Mark Submitted
-        </button>
-      ) : null}
-      {["Submitted", "Partially Paid", "Overdue"].includes(statement.status) && canRecordPayment ? (
-        <button
-          type="button"
-          onClick={onRecordPayment}
-          disabled={statement.outstanding <= 0}
-          className={buttonClass(
-            statement.outstanding > 0 ? "success" : "muted",
-            "min-h-11 px-3 text-xs"
-          )}
-        >
-          Record Payment
-        </button>
-      ) : null}
-    </div>
+    <ActionSelect
+      ariaLabel={`Actions for ${statement.assistanceCompany} ${monthLabel(statement.month)} statement`}
+      actions={actions}
+    />
   );
 }
 
@@ -701,6 +700,7 @@ function StatementDetailsModal({
   onConfirm,
   onDownloadCsv,
   onDownloadPdf,
+  onEmail,
   onRecordPayment,
   onSubmit,
   statement
@@ -712,6 +712,7 @@ function StatementDetailsModal({
   onConfirm: () => void;
   onDownloadCsv: () => void;
   onDownloadPdf: () => void;
+  onEmail: () => void;
   onRecordPayment: () => void;
   onSubmit: () => void;
   statement: MonthlyStatement;
@@ -818,6 +819,7 @@ function StatementDetailsModal({
               onConfirm={onConfirm}
               onDownloadCsv={onDownloadCsv}
               onDownloadPdf={onDownloadPdf}
+              onEmail={onEmail}
               onRecordPayment={onRecordPayment}
               onSubmit={onSubmit}
               onView={() => undefined}
@@ -1214,6 +1216,31 @@ export function InsuranceClaimsDashboard({
     );
   }
 
+  function emailStatement(statement: MonthlyStatement) {
+    const company = companies.find((candidate) => candidate.id === statement.assistanceCompanyId);
+
+    openEmailDraft({
+      to: company?.email,
+      subject: `Health Aid Arugambay insurance statement - ${statement.assistanceCompany} ${monthLabel(statement.month)}`,
+      body: [
+        "Health Aid Arugambay",
+        "",
+        "Monthly Insurance Statement",
+        `Assistance company: ${statement.assistanceCompany}`,
+        `Statement month: ${monthLabel(statement.month)}`,
+        `Status: ${statement.status}`,
+        `Insurance patients: ${statement.insurancePatients}`,
+        `Invoices: ${statement.invoiceCount}`,
+        `Full invoice total: ${usdWhole(statement.fullInvoiceTotal)}`,
+        `Claim amount: ${usdWhole(statement.claimAmount)}`,
+        `Amount received: ${usdWhole(statement.amountReceived)}`,
+        `Outstanding: ${usdWhole(statement.outstanding)}`,
+        "",
+        "Please review the statement summary above."
+      ].join("\n")
+    });
+  }
+
   function upsertStatementRecord(
     statement: MonthlyStatement,
     update: Partial<MonthlyStatementRecord>
@@ -1433,6 +1460,7 @@ export function InsuranceClaimsDashboard({
       onConfirm={() => confirmStatement(statement)}
       onDownloadCsv={() => downloadStatementCsv(statement)}
       onDownloadPdf={() => downloadStatementPdf(statement)}
+      onEmail={() => emailStatement(statement)}
       onRecordPayment={() => openPaymentModal(statement)}
       onSubmit={() => submitStatement(statement)}
       onView={() => setSelectedStatementId(statement.id)}
@@ -1506,7 +1534,7 @@ export function InsuranceClaimsDashboard({
                   <th className="w-[38%] px-5 py-3">Company Name</th>
                   <th className="w-[18%] px-5 py-3 text-right">Default Claim %</th>
                   <th className="w-[16%] px-5 py-3">Status</th>
-                  <th className="w-[28%] px-5 py-3">Actions</th>
+                  <th className={tableStyles.actionHeaderCell}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efefef]">
@@ -1534,43 +1562,35 @@ export function InsuranceClaimsDashboard({
                             {company.active ? "Active" : "Inactive"}
                           </StatusPill>
                         </td>
-                        <td className={tableStyles.cell}>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedCompanyId(isExpanded ? "" : company.id)}
-                              className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-                            >
-                              {isExpanded ? "Hide Details" : "View Details"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => editCompany(company)}
-                              disabled={!canManageCompanies}
-                              className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleCompanyActive(company.id)}
-                              disabled={!canManageCompanies}
-                              className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-                            >
-                              {company.active ? "Deactivate" : "Activate"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteCompany(company)}
-                              disabled={!canManageCompanies || used}
-                              className={buttonClass(
-                                !used ? "danger" : "muted",
-                                "min-h-11 px-3 text-xs"
-                              )}
-                            >
-                              Delete
-                            </button>
-                          </div>
+                        <td className={tableStyles.actionCell}>
+                          <ActionSelect
+                            ariaLabel={`Actions for ${company.name}`}
+                            actions={[
+                              {
+                                value: "details",
+                                label: isExpanded ? "Hide Details" : "View Details",
+                                onSelect: () => setExpandedCompanyId(isExpanded ? "" : company.id)
+                              },
+                              {
+                                value: "edit",
+                                label: "Edit",
+                                disabled: !canManageCompanies,
+                                onSelect: () => editCompany(company)
+                              },
+                              {
+                                value: "toggle",
+                                label: company.active ? "Deactivate" : "Activate",
+                                disabled: !canManageCompanies,
+                                onSelect: () => toggleCompanyActive(company.id)
+                              },
+                              {
+                                value: "delete",
+                                label: used ? "Delete unavailable" : "Delete",
+                                disabled: !canManageCompanies || used,
+                                onSelect: () => deleteCompany(company)
+                              }
+                            ]}
+                          />
                         </td>
                       </tr>
                       {isExpanded ? (
@@ -1662,7 +1682,7 @@ export function InsuranceClaimsDashboard({
                 <th className={tableStyles.numericHeaderCell}>Amount Received USD</th>
                 <th className={tableStyles.numericHeaderCell}>Outstanding USD</th>
                 <th className={tableStyles.headerCell}>Statement Status</th>
-                <th className={tableStyles.headerCell}>Actions</th>
+                <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -1695,7 +1715,7 @@ export function InsuranceClaimsDashboard({
                       {statement.status}
                     </StatusPill>
                   </td>
-                  <td className={tableStyles.cell}>
+                  <td className={tableStyles.actionCell}>
                     {renderStatementActions(statement)}
                   </td>
                 </tr>
@@ -1765,6 +1785,7 @@ export function InsuranceClaimsDashboard({
           onConfirm={() => confirmStatement(selectedStatement)}
           onDownloadCsv={() => downloadStatementCsv(selectedStatement)}
           onDownloadPdf={() => downloadStatementPdf(selectedStatement)}
+          onEmail={() => emailStatement(selectedStatement)}
           onRecordPayment={() => openPaymentModal(selectedStatement)}
           onSubmit={() => submitStatement(selectedStatement)}
           statement={selectedStatement}

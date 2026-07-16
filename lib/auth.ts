@@ -8,7 +8,7 @@ import type { AppUser, Role } from "@/lib/types";
 
 export { hasPermission, roleLabels };
 
-function normalizeRole(value?: string): Role {
+export function normalizeRole(value?: string): Role {
   if (value === "admin") {
     return "administrator";
   }

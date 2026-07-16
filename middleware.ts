@@ -6,11 +6,13 @@ import { isSupabaseConfigured, withSupabaseTimeout } from "@/lib/supabase/config
 const protectedRoutes = [
   "/dashboard",
   "/invoices",
+  "/insurance-claims",
   "/services",
   "/doctors",
   "/doctor-portal",
   "/payouts",
-  "/reports"
+  "/reports",
+  "/users"
 ];
 
 export async function middleware(request: NextRequest) {

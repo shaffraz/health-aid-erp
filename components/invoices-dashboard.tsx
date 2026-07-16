@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ActionSelect } from "@/components/action-select";
 import { buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
+import { openEmailDraft } from "@/lib/email";
 import { shortDate, usdWhole } from "@/lib/format";
 import {
   isAmountOnlyInvoiceServiceName,
@@ -96,6 +98,28 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
 </html>`;
 }
 
+function buildInvoiceEmail(invoice: Invoice, doctorName: string) {
+  const isInsurance = invoice.paymentMethod === "insurance";
+
+  return [
+    "Health Aid Arugambay",
+    "",
+    `Invoice: ${invoice.invoiceNo}`,
+    `Date: ${invoice.date}${invoice.time ? ` ${invoice.time}` : ""}`,
+    `Patient: ${invoice.patientName}`,
+    `Passport / ID: ${invoice.passport ?? "N/A"}`,
+    `Doctor: ${doctorName}`,
+    `Payment method: ${paymentTypeLabels[invoice.paymentMethod]}`,
+    isInsurance ? `Assistance company: ${invoice.assistanceCompanyName ?? "N/A"}` : "",
+    `Invoice total: ${usdWhole(invoice.totalAmount)}`,
+    isInsurance ? `Claim amount: ${usdWhole(invoice.claimAmount ?? 0)}` : "",
+    "",
+    "Please find the invoice details above."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function clinicalItems(invoice: Invoice) {
   return invoice.items.filter((item) => !isAmountOnlyInvoiceServiceName(item.serviceName));
 }
@@ -130,12 +154,14 @@ function InvoiceDetailsModal({
   invoice,
   onClose,
   onDownload,
+  onEmail,
   onPrint
 }: {
   doctorName: string;
   invoice: Invoice;
   onClose: () => void;
   onDownload: () => void;
+  onEmail: () => void;
   onPrint: () => void;
 }) {
   const clinicalTotal = totalForItems(clinicalItems(invoice));
@@ -254,7 +280,10 @@ function InvoiceDetailsModal({
             Print
           </button>
           <button type="button" onClick={onDownload} className={buttonClass("primary", "min-h-12")}>
-            Download PDF
+            Print / Save PDF
+          </button>
+          <button type="button" onClick={onEmail} className={buttonClass("secondary", "min-h-12")}>
+            Email Invoice
           </button>
           <button type="button" onClick={onClose} className={buttonClass("secondary", "min-h-12")}>
             Close
@@ -301,7 +330,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
     return doctors.find((candidate) => candidate.id === invoice.doctorId)?.name ?? "Unassigned";
   }
 
-  function downloadInvoicePdf(invoice: Invoice) {
+  function printInvoiceDocument(invoice: Invoice) {
     const printWindow = window.open("", "_blank", "noopener,noreferrer");
 
     if (!printWindow) {
@@ -312,6 +341,14 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
+  }
+
+  function emailInvoice(invoice: Invoice) {
+    openEmailDraft({
+      to: invoice.email,
+      subject: `Health Aid Arugambay invoice ${invoice.invoiceNo}`,
+      body: buildInvoiceEmail(invoice, doctorNameForInvoice(invoice))
+    });
   }
 
   function clearFilters() {
@@ -389,7 +426,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
                 <th className={tableStyles.headerCell}>Doctor</th>
                 <th className={tableStyles.headerCell}>Payment Type</th>
                 <th className={tableStyles.numericHeaderCell}>Total USD</th>
-                <th className={tableStyles.headerCell}>Actions</th>
+                <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -414,23 +451,27 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
                     </StatusPill>
                   </td>
                   <td className={tableStyles.numericCell}>{usdWhole(invoice.totalAmount)}</td>
-                  <td className={tableStyles.cell}>
-                    <div className="flex min-w-[210px] flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedInvoice(invoice)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadInvoicePdf(invoice)}
-                        className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                      >
-                        Download PDF
-                      </button>
-                    </div>
+                  <td className={tableStyles.actionCell}>
+                    <ActionSelect
+                      ariaLabel={`Actions for invoice ${invoice.invoiceNo}`}
+                      actions={[
+                        {
+                          value: "view",
+                          label: "View",
+                          onSelect: () => setSelectedInvoice(invoice)
+                        },
+                        {
+                          value: "print",
+                          label: "Print / Save PDF",
+                          onSelect: () => printInvoiceDocument(invoice)
+                        },
+                        {
+                          value: "email",
+                          label: "Email Invoice",
+                          onSelect: () => emailInvoice(invoice)
+                        }
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -451,8 +492,9 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
           invoice={selectedInvoice}
           doctorName={doctorNameForInvoice(selectedInvoice)}
           onClose={() => setSelectedInvoice(null)}
-          onDownload={() => downloadInvoicePdf(selectedInvoice)}
-          onPrint={() => downloadInvoicePdf(selectedInvoice)}
+          onDownload={() => printInvoiceDocument(selectedInvoice)}
+          onEmail={() => emailInvoice(selectedInvoice)}
+          onPrint={() => printInvoiceDocument(selectedInvoice)}
         />
       ) : null}
     </div>

@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
 import {
   defaultDoctorPaymentModel,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
-import { money, monthKey, shortDate, todayISO } from "@/lib/format";
+import { money, monthKey, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
   doctorPaymentSettingsStorageKey,
@@ -156,20 +157,11 @@ export function DoctorsAdmin({
   }, [initialInvoices, paymentSettings, payouts]);
 
   const payoutSummaryByDoctor = useMemo(() => {
-    return visiblePayouts.reduce<
-      Map<string, { pending: number; lastPaidDate?: string }>
-    >((totals, payout) => {
+    return visiblePayouts.reduce<Map<string, { pending: number }>>((totals, payout) => {
       const summary = totals.get(payout.doctorId) ?? { pending: 0 };
 
       if (payout.status === "unpaid") {
         summary.pending += payout.payoutAmount;
-      }
-
-      if (
-        payout.status === "paid" &&
-        (!summary.lastPaidDate || payout.date > summary.lastPaidDate)
-      ) {
-        summary.lastPaidDate = payout.date;
       }
 
       totals.set(payout.doctorId, summary);
@@ -573,13 +565,15 @@ export function DoctorsAdmin({
                 <th className={tableStyles.headerCell}>Phone</th>
                 <th className={tableStyles.headerCell}>Status</th>
                 <th className={tableStyles.numericHeaderCell}>Pending payout LKR</th>
-                <th className={tableStyles.headerCell}>Last payout date</th>
-                <th className={tableStyles.numericHeaderCell}>Actions</th>
+                <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
               {doctors.map((doctor) => {
                 const summary = payoutSummaryByDoctor.get(doctor.id);
+                const doctorIsUsed =
+                  initialInvoices.some((invoice) => invoice.doctorId === doctor.id) ||
+                  visiblePayouts.some((payout) => payout.doctorId === doctor.id);
 
                 return (
                   <tr key={doctor.id} className={tableStyles.row}>
@@ -610,43 +604,37 @@ export function DoctorsAdmin({
                     <td className={tableStyles.numericCell}>
                       {money(summary?.pending ?? 0)}
                     </td>
-                    <td className={tableStyles.cell}>
-                      {summary?.lastPaidDate ? shortDate(summary.lastPaidDate) : "-"}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => editDoctor(doctor)}
-                          disabled={!canEdit}
-                          className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleDoctorActive(doctor.id)}
-                          disabled={!canEdit}
-                          className={buttonClass("secondary", "px-3 py-2 text-xs")}
-                        >
-                          {doctor.active ? "Deactivate" : "Reactivate"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteDoctor(doctor.id)}
-                          disabled={!canEdit}
-                          className={buttonClass("danger", "px-3 py-2 text-xs")}
-                        >
-                          Delete
-                        </button>
-                      </div>
+                    <td className={tableStyles.actionCell}>
+                      <ActionSelect
+                        ariaLabel={`Actions for ${doctor.name}`}
+                        actions={[
+                          {
+                            value: "edit",
+                            label: "Edit",
+                            disabled: !canEdit,
+                            onSelect: () => editDoctor(doctor)
+                          },
+                          {
+                            value: "toggle",
+                            label: doctor.active ? "Deactivate" : "Reactivate",
+                            disabled: !canEdit,
+                            onSelect: () => toggleDoctorActive(doctor.id)
+                          },
+                          {
+                            value: "delete",
+                            label: doctorIsUsed ? "Delete unavailable" : "Delete",
+                            disabled: !canEdit || doctorIsUsed,
+                            onSelect: () => deleteDoctor(doctor.id)
+                          }
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
               })}
               {!doctors.length ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
                     No doctors have been added yet.
                   </td>
                 </tr>

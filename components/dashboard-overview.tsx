@@ -28,6 +28,7 @@ import {
   type Service,
   type ServiceCategory
 } from "@/lib/types";
+import { currentOperatingSeason, isWithinSeason } from "@/lib/season";
 import { cn } from "@/lib/utils";
 
 type DashboardOverviewProps = {
@@ -328,10 +329,13 @@ export function DashboardOverview({
 
   const today = todayISO();
   const selectedMonth = today.slice(0, 7);
+  const currentSeason = currentOperatingSeason(today);
   const comparisonYears = ["2025", "2026"];
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === selectedMonth);
   const todayInvoices = invoices.filter((invoice) => invoice.date === today);
-  const currentSeasonInvoices = invoices;
+  const currentSeasonInvoices = invoices.filter((invoice) =>
+    isWithinSeason(invoice.date, currentSeason)
+  );
 
   const visiblePayouts = useMemo(() => {
     const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
@@ -523,6 +527,7 @@ export function DashboardOverview({
           <KpiCard
             label="Current Season Revenue (USD)"
             value={usdWhole(currentSeasonRevenue)}
+            helper={`${currentSeason.label}: ${currentSeason.fromDate} to ${currentSeason.toDate}`}
             tone="primary"
           />
         </div>

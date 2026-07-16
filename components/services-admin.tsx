@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
+import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount } from "@/lib/calculations";
-import { money, usd } from "@/lib/format";
+import { money, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
   isPayoutEligibleCategory,
@@ -160,6 +161,18 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
     };
   }, [invoices, services]);
 
+  const usageCountByService = useMemo(() => {
+    const usage = new Map<string, number>();
+
+    invoices.forEach((invoice) => {
+      invoice.items.forEach((item) => {
+        usage.set(item.serviceId, (usage.get(item.serviceId) ?? 0) + 1);
+      });
+    });
+
+    return usage;
+  }, [invoices]);
+
   const editing = Boolean(form.id);
   const categoryCanPayout = isPayoutEligibleCategory(form.category);
 
@@ -270,7 +283,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
           value={serviceMetrics.highestRevenueService?.service.name ?? "-"}
           helper={
             serviceMetrics.highestRevenueService
-              ? usd(serviceMetrics.highestRevenueService.value)
+              ? usdWhole(serviceMetrics.highestRevenueService.value)
               : "No invoice revenue"
           }
           tone="success"
@@ -366,11 +379,14 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                           <th className={tableStyles.headerCell}>Doctor Payout Eligible</th>
                           <th className={tableStyles.numericHeaderCell}>Doctor Payout Amount LKR</th>
                           <th className={tableStyles.headerCell}>Status</th>
-                          <th className={tableStyles.headerCell}>Actions</th>
+                          <th className={tableStyles.actionHeaderCell}>Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#efefef]">
-                        {groupServices.map((service) => (
+                        {groupServices.map((service) => {
+                          const serviceIsUsed = (usageCountByService.get(service.id) ?? 0) > 0;
+
+                          return (
                           <tr key={service.id} className={tableStyles.row}>
                             <td className={tableStyles.strongCell}>
                               <p>{service.name}</p>
@@ -378,7 +394,9 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                                 {service.category}
                               </p>
                             </td>
-                            <td className={tableStyles.numericCell}>{usd(service.sellingPrice)}</td>
+                            <td className={tableStyles.numericCell}>
+                              {usdWhole(service.sellingPrice)}
+                            </td>
                             <td className={tableStyles.cell}>
                               {service.payoutEnabled && service.defaultPayoutValue > 0 ? "Yes" : "No"}
                             </td>
@@ -388,46 +406,34 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                                 {service.active ? "Active" : "Inactive"}
                               </StatusPill>
                             </td>
-                            <td className={tableStyles.cell}>
-                              <div className="flex min-w-[260px] flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => editService(service)}
-                                  disabled={!canEdit}
-                                  className={buttonClass(
-                                    canEdit ? "secondary" : "muted",
-                                    "min-h-11 px-3 text-xs"
-                                  )}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleServiceActive(service.id)}
-                                  disabled={!canEdit}
-                                  className={buttonClass(
-                                    canEdit ? "secondary" : "muted",
-                                    "min-h-11 px-3 text-xs"
-                                  )}
-                                >
-                                  {service.active ? "Deactivate" : "Activate"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => deleteService(service.id)}
-                                  disabled={!canEdit}
-                                  title="Delete service"
-                                  className={buttonClass(
-                                    canEdit ? "danger" : "muted",
-                                    "min-h-11 px-3 text-xs"
-                                  )}
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                            <td className={tableStyles.actionCell}>
+                              <ActionSelect
+                                ariaLabel={`Actions for ${service.name}`}
+                                actions={[
+                                  {
+                                    value: "edit",
+                                    label: "Edit",
+                                    disabled: !canEdit,
+                                    onSelect: () => editService(service)
+                                  },
+                                  {
+                                    value: "toggle",
+                                    label: service.active ? "Deactivate" : "Activate",
+                                    disabled: !canEdit,
+                                    onSelect: () => toggleServiceActive(service.id)
+                                  },
+                                  {
+                                    value: "delete",
+                                    label: serviceIsUsed ? "Delete unavailable" : "Delete",
+                                    disabled: !canEdit || serviceIsUsed,
+                                    onSelect: () => deleteService(service.id)
+                                  }
+                                ]}
+                              />
                             </td>
                           </tr>
-                        ))}
+                        );
+                        })}
                         {!groupServices.length ? (
                           <tr>
                             <td

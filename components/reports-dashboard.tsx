@@ -1,33 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BarChart3, CalendarDays, Download, ReceiptText, Stethoscope } from "lucide-react";
-import { KpiCard, tableStyles } from "@/components/erp-ui";
-import { MetricCard } from "@/components/metric-card";
+import { buttonClass, KpiCard, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount, invoiceRevenueAmount } from "@/lib/calculations";
-import { money, monthKey, shortDate, todayISO, usd, usdWhole } from "@/lib/format";
-import type {
-  Doctor,
-  DoctorPayout,
-  InsuranceReceivable,
-  Invoice,
-  ServiceCategory
-} from "@/lib/types";
+import { monthKey, todayISO, usdWhole } from "@/lib/format";
+import type { Invoice, PaymentMethod, ServiceCategory } from "@/lib/types";
 
 type ReportsDashboardProps = {
-  doctors: Doctor[];
   invoices: Invoice[];
-  payouts: DoctorPayout[];
-  insuranceReceivables: InsuranceReceivable[];
 };
 
-const receivableStatusTones = {
-  Pending: "amber",
-  "Partially Paid": "cyan",
-  Paid: "green",
-  Overdue: "red"
-} satisfies Record<InsuranceReceivable["status"], "green" | "amber" | "cyan" | "red">;
+const paymentLabels: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  bank_transfer: "Bank transfer",
+  insurance: "Insurance",
+  other: "Other"
+};
 
 function downloadCsv(fileName: string, rows: string[][]) {
   const csv = rows
@@ -44,41 +34,35 @@ function downloadCsv(fileName: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-export function ReportsDashboard({
-  doctors,
-  invoices,
-  payouts,
-  insuranceReceivables
-}: ReportsDashboardProps) {
+function average(values: number[]) {
+  if (!values.length) {
+    return 0;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
   const [date, setDate] = useState(todayISO());
   const [month, setMonth] = useState(todayISO().slice(0, 7));
-  const invoiceUsd = (value: number) => usd(value);
 
   const dailyInvoices = invoices.filter((invoice) => invoice.date === date);
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === month);
-  const monthlyPayouts = payouts.filter(
-    (payout) => monthKey(payout.date) === month && payout.payoutMode !== "pending_shift"
+  const dailyRevenue = dailyInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
   );
-
-  function receivableClaimTotal(receivable: InsuranceReceivable) {
-    const matchedInvoices = invoices.filter(
-      (invoice) =>
-        invoice.paymentMethod === "insurance" && receivable.invoices.includes(invoice.invoiceNo)
-    );
-
-    if (matchedInvoices.length) {
-      return matchedInvoices.reduce((sum, invoice) => sum + invoiceRevenueAmount(invoice), 0);
-    }
-
-    return receivable.totalBilled;
-  }
-
-  function receivableOutstanding(receivable: InsuranceReceivable) {
-    return Math.max(0, receivableClaimTotal(receivable) - receivable.paidAmount);
-  }
+  const monthlyRevenue = monthlyInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
+  );
+  const monthlyAverageInvoiceValue = average(
+    monthlyInvoices.map((invoice) => invoiceRevenueAmount(invoice))
+  );
 
   const categoryIncome = useMemo(() => {
     const totals = new Map<ServiceCategory, number>();
+
     monthlyInvoices.forEach((invoice) => {
       invoice.items.forEach((item) => {
         totals.set(
@@ -90,365 +74,142 @@ export function ReportsDashboard({
 
     return [...totals.entries()]
       .map(([category, total]) => ({ category, total }))
+      .filter((item) => item.total > 0)
       .sort((a, b) => b.total - a.total);
   }, [monthlyInvoices]);
 
-  const doctorSummary = useMemo(
-    () =>
-      doctors.map((doctor) => {
-        const doctorPayouts = monthlyPayouts.filter((payout) => payout.doctorId === doctor.id);
-        const paid = doctorPayouts
-          .filter((payout) => payout.status === "paid")
-          .reduce((sum, payout) => sum + payout.payoutAmount, 0);
-        const unpaid = doctorPayouts
-          .filter((payout) => payout.status === "unpaid")
-          .reduce((sum, payout) => sum + payout.payoutAmount, 0);
+  const maxCategoryIncome = Math.max(...categoryIncome.map((item) => item.total), 1);
 
-        return {
-          doctor,
-          total: paid + unpaid,
-          paid,
-          unpaid,
-          count: doctorPayouts.length
-        };
-      }),
-    [doctors, monthlyPayouts]
-  );
-
-  const dailySales = dailyInvoices.reduce(
-    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
-    0
-  );
-  const monthlySales = monthlyInvoices.reduce(
-    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
-    0
-  );
-  const monthlyPaid = monthlyPayouts
-    .filter((payout) => payout.status === "paid")
-    .reduce((sum, payout) => sum + payout.payoutAmount, 0);
-  const monthlyUnpaid = monthlyPayouts
-    .filter((payout) => payout.status === "unpaid")
-    .reduce((sum, payout) => sum + payout.payoutAmount, 0);
-  const maxCategory = Math.max(...categoryIncome.map((item) => item.total), 1);
-  const monthlyInsuranceReceivables = insuranceReceivables.filter(
-    (receivable) => monthKey(receivable.billedDate) === month
-  );
-  const insuranceBilledThisMonth = monthlyInsuranceReceivables.reduce(
-    (sum, receivable) => sum + receivableClaimTotal(receivable),
-    0
-  );
-  const insurancePaidThisMonth = insuranceReceivables
-    .filter((receivable) => receivable.paidDate && monthKey(receivable.paidDate) === month)
-    .reduce((sum, receivable) => sum + receivable.paidAmount, 0);
-  const insuranceOutstanding = monthlyInsuranceReceivables.reduce(
-    (sum, receivable) => sum + receivableOutstanding(receivable),
-    0
-  );
-  const overdueInsuranceReceivables = monthlyInsuranceReceivables
-    .filter((receivable) => receivable.status === "Overdue")
-    .reduce((sum, receivable) => sum + receivableOutstanding(receivable), 0);
-
-  function exportMonthlyDoctorPayments() {
-    downloadCsv("monthly-doctor-payment-report.csv", [
-      ["Doctor", "Month", "Records", "Paid", "Unpaid", "Total"],
-      ...doctorSummary.map((summary) => [
-        summary.doctor.name,
-        month,
-        String(summary.count),
-        String(summary.paid),
-        String(summary.unpaid),
-        String(summary.total)
-      ])
+  function exportMonthlyRevenue() {
+    downloadCsv("monthly-revenue-report.csv", [
+      ["Invoice", "Date", "Patient", "Payment Method", "Recognized Revenue USD"],
+      ...monthlyInvoices.map((invoice) => [
+        invoice.invoiceNo,
+        invoice.date,
+        invoice.patientName,
+        paymentLabels[invoice.paymentMethod],
+        String(invoiceRevenueAmount(invoice))
+      ]),
+      ["Total", month, "", "", String(monthlyRevenue)]
     ]);
   }
 
   return (
     <div className="space-y-6">
       <section className="panel p-5">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto] md:items-end">
           <div>
             <label className="label" htmlFor="report-date">
-              Daily report date
+              Daily Report Date
             </label>
             <input
               id="report-date"
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="field mt-2"
+              className="field mt-2 min-h-12"
             />
           </div>
           <div>
             <label className="label" htmlFor="report-month">
-              Monthly report
+              Monthly Report
             </label>
             <input
               id="report-month"
               type="month"
               value={month}
               onChange={(event) => setMonth(event.target.value)}
-              className="field mt-2"
+              className="field mt-2 min-h-12"
             />
           </div>
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={exportMonthlyDoctorPayments}
-              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              Export monthly CSV
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={exportMonthlyRevenue}
+            className={buttonClass("primary", "min-h-12 px-5")}
+          >
+            Export Monthly CSV
+          </button>
         </div>
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Daily revenue"
-          value={invoiceUsd(dailySales)}
-          helper={`${dailyInvoices.length} invoices on ${shortDate(date)}`}
-          icon={CalendarDays}
-          tone="lagoon"
-        />
-        <MetricCard
-          label="Monthly revenue"
-          value={invoiceUsd(monthlySales)}
-          helper={`${monthlyInvoices.length} invoices in selected month`}
-          icon={ReceiptText}
-          tone="care"
-        />
-        <MetricCard
-          label="Paid payouts"
-          value={money(monthlyPaid)}
-          helper="Paid doctor earnings this month"
-          icon={Stethoscope}
-          tone="ink"
-        />
-        <MetricCard
-          label="Unpaid payouts"
-          value={money(monthlyUnpaid)}
-          helper="Outstanding doctor payout liability"
-          icon={BarChart3}
-          tone="amber"
+        <KpiCard label="Daily Revenue USD" value={usdWhole(dailyRevenue)} tone="info" />
+        <KpiCard label="Daily Invoices" value={String(dailyInvoices.length)} />
+        <KpiCard label="Monthly Revenue USD" value={usdWhole(monthlyRevenue)} tone="success" />
+        <KpiCard
+          label="Average Invoice Value USD"
+          value={usdWhole(monthlyAverageInvoiceValue)}
+          tone="primary"
         />
       </div>
 
-      <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] p-5">
-          <h2 className="font-semibold text-[#224770]">Insurance Outstanding Receivables</h2>
-        </div>
-        <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            label="Insurance Billed This Month"
-            value={usdWhole(insuranceBilledThisMonth)}
-            tone="info"
-            className="min-h-28"
-          />
-          <KpiCard
-            label="Insurance Paid This Month"
-            value={usdWhole(insurancePaidThisMonth)}
-            tone="success"
-            className="min-h-28"
-          />
-          <KpiCard
-            label="Insurance Outstanding"
-            value={usdWhole(insuranceOutstanding)}
-            tone="warning"
-            className="min-h-28"
-          />
-          <KpiCard
-            label="Overdue Insurance Receivables"
-            value={usdWhole(overdueInsuranceReceivables)}
-            tone="danger"
-            className="min-h-28"
-          />
-        </div>
-        <div className={tableStyles.wrapper}>
-          <table className={tableStyles.table}>
-            <thead className={tableStyles.head}>
-              <tr>
-                <th className={tableStyles.headerCell}>Insurance company</th>
-                <th className={tableStyles.headerCell}>Patients</th>
-                <th className={tableStyles.headerCell}>Invoices</th>
-                <th className={tableStyles.numericHeaderCell}>Total billed USD</th>
-                <th className={tableStyles.numericHeaderCell}>Paid amount USD</th>
-                <th className={tableStyles.numericHeaderCell}>Outstanding amount USD</th>
-                <th className={tableStyles.headerCell}>Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefef]">
-              {monthlyInsuranceReceivables.map((receivable) => (
-                <tr key={receivable.id} className={tableStyles.row}>
-                  <td className={tableStyles.strongCell}>{receivable.insuranceCompany}</td>
-                  <td className={tableStyles.cell}>
-                    <p>{receivable.patients.join(", ")}</p>
-                    <p className="mt-1 text-xs text-[#46484a]">
-                      {receivable.patients.length} patient{receivable.patients.length === 1 ? "" : "s"}
-                    </p>
-                  </td>
-                  <td className={tableStyles.cell}>
-                    <p>{receivable.invoices.join(", ")}</p>
-                    <p className="mt-1 text-xs text-[#46484a]">
-                      Billed {shortDate(receivable.billedDate)}
-                    </p>
-                  </td>
-                  <td className={tableStyles.numericCell}>{usdWhole(receivableClaimTotal(receivable))}</td>
-                  <td className={tableStyles.numericCell}>{usdWhole(receivable.paidAmount)}</td>
-                  <td className={tableStyles.numericCell}>
-                    {usdWhole(receivableOutstanding(receivable))}
-                  </td>
-                  <td className={tableStyles.cell}>
-                    <StatusPill tone={receivableStatusTones[receivable.status]}>
-                      {receivable.status}
-                    </StatusPill>
-                  </td>
-                </tr>
-              ))}
-              {!monthlyInsuranceReceivables.length ? (
-                <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={7}>
-                    No insurance receivables for the selected month.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <section className="panel p-5">
-          <h2 className="font-semibold text-ink">Income by category</h2>
-          <p className="mt-1 text-sm text-slate-500">Based on monthly recognized invoice revenue.</p>
+          <h2 className="font-semibold text-[#224770]">Income by Category</h2>
           <div className="mt-5 space-y-4">
             {categoryIncome.map((item) => (
               <div key={item.category}>
                 <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                  <span className="font-medium text-ink">{item.category}</span>
-                  <span className="font-semibold text-lagoon-700">{invoiceUsd(item.total)}</span>
+                  <span className="font-medium text-[#224770]">{item.category}</span>
+                  <span className="font-semibold text-[#224770]">{usdWhole(item.total)}</span>
                 </div>
-                <div className="h-2 rounded-full bg-slate-100">
+                <div className="h-2 rounded-full bg-[#efefef]">
                   <div
-                    className="h-2 rounded-full bg-lagoon-600"
-                    style={{ width: `${Math.max(8, (item.total / maxCategory) * 100)}%` }}
+                    className="h-2 rounded-full bg-[#0eb6ef]"
+                    style={{ width: `${Math.max(8, (item.total / maxCategoryIncome) * 100)}%` }}
                   />
                 </div>
               </div>
             ))}
+            {!categoryIncome.length ? (
+              <p className="rounded-lg bg-[#efefef] p-4 text-sm font-semibold text-[#46484a]">
+                No income recorded for the selected month.
+              </p>
+            ) : null}
           </div>
         </section>
 
         <section className="panel overflow-hidden">
-          <div className="border-b border-slate-100 p-5">
-            <h2 className="font-semibold text-ink">Daily invoice list</h2>
-            <p className="mt-1 text-sm text-slate-500">Sales for the selected day.</p>
+          <div className="border-b border-[#efefef] p-5">
+            <h2 className="font-semibold text-[#224770]">Daily Invoice List</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <div className={tableStyles.wrapper}>
+            <table className={tableStyles.table}>
+              <thead className={tableStyles.head}>
                 <tr>
-                  <th className="px-5 py-3">Invoice</th>
-                  <th className="px-5 py-3">Patient</th>
-                  <th className="px-5 py-3">Payment</th>
-                  <th className="px-5 py-3 text-right">Revenue</th>
+                  <th className={tableStyles.headerCell}>Invoice</th>
+                  <th className={tableStyles.headerCell}>Patient</th>
+                  <th className={tableStyles.headerCell}>Payment</th>
+                  <th className={tableStyles.numericHeaderCell}>Revenue USD</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#efefef]">
                 {dailyInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="whitespace-nowrap px-5 py-4 font-semibold text-ink">{invoice.invoiceNo}</td>
-                    <td className="px-5 py-4 text-slate-600">{invoice.patientName}</td>
-                    <td className="px-5 py-4">
-                      <StatusPill tone="cyan">{invoice.paymentMethod.replace("_", " ")}</StatusPill>
+                  <tr key={invoice.id} className={tableStyles.row}>
+                    <td className={tableStyles.strongCell}>{invoice.invoiceNo}</td>
+                    <td className={tableStyles.cell}>{invoice.patientName}</td>
+                    <td className={tableStyles.cell}>
+                      <StatusPill tone={invoice.paymentMethod === "insurance" ? "cyan" : "slate"}>
+                        {paymentLabels[invoice.paymentMethod]}
+                      </StatusPill>
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
-                      {invoiceUsd(invoiceRevenueAmount(invoice))}
+                    <td className={tableStyles.numericCell}>
+                      {usdWhole(invoiceRevenueAmount(invoice))}
                     </td>
                   </tr>
                 ))}
+                {!dailyInvoices.length ? (
+                  <tr>
+                    <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={4}>
+                      No invoices found for the selected date.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
         </section>
       </div>
-
-      <section className="panel overflow-hidden">
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-ink">Doctor payout summary</h2>
-          <p className="mt-1 text-sm text-slate-500">Paid, unpaid, and monthly doctor payment totals.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                <th className="px-5 py-3">Doctor</th>
-                <th className="px-5 py-3 text-right">Records</th>
-                <th className="px-5 py-3 text-right">Paid</th>
-                <th className="px-5 py-3 text-right">Unpaid</th>
-                <th className="px-5 py-3 text-right">Monthly total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {doctorSummary.map((summary) => (
-                <tr key={summary.doctor.id}>
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-ink">{summary.doctor.name}</p>
-                    <p className="text-xs text-slate-500">{summary.doctor.designation}</p>
-                  </td>
-                  <td className="px-5 py-4 text-right text-slate-600">{summary.count}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-care-700">{money(summary.paid)}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-amber-700">{money(summary.unpaid)}</td>
-                  <td className="px-5 py-4 text-right font-bold text-ink">{money(summary.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="panel overflow-hidden">
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-ink">Paid and unpaid payout report</h2>
-          <p className="mt-1 text-sm text-slate-500">Invoice-wise payout status for the selected month.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                <th className="px-5 py-3">Date</th>
-                <th className="px-5 py-3">Invoice</th>
-                <th className="px-5 py-3">Doctor</th>
-                <th className="px-5 py-3">Service</th>
-                <th className="px-5 py-3 text-right">Amount</th>
-                <th className="px-5 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {monthlyPayouts.map((payout) => {
-                const doctor = doctors.find((candidate) => candidate.id === payout.doctorId);
-
-                return (
-                  <tr key={payout.id}>
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">{shortDate(payout.date)}</td>
-                    <td className="whitespace-nowrap px-5 py-4 font-semibold text-ink">{payout.invoiceNo}</td>
-                    <td className="px-5 py-4 text-slate-600">{doctor?.name}</td>
-                    <td className="px-5 py-4 text-slate-600">{payout.serviceName}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
-                      {money(payout.payoutAmount)}
-                    </td>
-                    <td className="px-5 py-4">
-                      <StatusPill tone={payout.status === "paid" ? "green" : "amber"}>
-                        {payout.status}
-                      </StatusPill>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }

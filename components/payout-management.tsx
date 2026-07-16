@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { generatePayoutVoucherAction, updateVoucherStatusAction } from "@/lib/actions";
+import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
+import { openEmailDraft } from "@/lib/email";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import type { Doctor, DoctorPayout, PayoutVoucher } from "@/lib/types";
@@ -236,6 +238,34 @@ export function PayoutManagement({
     URL.revokeObjectURL(url);
   }
 
+  function emailVoucher() {
+    if (!selectedVoucher) {
+      return;
+    }
+
+    const doctor = doctors.find((candidate) => candidate.id === selectedVoucher.doctorId);
+    const voucherPayouts = payouts.filter((payout) => selectedVoucher.payoutIds.includes(payout.id));
+
+    openEmailDraft({
+      subject: `Health Aid Arugambay payout voucher ${selectedVoucher.voucherNo}`,
+      body: [
+        "Health Aid Arugambay",
+        "",
+        `Doctor payout voucher: ${selectedVoucher.voucherNo}`,
+        `Doctor: ${doctor?.name ?? "Unknown doctor"}`,
+        `Period: ${selectedVoucher.periodStart} to ${selectedVoucher.periodEnd}`,
+        `Status: ${selectedVoucher.status}`,
+        `Total: ${lkr(selectedVoucher.totalAmount)}`,
+        "",
+        "Payout records:",
+        ...voucherPayouts.map(
+          (payout) =>
+            `${payout.invoiceNo} | ${payout.paymentReason} | ${lkr(payout.payoutAmount)}`
+        )
+      ].join("\n")
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -448,31 +478,34 @@ export function PayoutManagement({
                     placeholder={selectedVoucher.notes ?? "Payment notes"}
                   />
                 </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() => markVoucher("paid")}
-                    disabled={!canEdit || pending}
-                    className={buttonClass(canEdit ? "success" : "muted", "px-3 py-2")}
-                  >
-                    Paid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => markVoucher("unpaid")}
-                    disabled={!canEdit || pending}
-                    className={buttonClass(canEdit ? "secondary" : "muted", "px-3 py-2")}
-                  >
-                    Unpaid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={downloadVoucherPdf}
-                    className={buttonClass("primary", "px-3 py-2")}
-                  >
-                    PDF
-                  </button>
-                </div>
+                <ActionSelect
+                  ariaLabel={`Actions for voucher ${selectedVoucher.voucherNo}`}
+                  className="justify-start"
+                  actions={[
+                    {
+                      value: "paid",
+                      label: "Mark Paid",
+                      disabled: !canEdit || pending,
+                      onSelect: () => markVoucher("paid")
+                    },
+                    {
+                      value: "unpaid",
+                      label: "Mark Unpaid",
+                      disabled: !canEdit || pending,
+                      onSelect: () => markVoucher("unpaid")
+                    },
+                    {
+                      value: "pdf",
+                      label: "Download PDF",
+                      onSelect: downloadVoucherPdf
+                    },
+                    {
+                      value: "email",
+                      label: "Email Voucher",
+                      onSelect: emailVoucher
+                    }
+                  ]}
+                />
               </>
             ) : (
               <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">

@@ -17,12 +17,7 @@ export default async function ReportsPage() {
       <SectionHeader
         title="Reports"
       />
-      <ReportsDashboard
-        doctors={data.doctors}
-        invoices={data.invoices}
-        payouts={data.payouts}
-        insuranceReceivables={data.insuranceReceivables}
-      />
+      <ReportsDashboard invoices={data.invoices} />
     </div>
   );
 }

@@ -4,8 +4,8 @@ import { cryptoUuidPolyfill } from "@/lib/crypto-polyfill";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Health Aid Arugambay ERP POS",
-  description: "Secure healthcare ERP POS for Health Aid Arugambay"
+  title: "Health Aid Arugambay ERP",
+  description: "Secure healthcare ERP for Health Aid Arugambay"
 };
 
 export const viewport: Viewport = {

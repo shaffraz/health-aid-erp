@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { roleLabels } from "@/lib/permissions";
@@ -256,7 +257,7 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
                 <th className={tableStyles.headerCell}>Role</th>
                 <th className={tableStyles.headerCell}>Linked Profile</th>
                 <th className={tableStyles.headerCell}>Status</th>
-                <th className={tableStyles.headerCell}>Actions</th>
+                <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -277,23 +278,22 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
                       {user.status === "active" ? "Active" : "Inactive"}
                     </StatusPill>
                   </td>
-                  <td className={tableStyles.cell}>
-                    <div className="flex min-w-[240px] flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editUser(user)}
-                        className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleUserStatus(user.id)}
-                        className={buttonClass("secondary", "min-h-11 px-3 text-xs")}
-                      >
-                        {user.status === "active" ? "Deactivate" : "Activate"}
-                      </button>
-                    </div>
+                  <td className={tableStyles.actionCell}>
+                    <ActionSelect
+                      ariaLabel={`Actions for ${user.name}`}
+                      actions={[
+                        {
+                          value: "edit",
+                          label: "Edit",
+                          onSelect: () => editUser(user)
+                        },
+                        {
+                          value: "toggle",
+                          label: user.status === "active" ? "Deactivate" : "Activate",
+                          onSelect: () => toggleUserStatus(user.id)
+                        }
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
