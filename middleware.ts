@@ -12,6 +12,7 @@ const protectedRoutes = [
   "/doctor-portal",
   "/payouts",
   "/reports",
+  "/settings",
   "/users"
 ];
 

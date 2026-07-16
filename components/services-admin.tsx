@@ -8,6 +8,7 @@ import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount } from "@/lib/calculations";
 import { money, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
+import { loadSystemSettings, normalizeSystemSettings } from "@/lib/settings";
 import {
   isPayoutEligibleCategory,
   serviceCategories,
@@ -82,6 +83,12 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
   const [categoryFilter, setCategoryFilter] = useState<"all" | ServiceCategory>("all");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
+  const [invoiceCurrencyCode, setInvoiceCurrencyCode] = useState(
+    normalizeSystemSettings().clinic.currency
+  );
+  const [localCurrencyCode, setLocalCurrencyCode] = useState(
+    normalizeSystemSettings().clinic.localCurrency
+  );
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(serviceGroups.map((group) => [group.title, true]))
   );
@@ -95,6 +102,10 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
           setServices((parsed as Service[]).map(normalizeService));
         }
       }
+
+      const settings = loadSystemSettings();
+      setInvoiceCurrencyCode(settings.clinic.currency);
+      setLocalCurrencyCode(settings.clinic.localCurrency);
     } finally {
       setHydrated(true);
     }
@@ -375,9 +386,13 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                       <thead className={tableStyles.head}>
                         <tr>
                           <th className={tableStyles.headerCell}>Service Name</th>
-                          <th className={tableStyles.numericHeaderCell}>Selling Price USD</th>
+                          <th className={tableStyles.numericHeaderCell}>
+                            Selling Price {invoiceCurrencyCode}
+                          </th>
                           <th className={tableStyles.headerCell}>Doctor Payout Eligible</th>
-                          <th className={tableStyles.numericHeaderCell}>Doctor Payout Amount LKR</th>
+                          <th className={tableStyles.numericHeaderCell}>
+                            Doctor Payout Amount {localCurrencyCode}
+                          </th>
                           <th className={tableStyles.headerCell}>Status</th>
                           <th className={tableStyles.actionHeaderCell}>Actions</th>
                         </tr>
@@ -533,7 +548,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
                 <div>
                   <label className="label" htmlFor="selling-price">
-                    Selling price USD
+                    Selling price {invoiceCurrencyCode}
                   </label>
                   <input
                     id="selling-price"
@@ -551,7 +566,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
                 <div>
                   <label className="label" htmlFor="payout-amount">
-                    Doctor payout amount LKR
+                    Doctor payout amount {localCurrencyCode}
                   </label>
                   <input
                     id="payout-amount"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Activity, ArrowRight, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { defaultSystemSettings } from "@/lib/settings";
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { roleLabels } from "@/lib/permissions";
 import { roles, type Role } from "@/lib/types";
@@ -58,7 +59,9 @@ export function LoginPanel() {
           <div className="rounded-2xl bg-white p-4 shadow-soft">
             <BrandLogo priority />
           </div>
-          <h1 className="mt-8 text-3xl font-bold tracking-tight">Health Aid Arugambay ERP</h1>
+          <h1 className="mt-8 text-3xl font-bold tracking-tight">
+            {defaultSystemSettings.clinic.clinicName} ERP
+          </h1>
           <p className="mt-4 text-sm leading-6 text-cyan-50">
             Secure healthcare billing, doctor payouts, vouchers, and reporting without creating patient profiles yet.
             Patient identity is intentionally stored only inside invoices for this MVP.

@@ -1,10 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buttonClass, KpiCard, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount, invoiceRevenueAmount } from "@/lib/calculations";
 import { monthKey, todayISO, usdWhole } from "@/lib/format";
+import { currentOperatingSeason, isWithinSeason } from "@/lib/season";
+import {
+  currencyLabel,
+  loadSystemSettings,
+  normalizeSystemSettings,
+  type SystemSettings
+} from "@/lib/settings";
 import type { Invoice, PaymentMethod, ServiceCategory } from "@/lib/types";
 
 type ReportsDashboardProps = {
@@ -45,14 +52,34 @@ function average(values: number[]) {
 export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
   const [date, setDate] = useState(todayISO());
   const [month, setMonth] = useState(todayISO().slice(0, 7));
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
+    normalizeSystemSettings()
+  );
+
+  useEffect(() => {
+    try {
+      setSystemSettings(loadSystemSettings());
+    } catch {
+      setSystemSettings(normalizeSystemSettings());
+    }
+  }, []);
 
   const dailyInvoices = invoices.filter((invoice) => invoice.date === date);
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === month);
+  const invoiceCurrencyCode = systemSettings.clinic.currency;
+  const currentSeason = currentOperatingSeason(todayISO(), systemSettings.seasons);
+  const currentSeasonInvoices = invoices.filter((invoice) =>
+    isWithinSeason(invoice.date, currentSeason)
+  );
   const dailyRevenue = dailyInvoices.reduce(
     (sum, invoice) => sum + invoiceRevenueAmount(invoice),
     0
   );
   const monthlyRevenue = monthlyInvoices.reduce(
+    (sum, invoice) => sum + invoiceRevenueAmount(invoice),
+    0
+  );
+  const currentSeasonRevenue = currentSeasonInvoices.reduce(
     (sum, invoice) => sum + invoiceRevenueAmount(invoice),
     0
   );
@@ -82,7 +109,7 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
 
   function exportMonthlyRevenue() {
     downloadCsv("monthly-revenue-report.csv", [
-      ["Invoice", "Date", "Patient", "Payment Method", "Recognized Revenue USD"],
+      ["Invoice", "Date", "Patient", "Payment Method", currencyLabel("Recognized Revenue", invoiceCurrencyCode)],
       ...monthlyInvoices.map((invoice) => [
         invoice.invoiceNo,
         invoice.date,
@@ -132,12 +159,26 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Daily Revenue USD" value={usdWhole(dailyRevenue)} tone="info" />
-        <KpiCard label="Daily Invoices" value={String(dailyInvoices.length)} />
-        <KpiCard label="Monthly Revenue USD" value={usdWhole(monthlyRevenue)} tone="success" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
-          label="Average Invoice Value USD"
+          label={currencyLabel("Daily Revenue", invoiceCurrencyCode)}
+          value={usdWhole(dailyRevenue)}
+          tone="info"
+        />
+        <KpiCard label="Daily Invoices" value={String(dailyInvoices.length)} />
+        <KpiCard
+          label={currencyLabel("Monthly Revenue", invoiceCurrencyCode)}
+          value={usdWhole(monthlyRevenue)}
+          tone="success"
+        />
+        <KpiCard
+          label={currencyLabel("Current Season Revenue", invoiceCurrencyCode)}
+          value={usdWhole(currentSeasonRevenue)}
+          helper={currentSeason.label}
+          tone="primary"
+        />
+        <KpiCard
+          label={currencyLabel("Average Invoice Value", invoiceCurrencyCode)}
           value={usdWhole(monthlyAverageInvoiceValue)}
           tone="primary"
         />
@@ -180,7 +221,9 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
                   <th className={tableStyles.headerCell}>Invoice</th>
                   <th className={tableStyles.headerCell}>Patient</th>
                   <th className={tableStyles.headerCell}>Payment</th>
-                  <th className={tableStyles.numericHeaderCell}>Revenue USD</th>
+                  <th className={tableStyles.numericHeaderCell}>
+                    {currencyLabel("Revenue", invoiceCurrencyCode)}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efefef]">

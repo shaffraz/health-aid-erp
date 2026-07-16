@@ -3,6 +3,7 @@ import {
   hoursBetween,
   normalizeDoctorPaymentModel
 } from "@/lib/doctor-payment";
+import { defaultSystemSettings, paymentModeValues } from "@/lib/settings";
 import {
   type DoctorPaymentRule,
   type DoctorPayout,
@@ -124,7 +125,7 @@ export function generatePayoutsForInvoice(
   const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
   const invoiceTime = invoice.time ?? "12:00";
 
-  if (paymentModel.activeModel === "peak_season") {
+  if (paymentModel.activeModel === paymentModeValues.clinicShift) {
     return [
       {
         id: `${invoice.id}-pending-shift`,
@@ -180,7 +181,7 @@ export function generateShiftPayoutSummaries(
   const summaries: DoctorPayout[] = [];
   const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
 
-  if (paymentModel.activeModel !== "peak_season") {
+  if (paymentModel.activeModel !== paymentModeValues.clinicShift) {
     return summaries;
   }
 
@@ -252,23 +253,27 @@ export function generatePayoutsForInvoices(
   ];
 }
 
-export function nextInvoiceNumber(lastInvoiceNo?: string) {
+export function nextInvoiceNumber(
+  lastInvoiceNo?: string,
+  options: { prefix?: string; timeZone?: string } = {}
+) {
+  const prefix = options.prefix?.trim() || defaultSystemSettings.invoice.invoicePrefix;
   const currentYear = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Colombo",
+    timeZone: options.timeZone ?? defaultSystemSettings.clinic.timeZone,
     year: "numeric"
   }).format(new Date());
-  const fallback = `HA-ABAY-${currentYear}-0001`;
+  const fallback = `${prefix}-${currentYear}-0001`;
 
   if (!lastInvoiceNo) {
     return fallback;
   }
 
-  const match = lastInvoiceNo.match(/(\d{4})-(\d+)$/);
+  const match = lastInvoiceNo.match(new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-(\\d{4})-(\\d+)$`));
   if (!match || match[1] !== currentYear) {
     return fallback;
   }
 
   const nextSequence = String(Number(match[2]) + 1).padStart(4, "0");
 
-  return `HA-ABAY-${currentYear}-${nextSequence}`;
+  return `${prefix}-${currentYear}-${nextSequence}`;
 }

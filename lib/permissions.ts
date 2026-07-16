@@ -25,6 +25,8 @@ export const permissions = {
   managePayouts: ["administrator"],
   reports: ["administrator", "director"],
   manageUsers: ["administrator"],
+  viewSettings: ["administrator", "director"],
+  manageSettings: ["administrator"],
   auditLogs: ["administrator", "director"]
 } satisfies Record<string, Role[]>;
 

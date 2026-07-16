@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { generatePayoutVoucherAction, updateVoucherStatusAction } from "@/lib/actions";
 import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
@@ -8,6 +8,11 @@ import { StatusPill } from "@/components/status-pill";
 import { openEmailDraft } from "@/lib/email";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
+import {
+  loadSystemSettings,
+  normalizeSystemSettings,
+  type SystemSettings
+} from "@/lib/settings";
 import type { Doctor, DoctorPayout, PayoutVoucher } from "@/lib/types";
 
 type PayoutManagementProps = {
@@ -34,7 +39,18 @@ export function PayoutManagement({
   const [notes, setNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
+    normalizeSystemSettings()
+  );
   const currentMonth = todayISO().slice(0, 7);
+
+  useEffect(() => {
+    try {
+      setSystemSettings(loadSystemSettings());
+    } catch {
+      setSystemSettings(normalizeSystemSettings());
+    }
+  }, []);
 
   const filteredPayouts = useMemo(
     () =>
@@ -171,7 +187,7 @@ export function PayoutManagement({
   }
 
   function lkr(value: number) {
-    return `LKR ${Math.round(value).toLocaleString("en-US")}`;
+    return `${systemSettings.clinic.localCurrency} ${Math.round(value).toLocaleString("en-US")}`;
   }
 
   function buildSimplePdf(lines: string[]) {
@@ -216,7 +232,7 @@ export function PayoutManagement({
     const doctor = doctors.find((candidate) => candidate.id === selectedVoucher.doctorId);
     const voucherPayouts = payouts.filter((payout) => selectedVoucher.payoutIds.includes(payout.id));
     const lines = [
-      "Health Aid Arugambay",
+      systemSettings.clinic.clinicName,
       `Doctor payout voucher: ${selectedVoucher.voucherNo}`,
       `Doctor: ${doctor?.name ?? "Unknown doctor"}`,
       `Period: ${selectedVoucher.periodStart} to ${selectedVoucher.periodEnd}`,
@@ -247,9 +263,9 @@ export function PayoutManagement({
     const voucherPayouts = payouts.filter((payout) => selectedVoucher.payoutIds.includes(payout.id));
 
     openEmailDraft({
-      subject: `Health Aid Arugambay payout voucher ${selectedVoucher.voucherNo}`,
+      subject: `${systemSettings.clinic.clinicName} payout voucher ${selectedVoucher.voucherNo}`,
       body: [
-        "Health Aid Arugambay",
+        systemSettings.clinic.clinicName,
         "",
         `Doctor payout voucher: ${selectedVoucher.voucherNo}`,
         `Doctor: ${doctor?.name ?? "Unknown doctor"}`,
@@ -270,11 +286,15 @@ export function PayoutManagement({
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Pending Payout Amount LKR"
+          label={`Pending Payout Amount ${systemSettings.clinic.localCurrency}`}
           value={money(pendingPayoutAmount)}
           tone="danger"
         />
-        <KpiCard label="Paid This Month LKR" value={money(paidThisMonth)} tone="success" />
+        <KpiCard
+          label={`Paid This Month ${systemSettings.clinic.localCurrency}`}
+          value={money(paidThisMonth)}
+          tone="success"
+        />
         <KpiCard
           label="Doctors Awaiting Payout"
           value={String(doctorsAwaitingPayout)}
@@ -365,7 +385,9 @@ export function PayoutManagement({
                   <th className={tableStyles.headerCell}>Invoice / Clinic Shift</th>
                   <th className={tableStyles.headerCell}>Type</th>
                   <th className={tableStyles.headerCell}>Reason</th>
-                  <th className={tableStyles.numericHeaderCell}>Amount LKR</th>
+                  <th className={tableStyles.numericHeaderCell}>
+                    Amount {systemSettings.clinic.localCurrency}
+                  </th>
                   <th className={tableStyles.headerCell}>Status</th>
                 </tr>
               </thead>

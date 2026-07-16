@@ -3,6 +3,7 @@ import {
   generatePayoutsForInvoices
 } from "@/lib/calculations";
 import { defaultDoctorPaymentModel } from "@/lib/doctor-payment";
+import { defaultSystemSettings } from "@/lib/settings";
 import { todayISO } from "@/lib/format";
 import type {
   AssistanceCompany,
@@ -20,6 +21,7 @@ import type {
 
 const today = todayISO();
 const monthStart = `${today.slice(0, 7)}-01`;
+const demoInvoicePrefix = defaultSystemSettings.invoice.invoicePrefix;
 
 export const demoSettings = {
   exchangeRateLkrPerUsd: 300
@@ -350,7 +352,7 @@ function invoice(seed: Omit<Invoice, "subtotal" | "totalAmount">): Invoice {
 export const demoInvoices: Invoice[] = [
   invoice({
     id: "inv-001",
-    invoiceNo: "HA-ABAY-2026-0001",
+    invoiceNo: `${demoInvoicePrefix}-2026-0001`,
     date: today,
     time: "10:25",
     patientName: "Mia Carter",
@@ -371,7 +373,7 @@ export const demoInvoices: Invoice[] = [
   }),
   invoice({
     id: "inv-002",
-    invoiceNo: "HA-ABAY-2026-0002",
+    invoiceNo: `${demoInvoicePrefix}-2026-0002`,
     date: today,
     time: "17:30",
     patientName: "Luka Weber",
@@ -387,7 +389,7 @@ export const demoInvoices: Invoice[] = [
   }),
   invoice({
     id: "inv-003",
-    invoiceNo: "HA-ABAY-2026-0003",
+    invoiceNo: `${demoInvoicePrefix}-2026-0003`,
     date: monthStart,
     time: "23:15",
     patientName: "Chen Min",
@@ -438,7 +440,7 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
     id: "ins-rec-001",
     insuranceCompany: "Global Travel Assist",
     patients: ["Mia Carter"],
-    invoices: ["HA-ABAY-2026-0001"],
+    invoices: [`${demoInvoicePrefix}-2026-0001`],
     billedDate: today,
     totalBilled: 54,
     paidAmount: 0,
@@ -448,7 +450,7 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
     id: "ins-rec-002",
     insuranceCompany: "NomadCare Insurance",
     patients: ["Amelia Brooks"],
-    invoices: ["HA-ABAY-2026-0007"],
+    invoices: [`${demoInvoicePrefix}-2026-0007`],
     billedDate: today,
     paidDate: today,
     totalBilled: 640,
@@ -459,7 +461,7 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
     id: "ins-rec-003",
     insuranceCompany: "Blue Ocean Travel Cover",
     patients: ["Chen Min"],
-    invoices: ["HA-ABAY-2026-0003"],
+    invoices: [`${demoInvoicePrefix}-2026-0003`],
     billedDate: monthStart,
     paidDate: today,
     totalBilled: 21,
@@ -470,7 +472,7 @@ export const demoInsuranceReceivables: InsuranceReceivable[] = [
     id: "ins-rec-004",
     insuranceCompany: "Island Rescue Claims",
     patients: ["Noah Jensen", "Sofia Lind"],
-    invoices: ["HA-ABAY-2026-0008", "HA-ABAY-2026-0009"],
+    invoices: [`${demoInvoicePrefix}-2026-0008`, `${demoInvoicePrefix}-2026-0009`],
     billedDate: monthStart,
     totalBilled: 1180,
     paidAmount: 250,
@@ -486,7 +488,7 @@ export const demoAuditLogs: AuditLog[] = [
     entityType: "invoice",
     entityId: "inv-001",
     timestamp: `${today}T08:25:00+05:30`,
-    summary: "Created invoice HA-ABAY-2026-0001 and generated doctor payouts."
+    summary: `Created invoice ${demoInvoicePrefix}-2026-0001 and generated doctor payouts.`
   },
   {
     id: "audit-002",

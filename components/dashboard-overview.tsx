@@ -8,18 +8,21 @@ import {
   invoiceItemRevenueAmount,
   invoiceRevenueAmount
 } from "@/lib/calculations";
-import {
-  defaultDoctorPaymentModel,
-  normalizeDoctorPaymentModel
-} from "@/lib/doctor-payment";
 import { money, monthKey, todayISO, usdWhole } from "@/lib/format";
 import {
-  doctorPaymentSettingsStorageKey,
+  currencyLabelParenthetical,
+  invoiceCurrency,
+  loadSystemSettings,
+  localCurrency,
+  normalizeSystemSettings,
+  paymentModeLabels,
+  paymentModeValues,
+  type SystemSettings
+} from "@/lib/settings";
+import {
   doctorStorageKey,
   serviceStorageKey,
   type Doctor,
-  type DoctorPaymentModel,
-  type DoctorPaymentModelType,
   type DoctorPayout,
   type InsuranceReceivable,
   type Invoice,
@@ -47,11 +50,6 @@ type PeriodCategory =
   | "Laboratory"
   | "Medication Charges"
   | "Consumable Charges";
-
-const paymentModeLabels: Record<DoctorPaymentModelType, string> = {
-  low_season: "On-Call Mode",
-  peak_season: "Clinic Shift Mode"
-};
 
 const paymentMethodLabels: Record<Extract<PaymentMethod, "cash" | "card" | "insurance">, string> = {
   cash: "Cash",
@@ -293,8 +291,8 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
   const [services, setServices] = useState(initialServices);
-  const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
-    defaultDoctorPaymentModel
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
+    normalizeSystemSettings()
   );
 
   useEffect(() => {
@@ -315,21 +313,18 @@ export function DashboardOverview({
         }
       }
 
-      const storedPaymentSettings = window.localStorage.getItem(
-        doctorPaymentSettingsStorageKey
-      );
-      if (storedPaymentSettings) {
-        const normalizedSettings = normalizeDoctorPaymentModel(JSON.parse(storedPaymentSettings));
-        setPaymentSettings(normalizedSettings);
-      }
+      setSystemSettings(loadSystemSettings());
     } catch {
-      setPaymentSettings(defaultDoctorPaymentModel);
+      setSystemSettings(normalizeSystemSettings());
     }
   }, []);
 
   const today = todayISO();
   const selectedMonth = today.slice(0, 7);
-  const currentSeason = currentOperatingSeason(today);
+  const paymentSettings = systemSettings.doctorPayment;
+  const invoiceCurrencyCode = invoiceCurrency(systemSettings);
+  const localCurrencyCode = localCurrency(systemSettings);
+  const currentSeason = currentOperatingSeason(today, systemSettings.seasons);
   const comparisonYears = ["2025", "2026"];
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === selectedMonth);
   const todayInvoices = invoices.filter((invoice) => invoice.date === today);
@@ -480,22 +475,22 @@ export function DashboardOverview({
               <span
                 className={cn(
                   "rounded-full px-3 py-1",
-                  paymentSettings.activeModel === "low_season"
+                  paymentSettings.activeModel === paymentModeValues.onCall
                     ? "bg-[#224770] text-white"
                     : "bg-[#efefef] text-[#46484a]"
                 )}
               >
-                On-Call Mode
+                {paymentModeLabels[paymentModeValues.onCall]}
               </span>
               <span
                 className={cn(
                   "rounded-full px-3 py-1",
-                  paymentSettings.activeModel === "peak_season"
+                  paymentSettings.activeModel === paymentModeValues.clinicShift
                     ? "bg-[#224770] text-white"
                     : "bg-[#efefef] text-[#46484a]"
                 )}
               >
-                Clinic Shift Mode
+                {paymentModeLabels[paymentModeValues.clinicShift]}
               </span>
             </div>
             <p className="mt-3 text-xs font-semibold text-[#46484a]">Active system mode</p>
@@ -517,15 +512,19 @@ export function DashboardOverview({
 
       <DashboardSection title="Business Performance" tone="performance">
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Today's Revenue (USD)" value={usdWhole(todayRevenue)} tone="info" />
+          <KpiCard
+            label={currencyLabelParenthetical("Today's Revenue", invoiceCurrencyCode)}
+            value={usdWhole(todayRevenue)}
+            tone="info"
+          />
           <KpiCard label="Patients Seen Today" value={String(patientsSeenToday)} />
           <KpiCard
-            label="This Month Revenue (USD)"
+            label={currencyLabelParenthetical("This Month Revenue", invoiceCurrencyCode)}
             value={usdWhole(monthlyRevenue)}
             tone="success"
           />
           <KpiCard
-            label="Current Season Revenue (USD)"
+            label={currencyLabelParenthetical("Current Season Revenue", invoiceCurrencyCode)}
             value={usdWhole(currentSeasonRevenue)}
             helper={`${currentSeason.label}: ${currentSeason.fromDate} to ${currentSeason.toDate}`}
             tone="primary"
@@ -576,9 +575,13 @@ export function DashboardOverview({
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Year</th>
-                <th className={tableStyles.numericHeaderCell}>Revenue (USD)</th>
+                <th className={tableStyles.numericHeaderCell}>
+                  {currencyLabelParenthetical("Revenue", invoiceCurrencyCode)}
+                </th>
                 <th className={tableStyles.numericHeaderCell}>New Consultations</th>
-                <th className={tableStyles.numericHeaderCell}>Doctor Payouts (LKR)</th>
+                <th className={tableStyles.numericHeaderCell}>
+                  {currencyLabelParenthetical("Doctor Payouts", localCurrencyCode)}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -600,16 +603,19 @@ export function DashboardOverview({
       <DashboardSection title="Business Insights" tone="insights">
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
           <SummaryCard
-            label="Average Invoice Value (USD)"
+            label={currencyLabelParenthetical("Average Invoice Value", invoiceCurrencyCode)}
             value={usdWhole(averageInvoiceValue)}
           />
           <SummaryCard
-            label="Pending Doctor Payouts (LKR)"
+            label={currencyLabelParenthetical("Pending Doctor Payouts", localCurrencyCode)}
             value={money(monthlyPendingPayouts)}
             warning={monthlyPendingPayouts > 0}
           />
           <SummaryCard
-            label="Outstanding Insurance Receivables (USD)"
+            label={currencyLabelParenthetical(
+              "Outstanding Insurance Receivables",
+              invoiceCurrencyCode
+            )}
             value={usdWhole(outstandingInsuranceReceivables)}
             warning={outstandingInsuranceReceivables > 0}
           />

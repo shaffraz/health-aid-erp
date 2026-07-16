@@ -1,19 +1,21 @@
+import { defaultSystemSettings } from "@/lib/settings";
+
 export const currencyFormatter = new Intl.NumberFormat("en-LK", {
   style: "currency",
-  currency: "LKR",
+  currency: defaultSystemSettings.clinic.localCurrency,
   maximumFractionDigits: 0
 });
 
 export const usdCurrencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
-  currency: "USD",
+  currency: defaultSystemSettings.clinic.currency,
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
 
 export const wholeUsdCurrencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
-  currency: "USD",
+  currency: defaultSystemSettings.clinic.currency,
   maximumFractionDigits: 0
 });
 
@@ -47,7 +49,7 @@ export function monthKey(value: string | Date) {
 
 export function todayISO() {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Colombo",
+    timeZone: defaultSystemSettings.clinic.timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit"

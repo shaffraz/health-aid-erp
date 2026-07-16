@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   ReceiptText,
+  Settings,
   ShieldCheck,
   Stethoscope,
   UsersRound,
@@ -22,6 +23,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { DemoRoleSwitcher } from "@/components/demo-role-switcher";
 import { StatusPill } from "@/components/status-pill";
 import { hasPermission, roleLabels } from "@/lib/permissions";
+import { defaultSystemSettings } from "@/lib/settings";
 import type { AppUser, Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +47,8 @@ const navItems: Array<{
   { href: "/users", label: "Users", icon: UsersRound, permission: "manageUsers" },
   { href: "/doctor-portal", label: "My Earnings", icon: Stethoscope, permission: "doctorPortal" },
   { href: "/payouts", label: "Payouts", icon: CreditCard, permission: "viewPayouts" },
-  { href: "/reports", label: "Reports", icon: BarChart3, permission: "reports" }
+  { href: "/reports", label: "Reports", icon: BarChart3, permission: "reports" },
+  { href: "/settings", label: "Settings", icon: Settings, permission: "viewSettings" }
 ];
 
 function roleTone(role: Role) {
@@ -130,7 +133,9 @@ export function AppShell({ user, children }: AppShellProps) {
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden">
               <BrandLogo variant="mark" priority className="h-10 w-10" />
             </span>
-            <span className="font-semibold text-ink">Health Aid ERP</span>
+            <span className="font-semibold text-ink">
+              {defaultSystemSettings.clinic.clinicName} ERP
+            </span>
           </Link>
           <button
             type="button"

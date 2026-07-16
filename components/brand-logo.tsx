@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { defaultSystemSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 type BrandLogoProps = {
@@ -20,7 +21,7 @@ export function BrandLogo({
     return (
       <Image
         src="/brand/health-aid-arugambay-mark.png"
-        alt="Health Aid Arugambay"
+        alt={defaultSystemSettings.clinic.clinicName}
         width={360}
         height={360}
         priority={priority}
@@ -43,7 +44,7 @@ export function BrandLogo({
   return (
     <Image
       src="/brand/health-aid-arugambay-logo.png"
-      alt="Health Aid Arugambay"
+      alt={defaultSystemSettings.clinic.clinicName}
       width={900}
       height={255}
       priority={priority}

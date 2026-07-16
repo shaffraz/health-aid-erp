@@ -1,34 +1,14 @@
 import type { DoctorPaymentModel } from "@/lib/types";
+import {
+  defaultSystemSettings,
+  defaultDoctorPaymentSettings,
+  normalizeDoctorPaymentSettings
+} from "@/lib/settings";
 
-export const defaultDoctorPaymentModel: DoctorPaymentModel = {
-  activeModel: "low_season",
-  lowSeason: {
-    dayConsultationPayout: 2500,
-    nightConsultationPayout: 3500,
-    nightStartTime: "23:00",
-    nightEndTime: "08:00"
-  },
-  peakSeason: {
-    shiftStartTime: "16:00",
-    shiftEndTime: "22:00",
-    hourlyRate: 1000,
-    bonusThresholdPatients: 5,
-    bonusPerPatient: 1000
-  }
-};
+export const defaultDoctorPaymentModel: DoctorPaymentModel = defaultDoctorPaymentSettings;
 
 export function normalizeDoctorPaymentModel(model?: Partial<DoctorPaymentModel>): DoctorPaymentModel {
-  return {
-    activeModel: model?.activeModel ?? defaultDoctorPaymentModel.activeModel,
-    lowSeason: {
-      ...defaultDoctorPaymentModel.lowSeason,
-      ...model?.lowSeason
-    },
-    peakSeason: {
-      ...defaultDoctorPaymentModel.peakSeason,
-      ...model?.peakSeason
-    }
-  };
+  return normalizeDoctorPaymentSettings(model);
 }
 
 export function timeToMinutes(value = "12:00") {
@@ -60,11 +40,11 @@ export function hoursBetween(start: string, end: string) {
   return minutes / 60;
 }
 
-export function currentTimeHHMM() {
+export function currentTimeHHMM(timeZone = defaultSystemSettings.clinic.timeZone) {
   return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "Asia/Colombo"
+    timeZone
   }).format(new Date());
 }

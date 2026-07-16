@@ -7,18 +7,19 @@ import {
   generatePayoutsForInvoice,
   nextInvoiceNumber
 } from "@/lib/calculations";
-import {
-  currentTimeHHMM,
-  defaultDoctorPaymentModel,
-  normalizeDoctorPaymentModel
-} from "@/lib/doctor-payment";
+import { currentTimeHHMM } from "@/lib/doctor-payment";
 import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { openEmailDraft } from "@/lib/email";
 import { money, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
+  loadSystemSettings,
+  normalizeSystemSettings,
+  paymentModeLabels,
+  type SystemSettings
+} from "@/lib/settings";
+import {
   assistanceCompanyStorageKey,
-  doctorPaymentSettingsStorageKey,
   doctorStorageKey,
   isAmountOnlyInvoiceServiceName,
   isPayoutEligibleCategory,
@@ -26,7 +27,6 @@ import {
   serviceStorageKey,
   type AssistanceCompany,
   type Doctor,
-  type DoctorPaymentModel,
   type Invoice,
   type InvoiceItem,
   type Service
@@ -58,11 +58,6 @@ const paymentLabels: Record<PaymentMethod, string> = {
 };
 
 const invoicePaymentMethods = ["cash", "card", "insurance"] as const satisfies readonly PaymentMethod[];
-
-const paymentModelLabels = {
-  low_season: "On-Call Mode",
-  peak_season: "Clinic Shift Mode"
-} satisfies Record<DoctorPaymentModel["activeModel"], string>;
 
 function roundUsd(value: number) {
   return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
@@ -202,8 +197,8 @@ export function InvoicePosForm({
   );
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
-  const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
-    defaultDoctorPaymentModel
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(
+    normalizeSystemSettings()
   );
   const [invoiceDate, setInvoiceDate] = useState(() => todayISO());
   const [invoiceTime, setInvoiceTime] = useState(() => currentTimeHHMM());
@@ -298,12 +293,9 @@ export function InvoicePosForm({
 
   useEffect(() => {
     try {
-      const storedSettings = window.localStorage.getItem(doctorPaymentSettingsStorageKey);
-      if (storedSettings) {
-        setPaymentSettings(normalizeDoctorPaymentModel(JSON.parse(storedSettings)));
-      }
+      setSystemSettings(loadSystemSettings());
     } catch {
-      setPaymentSettings(defaultDoctorPaymentModel);
+      setSystemSettings(normalizeSystemSettings());
     }
   }, []);
 
@@ -362,7 +354,11 @@ export function InvoicePosForm({
     service.name.toLowerCase().includes("consumable")
   );
   const latestInvoiceNo = [...invoices.map((invoice) => invoice.invoiceNo)].sort().at(-1);
-  const invoiceNo = nextInvoiceNumber(latestInvoiceNo);
+  const invoiceNo = nextInvoiceNumber(latestInvoiceNo, {
+    prefix: systemSettings.invoice.invoicePrefix,
+    timeZone: systemSettings.clinic.timeZone
+  });
+  const paymentSettings = systemSettings.doctorPayment;
 
   const serviceItemsUsd = useMemo<InvoiceItem[]>(
     () =>
@@ -505,7 +501,7 @@ export function InvoicePosForm({
     </style>
   </head>
   <body>
-    <h1>Health Aid Arugambay</h1>
+    <h1>${escapeHtml(systemSettings.clinic.clinicName)}</h1>
     <p>Invoice ${escapeHtml(targetInvoice.invoiceNo)} - ${escapeHtml(targetInvoice.date)} ${escapeHtml(targetInvoice.time)}</p>
     <p><strong>Patient:</strong> ${escapeHtml(targetInvoice.patientName)}</p>
     ${targetInvoice.email ? `<p><strong>Email:</strong> ${escapeHtml(targetInvoice.email)}</p>` : ""}
@@ -559,9 +555,9 @@ export function InvoicePosForm({
 
     openEmailDraft({
       to: targetInvoice.email,
-      subject: `Health Aid Arugambay invoice ${targetInvoice.invoiceNo}`,
+      subject: `${systemSettings.clinic.clinicName} invoice ${targetInvoice.invoiceNo}`,
       body: [
-        "Health Aid Arugambay",
+        systemSettings.clinic.clinicName,
         "",
         `Invoice: ${targetInvoice.invoiceNo}`,
         `Date: ${targetInvoice.date} ${targetInvoice.time ?? ""}`.trim(),
@@ -603,8 +599,10 @@ export function InvoicePosForm({
     setInvoices(nextInvoices);
     setSavedInvoiceNo(createdInvoice.invoiceNo);
     setLastSavedInvoice(createdInvoice);
-    setInvoiceDate(todayISO());
-    setInvoiceTime(currentTimeHHMM());
+    if (systemSettings.invoice.automaticTimestamp) {
+      setInvoiceDate(todayISO());
+      setInvoiceTime(currentTimeHHMM(systemSettings.clinic.timeZone));
+    }
     setPatientName("");
     setPassport("");
     setPhone("");
@@ -768,7 +766,7 @@ export function InvoicePosForm({
               <div className="flex justify-between gap-3">
                 <span className="text-[#46484a]">Current Payment Mode</span>
                 <span className="font-semibold text-[#224770]">
-                  {paymentModelLabels[paymentSettings.activeModel]}
+                  {paymentModeLabels[paymentSettings.activeModel]}
                 </span>
               </div>
             </div>
@@ -785,7 +783,7 @@ export function InvoicePosForm({
                     </div>
                   ))}
                   <div className="flex justify-between rounded-lg bg-[#84bc3f]/10 px-3 py-2 text-sm font-semibold text-[#4f7f22]">
-                    <span>Estimated total payout LKR</span>
+                    <span>Estimated total payout {systemSettings.clinic.localCurrency}</span>
                     <span>{money(payoutPreviewTotal)}</span>
                   </div>
                 </>

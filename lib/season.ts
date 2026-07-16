@@ -1,4 +1,7 @@
+import { defaultSystemSettings, type SeasonSettings } from "@/lib/settings";
+
 export type OperatingSeason = {
+  id: string;
   label: string;
   fromDate: string;
   toDate: string;
@@ -8,30 +11,63 @@ function isoDate(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-export function currentOperatingSeason(todayIso: string): OperatingSeason {
-  const [year, month] = todayIso.split("-").map(Number);
+function monthDayToParts(value: string) {
+  const [month = "1", day = "1"] = value.split("-");
 
-  if (month >= 4 && month <= 10) {
+  return {
+    month: Number(month),
+    day: Number(day)
+  };
+}
+
+function seasonWindowForDate(todayIso: string, season: SeasonSettings): OperatingSeason {
+  const [year] = todayIso.split("-").map(Number);
+  const todayMonthDay = todayIso.slice(5);
+  const wrapsYear = season.startDate > season.endDate;
+  const start = monthDayToParts(season.startDate);
+  const end = monthDayToParts(season.endDate);
+
+  if (!wrapsYear) {
     return {
-      label: "Travel Season",
-      fromDate: isoDate(year, 4, 1),
-      toDate: isoDate(year, 10, 31)
+      id: season.id,
+      label: season.name,
+      fromDate: isoDate(year, start.month, start.day),
+      toDate: isoDate(year, end.month, end.day)
     };
   }
 
-  if (month >= 11) {
+  if (todayMonthDay >= season.startDate) {
     return {
-      label: "Off-Season",
-      fromDate: isoDate(year, 11, 1),
-      toDate: isoDate(year + 1, 3, 31)
+      id: season.id,
+      label: season.name,
+      fromDate: isoDate(year, start.month, start.day),
+      toDate: isoDate(year + 1, end.month, end.day)
     };
   }
 
   return {
-    label: "Off-Season",
-    fromDate: isoDate(year - 1, 11, 1),
-    toDate: isoDate(year, 3, 31)
+    id: season.id,
+    label: season.name,
+    fromDate: isoDate(year - 1, start.month, start.day),
+    toDate: isoDate(year, end.month, end.day)
   };
+}
+
+export function currentOperatingSeason(
+  todayIso: string,
+  seasons: SeasonSettings[] = defaultSystemSettings.seasons
+): OperatingSeason {
+  const activeSeasons = seasons.filter((season) => season.active);
+  const seasonWindows = activeSeasons.map((season) => seasonWindowForDate(todayIso, season));
+  const currentSeason = seasonWindows.find((season) => isWithinSeason(todayIso, season));
+
+  if (currentSeason) {
+    return currentSeason;
+  }
+
+  const fallbackSeason = activeSeasons[0] ?? defaultSystemSettings.seasons[0];
+
+  return seasonWindowForDate(todayIso, fallbackSeason);
 }
 
 export function isWithinSeason(dateIso: string, season: OperatingSeason) {

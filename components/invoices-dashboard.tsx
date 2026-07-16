@@ -1,11 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActionSelect } from "@/components/action-select";
 import { buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { openEmailDraft } from "@/lib/email";
 import { shortDate, usdWhole } from "@/lib/format";
+import {
+  loadSystemSettings,
+  normalizeSystemSettings,
+  type SystemSettings
+} from "@/lib/settings";
 import {
   isAmountOnlyInvoiceServiceName,
   type Doctor,
@@ -36,7 +41,7 @@ function escapeHtml(value: string | number | undefined) {
     .replaceAll("'", "&#039;");
 }
 
-function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
+function buildInvoiceDocument(invoice: Invoice, doctorName: string, clinicName: string) {
   const clinicalTotal = totalForItems(clinicalItems(invoice));
   const medicationTotal = totalForItems(medicationItems(invoice));
   const consumableTotal = totalForItems(consumableItems(invoice));
@@ -58,7 +63,7 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
     </style>
   </head>
   <body>
-    <h1>Health Aid Arugambay</h1>
+    <h1>${escapeHtml(clinicName)}</h1>
     <h2>Invoice Information</h2>
     <p class="meta">Invoice number: ${escapeHtml(invoice.invoiceNo)}</p>
     <p class="meta">Date: ${escapeHtml(invoice.date)}</p>
@@ -98,11 +103,11 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string) {
 </html>`;
 }
 
-function buildInvoiceEmail(invoice: Invoice, doctorName: string) {
+function buildInvoiceEmail(invoice: Invoice, doctorName: string, clinicName: string) {
   const isInsurance = invoice.paymentMethod === "insurance";
 
   return [
-    "Health Aid Arugambay",
+    clinicName,
     "",
     `Invoice: ${invoice.invoiceNo}`,
     `Date: ${invoice.date}${invoice.time ? ` ${invoice.time}` : ""}`,
@@ -299,6 +304,17 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
   const [invoiceNumberSearch, setInvoiceNumberSearch] = useState("");
   const [patientNameSearch, setPatientNameSearch] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
+    normalizeSystemSettings()
+  );
+
+  useEffect(() => {
+    try {
+      setSystemSettings(loadSystemSettings());
+    } catch {
+      setSystemSettings(normalizeSystemSettings());
+    }
+  }, []);
 
   const filteredInvoices = useMemo(() => {
     const invoiceNumberTerm = invoiceNumberSearch.trim().toLowerCase();
@@ -337,7 +353,9 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
       return;
     }
 
-    printWindow.document.write(buildInvoiceDocument(invoice, doctorNameForInvoice(invoice)));
+    printWindow.document.write(
+      buildInvoiceDocument(invoice, doctorNameForInvoice(invoice), systemSettings.clinic.clinicName)
+    );
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
@@ -346,8 +364,12 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
   function emailInvoice(invoice: Invoice) {
     openEmailDraft({
       to: invoice.email,
-      subject: `Health Aid Arugambay invoice ${invoice.invoiceNo}`,
-      body: buildInvoiceEmail(invoice, doctorNameForInvoice(invoice))
+      subject: `${systemSettings.clinic.clinicName} invoice ${invoice.invoiceNo}`,
+      body: buildInvoiceEmail(
+        invoice,
+        doctorNameForInvoice(invoice),
+        systemSettings.clinic.clinicName
+      )
     });
   }
 
@@ -425,7 +447,9 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
                 <th className={tableStyles.headerCell}>Passport / ID</th>
                 <th className={tableStyles.headerCell}>Doctor</th>
                 <th className={tableStyles.headerCell}>Payment Type</th>
-                <th className={tableStyles.numericHeaderCell}>Total USD</th>
+                <th className={tableStyles.numericHeaderCell}>
+                  Total {systemSettings.clinic.currency}
+                </th>
                 <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>

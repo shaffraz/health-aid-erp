@@ -5,18 +5,16 @@ import { X } from "lucide-react";
 import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
-import {
-  defaultDoctorPaymentModel,
-  normalizeDoctorPaymentModel
-} from "@/lib/doctor-payment";
 import { money, monthKey, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
-  doctorPaymentSettingsStorageKey,
+  loadSystemSettings,
+  normalizeSystemSettings,
+  type SystemSettings
+} from "@/lib/settings";
+import {
   doctorStorageKey,
   type Doctor,
-  type DoctorPaymentModel,
-  type DoctorPaymentModelType,
   type DoctorPayout,
   type Invoice
 } from "@/lib/types";
@@ -45,17 +43,6 @@ const emptyForm: DoctorForm = {
   active: true,
   notes: ""
 };
-
-const modelLabels: Record<DoctorPaymentModelType, string> = {
-  low_season: "On-Call Mode / Per Patient",
-  peak_season: "Clinic Shift Mode / Shift Based"
-};
-
-function toAmount(value: string | number, fallback: number) {
-  const amount = Number(value);
-
-  return Number.isFinite(amount) ? Math.max(0, amount) : fallback;
-}
 
 function normalizeDoctor(doctor: Doctor): Doctor {
   const legacyDoctor = doctor as Doctor & { specialty?: string };
@@ -98,11 +85,11 @@ export function DoctorsAdmin({
   canEdit
 }: DoctorsAdminProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
-  const [paymentSettings, setPaymentSettings] = useState<DoctorPaymentModel>(
-    defaultDoctorPaymentModel
+  const [paymentSettings, setPaymentSettings] = useState<SystemSettings["doctorPayment"]>(
+    normalizeSystemSettings().doctorPayment
   );
-  const [paymentModeDraft, setPaymentModeDraft] = useState<DoctorPaymentModelType>(
-    defaultDoctorPaymentModel.activeModel
+  const [localCurrencyCode, setLocalCurrencyCode] = useState(
+    normalizeSystemSettings().clinic.localCurrency
   );
   const [form, setForm] = useState<DoctorForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
@@ -119,12 +106,9 @@ export function DoctorsAdmin({
         }
       }
 
-      const storedSettings = window.localStorage.getItem(doctorPaymentSettingsStorageKey);
-      if (storedSettings) {
-        const normalizedSettings = normalizeDoctorPaymentModel(JSON.parse(storedSettings));
-        setPaymentSettings(normalizedSettings);
-        setPaymentModeDraft(normalizedSettings.activeModel);
-      }
+      const settings = loadSystemSettings();
+      setPaymentSettings(settings.doctorPayment);
+      setLocalCurrencyCode(settings.clinic.localCurrency);
     } finally {
       setHydrated(true);
     }
@@ -133,12 +117,8 @@ export function DoctorsAdmin({
   useEffect(() => {
     if (hydrated) {
       window.localStorage.setItem(doctorStorageKey, JSON.stringify(doctors));
-      window.localStorage.setItem(
-        doctorPaymentSettingsStorageKey,
-        JSON.stringify(paymentSettings)
-      );
     }
-  }, [doctors, hydrated, paymentSettings]);
+  }, [doctors, hydrated]);
 
   const visiblePayouts = useMemo(() => {
     const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
@@ -242,32 +222,18 @@ export function DoctorsAdmin({
     }
   }
 
-  function updatePaymentSettings(patch: Partial<DoctorPaymentModel>) {
-    setPaymentSettings((current) => normalizeDoctorPaymentModel({ ...current, ...patch }));
-  }
-
-  function savePaymentMode() {
-    if (!canEdit) {
-      return;
-    }
-
-    updatePaymentSettings({ activeModel: paymentModeDraft });
-  }
-
-  const paymentModeChanged = paymentModeDraft !== paymentSettings.activeModel;
-
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Active Doctors" value={String(activeCount)} tone="primary" />
         <KpiCard label="Inactive Doctors" value={String(inactiveCount)} />
         <KpiCard
-          label="Pending Doctor Payouts LKR"
+          label={`Pending Doctor Payouts ${localCurrencyCode}`}
           value={money(totalPending)}
           tone="danger"
         />
         <KpiCard
-          label="Paid This Month LKR"
+          label={`Paid This Month ${localCurrencyCode}`}
           value={money(paidThisMonth)}
           tone="success"
         />
@@ -296,252 +262,6 @@ export function DoctorsAdmin({
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-[#224770]">Doctor Payment Settings</h2>
-        </div>
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-xl border border-[#efefef] bg-white p-4 shadow-sm xl:col-span-3">
-            <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr] lg:items-end">
-              <div>
-                <p className="label">Current Payment Mode</p>
-                <p className="mt-2 text-xl font-bold text-[#224770]">
-                  {modelLabels[paymentSettings.activeModel]}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                <div>
-                  <label className="label" htmlFor="global-payment-model">
-                    Switch Payment Mode
-                  </label>
-                  <select
-                    id="global-payment-model"
-                    value={paymentModeDraft}
-                    onChange={(event) =>
-                      setPaymentModeDraft(event.target.value as DoctorPaymentModelType)
-                    }
-                    disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
-                  >
-                    <option value="low_season">{modelLabels.low_season}</option>
-                    <option value="peak_season">{modelLabels.peak_season}</option>
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={savePaymentMode}
-                  disabled={!canEdit || !paymentModeChanged}
-                  className={buttonClass(
-                    paymentModeChanged ? "primary" : "muted",
-                    "min-h-11 whitespace-nowrap"
-                  )}
-                >
-                  Save Mode
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {paymentModeDraft === "low_season" ? (
-            <>
-              <div>
-                <label className="label" htmlFor="day-payout">
-                  Day consultation payout LKR
-                </label>
-                <input
-                  id="day-payout"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={paymentSettings.lowSeason.dayConsultationPayout}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      lowSeason: {
-                        ...paymentSettings.lowSeason,
-                        dayConsultationPayout: toAmount(event.target.value, 2500)
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="night-payout">
-                  Night consultation payout LKR
-                </label>
-                <input
-                  id="night-payout"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={paymentSettings.lowSeason.nightConsultationPayout}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      lowSeason: {
-                        ...paymentSettings.lowSeason,
-                        nightConsultationPayout: toAmount(event.target.value, 3500)
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="night-start">
-                  Night start
-                </label>
-                <input
-                  id="night-start"
-                  type="time"
-                  value={paymentSettings.lowSeason.nightStartTime}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      lowSeason: {
-                        ...paymentSettings.lowSeason,
-                        nightStartTime: event.target.value
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="night-end">
-                  Night end
-                </label>
-                <input
-                  id="night-end"
-                  type="time"
-                  value={paymentSettings.lowSeason.nightEndTime}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      lowSeason: {
-                        ...paymentSettings.lowSeason,
-                        nightEndTime: event.target.value
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label className="label" htmlFor="shift-start">
-                  Shift start
-                </label>
-                <input
-                  id="shift-start"
-                  type="time"
-                  value={paymentSettings.peakSeason.shiftStartTime}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      peakSeason: {
-                        ...paymentSettings.peakSeason,
-                        shiftStartTime: event.target.value
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="shift-end">
-                  Shift end
-                </label>
-                <input
-                  id="shift-end"
-                  type="time"
-                  value={paymentSettings.peakSeason.shiftEndTime}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      peakSeason: {
-                        ...paymentSettings.peakSeason,
-                        shiftEndTime: event.target.value
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="hourly-rate">
-                  Hourly rate LKR
-                </label>
-                <input
-                  id="hourly-rate"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={paymentSettings.peakSeason.hourlyRate}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      peakSeason: {
-                        ...paymentSettings.peakSeason,
-                        hourlyRate: toAmount(event.target.value, 1000)
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="bonus-threshold">
-                  Bonus threshold patients
-                </label>
-                <input
-                  id="bonus-threshold"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={paymentSettings.peakSeason.bonusThresholdPatients}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      peakSeason: {
-                        ...paymentSettings.peakSeason,
-                        bonusThresholdPatients: toAmount(event.target.value, 5)
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="bonus-per-patient">
-                  Bonus per patient LKR
-                </label>
-                <input
-                  id="bonus-per-patient"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={paymentSettings.peakSeason.bonusPerPatient}
-                  onChange={(event) =>
-                    updatePaymentSettings({
-                      peakSeason: {
-                        ...paymentSettings.peakSeason,
-                        bonusPerPatient: toAmount(event.target.value, 1000)
-                      }
-                    })
-                  }
-                  disabled={!canEdit}
-                  className="field mt-2 disabled:bg-slate-100"
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold text-[#224770]">Doctor Directory</h2>
@@ -564,7 +284,9 @@ export function DoctorsAdmin({
                 <th className={tableStyles.headerCell}>Designation</th>
                 <th className={tableStyles.headerCell}>Phone</th>
                 <th className={tableStyles.headerCell}>Status</th>
-                <th className={tableStyles.numericHeaderCell}>Pending payout LKR</th>
+                <th className={tableStyles.numericHeaderCell}>
+                  Pending payout {localCurrencyCode}
+                </th>
                 <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>

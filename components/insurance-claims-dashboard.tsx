@@ -9,6 +9,11 @@ import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { shortDate, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
+  loadSystemSettings,
+  normalizeSystemSettings,
+  type SystemSettings
+} from "@/lib/settings";
+import {
   assistanceCompanyStorageKey,
   type AppUser,
   type AssistanceCompany,
@@ -326,7 +331,9 @@ function buildClaims(
     });
 }
 
-function buildStatementDocument(statement: MonthlyStatement) {
+function buildStatementDocument(statement: MonthlyStatement, settings: SystemSettings) {
+  const clinicName = settings.clinic.clinicName;
+  const statementTitle = settings.insurance.defaultStatementFormat;
   const rows = statement.claims
     .map(
       (claim) => `<tr>
@@ -361,8 +368,8 @@ function buildStatementDocument(statement: MonthlyStatement) {
     </style>
   </head>
   <body>
-    <h1>Health Aid Arugambay</h1>
-    <h2>Monthly Insurance Statement</h2>
+    <h1>${escapeHtml(clinicName)}</h1>
+    <h2>${escapeHtml(statementTitle)}</h2>
     <p class="meta">Assistance company: ${escapeHtml(statement.assistanceCompany)}</p>
     <p class="meta">Statement month: ${escapeHtml(monthLabel(statement.month))}</p>
     <p class="meta">Statement status: ${escapeHtml(statement.status)}</p>
@@ -394,10 +401,12 @@ function buildStatementDocument(statement: MonthlyStatement) {
 </html>`;
 }
 
-function statementCsv(statement: MonthlyStatement) {
+function statementCsv(statement: MonthlyStatement, settings: SystemSettings) {
+  const clinicName = settings.clinic.clinicName;
+
   const rows = [
     [
-      "Health Aid Arugambay",
+      clinicName,
       "Assistance company",
       "Statement month",
       "Statement status",
@@ -405,13 +414,13 @@ function statementCsv(statement: MonthlyStatement) {
       "Invoice date",
       "Patient name",
       "Passport / ID",
-      "Full invoice amount USD",
+      `Full invoice amount ${settings.clinic.currency}`,
       "Claim percentage used",
-      "Claim amount USD",
+      `Claim amount ${settings.clinic.currency}`,
       "Payment status"
     ],
     ...statement.claims.map((claim) => [
-      "Health Aid Arugambay",
+      clinicName,
       statement.assistanceCompany,
       monthLabel(statement.month),
       statement.status,
@@ -425,7 +434,7 @@ function statementCsv(statement: MonthlyStatement) {
       statement.status
     ]),
     [
-      "Health Aid Arugambay",
+      clinicName,
       statement.assistanceCompany,
       monthLabel(statement.month),
       statement.status,
@@ -703,6 +712,7 @@ function StatementDetailsModal({
   onEmail,
   onRecordPayment,
   onSubmit,
+  invoiceCurrencyCode,
   statement
 }: {
   canConfirm: boolean;
@@ -715,6 +725,7 @@ function StatementDetailsModal({
   onEmail: () => void;
   onRecordPayment: () => void;
   onSubmit: () => void;
+  invoiceCurrencyCode: string;
   statement: MonthlyStatement;
 }) {
   return (
@@ -749,15 +760,21 @@ function StatementDetailsModal({
               />
               <CompanyDetail label="Number of Invoices" value={String(statement.invoiceCount)} />
               <CompanyDetail
-                label="Full Invoice Total USD"
+                label={`Full Invoice Total ${invoiceCurrencyCode}`}
                 value={usdWhole(statement.fullInvoiceTotal)}
               />
-              <CompanyDetail label="Claim Amount USD" value={usdWhole(statement.claimAmount)} />
               <CompanyDetail
-                label="Amount Received USD"
+                label={`Claim Amount ${invoiceCurrencyCode}`}
+                value={usdWhole(statement.claimAmount)}
+              />
+              <CompanyDetail
+                label={`Amount Received ${invoiceCurrencyCode}`}
                 value={usdWhole(statement.amountReceived)}
               />
-              <CompanyDetail label="Outstanding USD" value={usdWhole(statement.outstanding)} />
+              <CompanyDetail
+                label={`Outstanding ${invoiceCurrencyCode}`}
+                value={usdWhole(statement.outstanding)}
+              />
             </div>
           </section>
 
@@ -773,9 +790,13 @@ function StatementDetailsModal({
                     <th className="px-4 py-3">Invoice Date</th>
                     <th className="px-4 py-3">Patient Name</th>
                     <th className="px-4 py-3">Passport / ID</th>
-                    <th className="px-4 py-3 text-right">Full Invoice Amount USD</th>
+                    <th className="px-4 py-3 text-right">
+                      Full Invoice Amount {invoiceCurrencyCode}
+                    </th>
                     <th className="px-4 py-3 text-right">Claim Percentage Used</th>
-                    <th className="px-4 py-3 text-right">Claim Amount USD</th>
+                    <th className="px-4 py-3 text-right">
+                      Claim Amount {invoiceCurrencyCode}
+                    </th>
                     <th className="px-4 py-3">Payment Status</th>
                   </tr>
                 </thead>
@@ -861,6 +882,9 @@ export function InsuranceClaimsDashboard({
   const [paymentStatementId, setPaymentStatementId] = useState("");
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [paymentError, setPaymentError] = useState("");
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
+    normalizeSystemSettings()
+  );
   const [seasonalModalOpen, setSeasonalModalOpen] = useState(false);
   const [seasonalForm, setSeasonalForm] = useState<SeasonalForm>(() =>
     defaultSeasonalForm(partnerCompany)
@@ -901,10 +925,13 @@ export function InsuranceClaimsDashboard({
           setSeasonalConfirmations(parsed as SeasonalConfirmation[]);
         }
       }
+
+      setSystemSettings(loadSystemSettings());
     } catch {
       setCompanies(demoAssistanceCompanies);
       setStatementRecords([]);
       setSeasonalConfirmations([]);
+      setSystemSettings(normalizeSystemSettings());
     }
   }, []);
 
@@ -1202,7 +1229,7 @@ export function InsuranceClaimsDashboard({
       return;
     }
 
-    statementWindow.document.write(buildStatementDocument(statement));
+    statementWindow.document.write(buildStatementDocument(statement, systemSettings));
     statementWindow.document.close();
     statementWindow.focus();
     statementWindow.print();
@@ -1211,7 +1238,7 @@ export function InsuranceClaimsDashboard({
   function downloadStatementCsv(statement: MonthlyStatement) {
     downloadFile(
       `${statement.assistanceCompany}-${statement.month}-insurance-statement.csv`,
-      statementCsv(statement),
+      statementCsv(statement, systemSettings),
       "text/csv;charset=utf-8"
     );
   }
@@ -1221,11 +1248,11 @@ export function InsuranceClaimsDashboard({
 
     openEmailDraft({
       to: company?.email,
-      subject: `Health Aid Arugambay insurance statement - ${statement.assistanceCompany} ${monthLabel(statement.month)}`,
+      subject: `${systemSettings.clinic.clinicName} insurance statement - ${statement.assistanceCompany} ${monthLabel(statement.month)}`,
       body: [
-        "Health Aid Arugambay",
+        systemSettings.clinic.clinicName,
         "",
-        "Monthly Insurance Statement",
+        systemSettings.insurance.defaultStatementFormat,
         `Assistance company: ${statement.assistanceCompany}`,
         `Statement month: ${monthLabel(statement.month)}`,
         `Status: ${statement.status}`,
@@ -1308,7 +1335,7 @@ export function InsuranceClaimsDashboard({
     setPaymentForm({
       paymentDate: todayISO(),
       amountReceived: String(statement.outstanding),
-      reference: "",
+      reference: `${systemSettings.insurance.defaultPaymentReferencePrefix}-${statement.month.replace("-", "")}`,
       notes: ""
     });
     setPaymentError("");
@@ -1329,6 +1356,11 @@ export function InsuranceClaimsDashboard({
 
     if (receivedNow <= 0) {
       setPaymentError("Amount received is required.");
+      return;
+    }
+
+    if (!systemSettings.insurance.enablePartialPayments && receivedNow < paymentStatement.outstanding) {
+      setPaymentError("Partial payments are disabled in Insurance Settings.");
       return;
     }
 
@@ -1501,12 +1533,12 @@ export function InsuranceClaimsDashboard({
             value={String(insurancePatientsThisSeason)}
           />
           <KpiCard
-            label="Outstanding Claims (USD)"
+            label={`Outstanding Claims (${systemSettings.clinic.currency})`}
             value={usdWhole(outstandingClaims)}
             tone={outstandingClaims > 0 ? "warning" : "default"}
           />
           <KpiCard
-            label="Overdue Claims (USD)"
+            label={`Overdue Claims (${systemSettings.clinic.currency})`}
             value={usdWhole(overdueClaims)}
             tone={overdueClaims > 0 ? "danger" : "default"}
           />
@@ -1677,10 +1709,18 @@ export function InsuranceClaimsDashboard({
                 ) : null}
                 <th className={tableStyles.numericHeaderCell}>Insurance Patients</th>
                 <th className={tableStyles.numericHeaderCell}>Number of Invoices</th>
-                <th className={tableStyles.numericHeaderCell}>Full Invoice Total USD</th>
-                <th className={tableStyles.numericHeaderCell}>Claim Amount USD</th>
-                <th className={tableStyles.numericHeaderCell}>Amount Received USD</th>
-                <th className={tableStyles.numericHeaderCell}>Outstanding USD</th>
+                <th className={tableStyles.numericHeaderCell}>
+                  Full Invoice Total {systemSettings.clinic.currency}
+                </th>
+                <th className={tableStyles.numericHeaderCell}>
+                  Claim Amount {systemSettings.clinic.currency}
+                </th>
+                <th className={tableStyles.numericHeaderCell}>
+                  Amount Received {systemSettings.clinic.currency}
+                </th>
+                <th className={tableStyles.numericHeaderCell}>
+                  Outstanding {systemSettings.clinic.currency}
+                </th>
                 <th className={tableStyles.headerCell}>Statement Status</th>
                 <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
@@ -1746,7 +1786,9 @@ export function InsuranceClaimsDashboard({
                 <tr>
                   <th className={tableStyles.headerCell}>Statement Month</th>
                   <th className={tableStyles.headerCell}>Payment Date</th>
-                  <th className={tableStyles.numericHeaderCell}>Amount Received USD</th>
+                  <th className={tableStyles.numericHeaderCell}>
+                    Amount Received {systemSettings.clinic.currency}
+                  </th>
                   <th className={tableStyles.headerCell}>Reference</th>
                   <th className={tableStyles.headerCell}>Notes</th>
                 </tr>
@@ -1788,6 +1830,7 @@ export function InsuranceClaimsDashboard({
           onEmail={() => emailStatement(selectedStatement)}
           onRecordPayment={() => openPaymentModal(selectedStatement)}
           onSubmit={() => submitStatement(selectedStatement)}
+          invoiceCurrencyCode={systemSettings.clinic.currency}
           statement={selectedStatement}
         />
       ) : null}
@@ -1807,11 +1850,11 @@ export function InsuranceClaimsDashboard({
             </div>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               <CompanyDetail
-                label="Outstanding USD"
+                label={`Outstanding ${systemSettings.clinic.currency}`}
                 value={usdWhole(paymentStatement.outstanding)}
               />
               <CompanyDetail
-                label="Claim Amount USD"
+                label={`Claim Amount ${systemSettings.clinic.currency}`}
                 value={usdWhole(paymentStatement.claimAmount)}
               />
               <div>
@@ -1833,7 +1876,7 @@ export function InsuranceClaimsDashboard({
               </div>
               <div>
                 <label className="label" htmlFor="statement-amount-received">
-                  Amount Received USD
+                  Amount Received {systemSettings.clinic.currency}
                 </label>
                 <input
                   id="statement-amount-received"
@@ -2037,16 +2080,19 @@ export function InsuranceClaimsDashboard({
                 />
                 <CompanyDetail label="Total Invoices" value={String(seasonalClaims.length)} />
                 <CompanyDetail
-                  label="Total Full Invoice Amount USD"
+                  label={`Total Full Invoice Amount ${systemSettings.clinic.currency}`}
                   value={usdWhole(seasonalInvoiceTotal)}
                 />
                 <CompanyDetail
-                  label="Total Claim Amount USD"
+                  label={`Total Claim Amount ${systemSettings.clinic.currency}`}
                   value={usdWhole(seasonalClaimTotal)}
                 />
-                <CompanyDetail label="Total Received USD" value={usdWhole(seasonalReceived)} />
                 <CompanyDetail
-                  label="Total Outstanding USD"
+                  label={`Total Received ${systemSettings.clinic.currency}`}
+                  value={usdWhole(seasonalReceived)}
+                />
+                <CompanyDetail
+                  label={`Total Outstanding ${systemSettings.clinic.currency}`}
                   value={usdWhole(seasonalOutstanding)}
                 />
               </div>
