@@ -299,7 +299,7 @@ export function PayoutManagement({
           <h2 className="font-semibold text-[#224770]">Payout Workflow</h2>
         </div>
         {error ? (
-          <div className="mx-4 mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          <div className="mx-4 mt-4 rounded-lg border border-[#46484a]/25 bg-[#efefef] p-3 text-sm font-semibold text-[#224770]">
             {error}
           </div>
         ) : null}
@@ -409,7 +409,7 @@ export function PayoutManagement({
                       <td className={tableStyles.cell}>{doctor?.name}</td>
                       <td className={tableStyles.strongCell}>
                         <p>{payout.invoiceNo}</p>
-                        <p className="text-xs font-normal text-slate-500">{shortDate(payout.date)}</p>
+                        <p className="text-xs font-normal text-[#46484a]">{shortDate(payout.date)}</p>
                       </td>
                       <td className={tableStyles.cell}>
                         {payout.payoutMode === "shift" ? "Clinic Shift Voucher" : "Invoice payout"}

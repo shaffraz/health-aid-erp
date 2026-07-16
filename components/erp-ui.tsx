@@ -105,7 +105,7 @@ export function buttonClass(variant: ButtonVariant = "secondary", className?: st
     variant === "secondary" &&
       "border border-[#dfe4e7] bg-white text-[#46484a] hover:border-[#0eb6ef] hover:text-[#224770] disabled:bg-[#efefef] disabled:text-[#46484a]/55",
     variant === "success" &&
-      "bg-[#84bc3f] text-white shadow-sm hover:bg-[#73a832] disabled:bg-[#d9d9d9]",
+      "bg-[#84bc3f] text-white shadow-sm hover:bg-[#224770] disabled:bg-[#d9d9d9]",
     variant === "danger" &&
       "border border-[#46484a]/25 bg-white text-[#46484a] hover:bg-[#efefef] disabled:border-[#efefef] disabled:bg-[#efefef] disabled:text-[#46484a]/55",
     variant === "muted" &&

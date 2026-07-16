@@ -471,7 +471,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
       {formOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="service-form-title"
@@ -484,7 +484,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
               <button
                 type="button"
                 onClick={resetForm}
-                className="focus-ring rounded-lg p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
                 aria-label="Close service form"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -493,13 +493,13 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
             <div className="space-y-4 p-5">
               {!canEdit ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                <div className="rounded-lg border border-[#d9d9d9] bg-[#efefef] p-3 text-sm font-semibold text-[#46484a]">
                   This role can review services but cannot change setup rules.
                 </div>
               ) : null}
 
               {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                <div className="rounded-lg border border-[#46484a]/25 bg-[#efefef] p-3 text-sm font-semibold text-[#224770]">
                   {error}
                 </div>
               ) : null}

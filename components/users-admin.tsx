@@ -364,7 +364,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
               <button
                 type="button"
                 onClick={resetForm}
-                className="focus-ring rounded-lg p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
                 aria-label="Close user form"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -373,7 +373,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
 
             <div className="flex-1 space-y-4 overflow-y-auto p-5">
               {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                <div className="rounded-lg border border-[#46484a]/25 bg-[#efefef] p-3 text-sm font-semibold text-[#224770]">
                   {error}
                 </div>
               ) : null}
@@ -494,7 +494,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
                       }))
                     }
                     disabled={form.role !== "director"}
-                    className="h-4 w-4 rounded border-slate-300"
+                    className="h-4 w-4 rounded border-[#d9d9d9]"
                   />
                   <span>
                     <span className="block text-sm font-semibold text-[#224770]">

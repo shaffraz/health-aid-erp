@@ -24,8 +24,8 @@ export function DemoRoleSwitcher({ activeRole }: DemoRoleSwitcherProps) {
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-lagoon-200 bg-lagoon-50/70 p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-lagoon-700">
+    <div className="rounded-xl border border-dashed border-[#0eb6ef]/35 bg-[#efefef]/70 p-3">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#224770]">
         <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
         Demo role
       </div>
@@ -38,8 +38,8 @@ export function DemoRoleSwitcher({ activeRole }: DemoRoleSwitcherProps) {
             className={cn(
               "focus-ring rounded-lg border px-2 py-1.5 text-xs font-semibold transition",
               activeRole === role
-                ? "border-lagoon-600 bg-white text-lagoon-700 shadow-sm"
-                : "border-transparent bg-white/70 text-slate-600 hover:border-lagoon-200"
+                ? "border-[#0eb6ef] bg-white text-[#224770] shadow-sm"
+                : "border-transparent bg-white/70 text-[#46484a] hover:border-[#0eb6ef]/35"
             )}
           >
             {roleLabels[role]}

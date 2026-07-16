@@ -86,7 +86,7 @@ const invoiceSectionColors = {
   patient: "#0eb6ef",
   billing: "#84bc3f",
   insurance: "#224770",
-  services: "#224770",
+  services: "#0eb6ef",
   charges: "#0eb6ef",
   notes: "#46484a",
   totals: "#84bc3f",
@@ -474,7 +474,7 @@ export function InvoicePosForm({
     <meta charset="utf-8" />
     <title>${escapeHtml(targetInvoice.invoiceNo)}</title>
     <style>
-      body { font-family: Arial, sans-serif; color: #0b1726; margin: 32px; }
+      body { font-family: Arial, sans-serif; color: #224770; margin: 32px; }
       h1 { margin-bottom: 4px; }
       h2 { margin-top: 28px; font-size: 16px; }
       table { border-collapse: collapse; width: 100%; margin-top: 12px; }
@@ -654,7 +654,7 @@ export function InvoicePosForm({
           />
 
           {savedInvoiceNo ? (
-            <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-5 rounded-xl border border-[#84bc3f] bg-[#84bc3f]/12 px-4 py-3 text-sm font-semibold text-[#224770]">
               Saved {savedInvoiceNo}. The invoice is available in the local registry.
             </div>
           ) : null}
@@ -766,7 +766,7 @@ export function InvoicePosForm({
                       <p className="mt-1 text-xs leading-5 text-[#46484a]">{payout.paymentReason}</p>
                     </div>
                   ))}
-                  <div className="flex justify-between rounded-md bg-[#84bc3f]/12 px-3 py-2 text-sm font-semibold text-[#4f7f22]">
+                  <div className="flex justify-between rounded-md bg-[#84bc3f]/12 px-3 py-2 text-sm font-semibold text-[#224770]">
                     <span>Estimated total payout {systemSettings.clinic.localCurrency}</span>
                     <span>{money(payoutPreviewTotal)}</span>
                   </div>
@@ -786,13 +786,11 @@ export function InvoicePosForm({
 
 function SectionHeading({ title, tone = "invoice" }: { title: string; tone?: InvoiceSectionTone }) {
   return (
-    <div className="flex items-center gap-3 border-b border-[#efefef] pb-3">
-      <span
-        className="h-1.5 w-8 rounded-full"
-        style={{ backgroundColor: invoiceSectionColors[tone] }}
-        aria-hidden="true"
-      />
-      <h3 className="font-semibold text-[#224770]">{title}</h3>
+    <div
+      className="rounded-md px-3 py-2"
+      style={{ backgroundColor: invoiceSectionColors[tone] }}
+    >
+      <h3 className="font-semibold text-white">{title}</h3>
     </div>
   );
 }
@@ -1186,7 +1184,7 @@ function InvoiceServicesSection({
               key={candidate.id}
               type="button"
               onClick={() => onServiceSelect(candidate.id)}
-              className="focus-ring flex min-h-24 flex-col justify-between rounded-md bg-[#224770] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#0EB6EF] active:translate-y-0"
+              className="focus-ring flex min-h-24 flex-col justify-between rounded-md bg-[#0eb6ef] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#224770] active:translate-y-0"
             >
               <span className="text-sm font-semibold leading-5">{candidate.name}</span>
               <span className="mt-3 inline-flex w-fit rounded bg-white/15 px-2 py-1 text-sm font-bold">

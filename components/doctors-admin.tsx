@@ -245,7 +245,7 @@ export function DoctorsAdmin({
               >
                 <p className="font-semibold text-[#224770]">{doctor.name}</p>
                 <p className="mt-1 text-sm text-[#46484a]">{doctor.designation}</p>
-                <p className="mt-3 text-lg font-bold text-rose-700">{money(pending)}</p>
+                <p className="mt-3 text-lg font-bold text-[#224770]">{money(pending)}</p>
               </div>
             );
           })}
@@ -309,7 +309,7 @@ export function DoctorsAdmin({
                       <span
                         className={cn(
                           "font-semibold",
-                          doctor.active ? "text-emerald-700" : "text-rose-700"
+                          doctor.active ? "text-[#84bc3f]" : "text-[#46484a]"
                         )}
                       >
                         {doctor.active ? "Active" : "Inactive"}
@@ -348,7 +348,7 @@ export function DoctorsAdmin({
               })}
               {!doctors.length ? (
                 <tr>
-                  <td colSpan={canEdit ? 6 : 5} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={canEdit ? 6 : 5} className="px-5 py-10 text-center text-sm text-[#46484a]">
                     No doctors have been added yet.
                   </td>
                 </tr>
@@ -360,20 +360,20 @@ export function DoctorsAdmin({
 
       {formOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="doctor-form-title"
         >
           <section className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <h2 id="doctor-form-title" className="font-semibold text-ink">
+              <h2 id="doctor-form-title" className="font-semibold text-[#224770]">
                 {editing ? "Edit doctor" : "Add doctor"}
               </h2>
               <button
                 type="button"
                 onClick={resetForm}
-                className="focus-ring rounded-lg p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
                 aria-label="Close doctor form"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -382,13 +382,13 @@ export function DoctorsAdmin({
 
             <div className="space-y-4 p-5">
               {!canEdit ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                <div className="rounded-lg border border-[#d9d9d9] bg-[#efefef] p-3 text-sm font-semibold text-[#46484a]">
                   Doctor setup is administrator-only.
                 </div>
               ) : null}
 
               {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                <div className="rounded-lg border border-[#46484a]/25 bg-[#efefef] p-3 text-sm font-semibold text-[#224770]">
                   {error}
                 </div>
               ) : null}

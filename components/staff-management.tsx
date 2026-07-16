@@ -379,7 +379,7 @@ export function StaffManagement({
 
       {form ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="staff-form-title"
@@ -392,7 +392,7 @@ export function StaffManagement({
               <button
                 type="button"
                 onClick={closeForm}
-                className="focus-ring rounded-lg p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
                 aria-label="Close staff form"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -401,7 +401,7 @@ export function StaffManagement({
 
             <div className="flex-1 space-y-5 overflow-y-auto p-5">
               {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                <div className="rounded-lg border border-[#46484a]/25 bg-[#efefef] p-3 text-sm font-semibold text-[#224770]">
                   {error}
                 </div>
               ) : null}

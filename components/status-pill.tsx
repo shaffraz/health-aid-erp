@@ -6,11 +6,11 @@ type StatusPillProps = {
 };
 
 const tones = {
-  green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  amber: "bg-amber-50 text-amber-700 ring-amber-200",
-  cyan: "bg-cyan-50 text-cyan-700 ring-cyan-200",
-  red: "bg-rose-50 text-rose-700 ring-rose-200",
-  slate: "bg-slate-50 text-slate-700 ring-slate-200"
+  green: "bg-[#84bc3f] text-white ring-[#84bc3f]",
+  amber: "bg-[#efefef] text-[#46484a] ring-[#d9d9d9]",
+  cyan: "bg-[#0eb6ef] text-white ring-[#0eb6ef]",
+  red: "bg-[#224770] text-white ring-[#224770]",
+  slate: "bg-[#efefef] text-[#46484a] ring-[#d9d9d9]"
 };
 
 export function StatusPill({ tone = "slate", children }: StatusPillProps) {

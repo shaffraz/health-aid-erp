@@ -60,14 +60,14 @@ export function LoginPanel() {
   return (
     <main className="grid min-h-screen place-items-center px-4 py-10">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-white/80 bg-white shadow-soft lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="bg-ink p-8 text-white lg:p-10">
+        <section className="bg-[#224770] p-8 text-white lg:p-10">
           <div className="rounded-2xl bg-white p-4 shadow-soft">
             <BrandLogo priority />
           </div>
           <h1 className="mt-8 text-3xl font-bold tracking-tight">
             {defaultSystemSettings.clinic.clinicName} ERP
           </h1>
-          <p className="mt-4 text-sm leading-6 text-cyan-50">
+          <p className="mt-4 text-sm leading-6 text-white">
             Secure healthcare billing, doctor payouts, vouchers, and reporting without creating patient profiles yet.
             Patient identity is intentionally stored only inside invoices for this MVP.
           </p>
@@ -78,8 +78,8 @@ export function LoginPanel() {
               "PostgreSQL RLS policies keep doctor earnings private"
             ].map((item) => (
               <div key={item} className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 h-4 w-4 text-care-300" aria-hidden="true" />
-                <span className="text-cyan-50">{item}</span>
+                <ShieldCheck className="mt-0.5 h-4 w-4 text-[#84bc3f]" aria-hidden="true" />
+                <span className="text-white">{item}</span>
               </div>
             ))}
           </div>
@@ -87,12 +87,12 @@ export function LoginPanel() {
 
         <section className="p-8 lg:p-10">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-lagoon-50 p-2 text-lagoon-700">
+            <div className="rounded-lg bg-[#efefef] p-2 text-[#224770]">
               <Activity className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
               <p className="label">Secure access</p>
-              <h2 className="text-xl font-bold text-ink">Sign in</h2>
+              <h2 className="text-xl font-bold text-[#224770]">Sign in</h2>
             </div>
           </div>
 
@@ -127,7 +127,7 @@ export function LoginPanel() {
             </div>
 
             {error ? (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <div className="rounded-lg border border-[#46484a]/25 bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770]">
                 {error}
               </div>
             ) : null}
@@ -137,7 +137,7 @@ export function LoginPanel() {
               disabled={loading || demo}
               className={cn(
                 "focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
-                demo ? "bg-slate-300" : "bg-lagoon-600 hover:bg-lagoon-700"
+                demo ? "bg-[#d9d9d9]" : "bg-[#224770] hover:bg-[#0eb6ef]"
               )}
             >
               {loading ? "Signing in..." : "Sign in with Supabase"}
@@ -146,9 +146,9 @@ export function LoginPanel() {
           </form>
 
           {demo ? (
-            <div className="mt-8 rounded-xl border border-dashed border-lagoon-200 bg-lagoon-50/70 p-4">
-              <p className="text-sm font-semibold text-ink">Demo mode is active</p>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
+            <div className="mt-8 rounded-xl border border-dashed border-[#0eb6ef]/35 bg-[#efefef]/70 p-4">
+              <p className="text-sm font-semibold text-[#224770]">Demo mode is active</p>
+              <p className="mt-1 text-sm leading-6 text-[#46484a]">
                 Supabase environment variables are not connected yet. Choose a role to review scoped workflows.
               </p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -157,7 +157,7 @@ export function LoginPanel() {
                     key={role}
                     type="button"
                     onClick={() => enterDemo(role)}
-                    className="focus-ring rounded-lg border border-white bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-lagoon-200 hover:text-lagoon-700"
+                    className="focus-ring rounded-lg border border-white bg-white px-3 py-2 text-sm font-semibold text-[#224770] shadow-sm transition hover:border-[#0eb6ef]/35 hover:text-[#224770]"
                   >
                     Enter as {roleLabels[role]}
                   </button>

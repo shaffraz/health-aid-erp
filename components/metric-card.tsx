@@ -10,10 +10,10 @@ type MetricCardProps = {
 };
 
 const tones = {
-  care: "bg-care-50 text-care-700",
-  lagoon: "bg-lagoon-50 text-lagoon-700",
-  ink: "bg-slate-100 text-ink",
-  amber: "bg-amber-50 text-amber-700"
+  care: "bg-[#84bc3f] text-white",
+  lagoon: "bg-[#0eb6ef] text-white",
+  ink: "bg-[#efefef] text-[#224770]",
+  amber: "bg-[#efefef] text-[#46484a]"
 };
 
 export function MetricCard({
@@ -27,14 +27,14 @@ export function MetricCard({
     <div className="panel p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-ink">{value}</p>
+          <p className="text-sm font-medium text-[#46484a]">{label}</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-[#224770]">{value}</p>
         </div>
         <span className={cn("rounded-lg p-2.5", tones[tone])}>
           <Icon className="h-5 w-5" aria-hidden="true" />
         </span>
       </div>
-      {helper ? <p className="mt-3 text-sm text-slate-500">{helper}</p> : null}
+      {helper ? <p className="mt-3 text-sm text-[#46484a]">{helper}</p> : null}
     </div>
   );
 }

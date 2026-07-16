@@ -9,24 +9,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#0b1726",
+        ink: "#224770",
         lagoon: {
-          50: "#ecfeff",
-          100: "#cffafe",
-          500: "#06b6d4",
-          600: "#0891b2",
-          700: "#0e7490"
+          50: "#efefef",
+          100: "#efefef",
+          500: "#0eb6ef",
+          600: "#0eb6ef",
+          700: "#224770"
         },
         care: {
-          50: "#effdf7",
-          100: "#d9fbe8",
-          500: "#20c997",
-          600: "#0ca678",
-          700: "#087f5b"
+          50: "#efefef",
+          100: "#efefef",
+          500: "#84bc3f",
+          600: "#84bc3f",
+          700: "#224770"
         }
       },
       boxShadow: {
-        soft: "0 20px 50px -32px rgba(11, 23, 38, 0.35)"
+        soft: "0 20px 50px -32px rgba(0, 0, 0, 0.25)"
       }
     }
   },

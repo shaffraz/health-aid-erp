@@ -49,7 +49,7 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string, clinicName: 
     <meta charset="utf-8" />
     <title>${escapeHtml(invoice.invoiceNo)}</title>
     <style>
-      body { color: #0b1726; font-family: Arial, sans-serif; margin: 32px; }
+      body { color: #224770; font-family: Arial, sans-serif; margin: 32px; }
       h1 { margin: 0 0 8px; }
       table { border-collapse: collapse; margin-top: 16px; width: 100%; }
       th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; }
@@ -173,7 +173,7 @@ function InvoiceDetailsModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-3 sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-5"
       role="dialog"
     >
       <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
@@ -265,8 +265,8 @@ function InvoiceDetailsModal({
                     </span>
                   </div>
                   <div className="flex justify-between rounded-lg bg-[#84bc3f]/15 px-3 py-2">
-                    <span className="font-semibold text-[#4f7f22]">Claim Amount</span>
-                    <span className="font-bold text-[#4f7f22]">
+                    <span className="font-semibold text-[#224770]">Claim Amount</span>
+                    <span className="font-bold text-[#224770]">
                       {usdWhole(invoice.claimAmount ?? 0)}
                     </span>
                   </div>

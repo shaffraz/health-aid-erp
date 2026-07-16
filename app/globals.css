@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #f3f5f6;
+  --background: #efefef;
   --foreground: #224770;
 }
 
@@ -32,11 +32,11 @@ textarea {
 
 @layer components {
   .focus-ring {
-    @apply outline-none ring-offset-2 ring-offset-white focus-visible:ring-2 focus-visible:ring-lagoon-600;
+    @apply outline-none ring-offset-2 ring-offset-white focus-visible:ring-2 focus-visible:ring-[#0eb6ef];
   }
 
   .field {
-    @apply w-full rounded-md border border-[#dfe4e7] bg-white px-3 py-2 text-sm text-[#224770] outline-none transition placeholder:text-slate-400 focus:border-[#0eb6ef] focus:ring-2 focus:ring-[#0eb6ef]/15;
+    @apply w-full rounded-md border border-[#dfe4e7] bg-white px-3 py-2 text-sm text-[#224770] outline-none transition placeholder:text-[#46484a]/55 focus:border-[#0eb6ef] focus:ring-2 focus:ring-[#0eb6ef]/15;
   }
 
   .label {

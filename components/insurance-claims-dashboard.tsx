@@ -353,7 +353,7 @@ function buildStatementDocument(statement: MonthlyStatement, settings: SystemSet
     <meta charset="utf-8" />
     <title>${escapeHtml(statement.assistanceCompany)} ${escapeHtml(monthLabel(statement.month))}</title>
     <style>
-      body { color: #0b1726; font-family: Arial, sans-serif; margin: 32px; }
+      body { color: #224770; font-family: Arial, sans-serif; margin: 32px; }
       h1 { margin: 0 0 6px; }
       h2 { margin: 0 0 18px; font-size: 18px; }
       .meta { color: #46484a; margin: 4px 0; }
@@ -362,7 +362,7 @@ function buildStatementDocument(statement: MonthlyStatement, settings: SystemSet
       th { background: #f1f5f9; }
       .summary { margin-top: 22px; margin-left: auto; width: 360px; }
       .summary div { display: flex; justify-content: space-between; padding: 6px 0; }
-      .summary strong { color: #0b1726; }
+      .summary strong { color: #224770; }
     </style>
   </head>
   <body>
@@ -477,7 +477,7 @@ function CompanyFormModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
       role="dialog"
     >
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#efefef] bg-white shadow-2xl">
@@ -591,7 +591,7 @@ function CompanyFormModal({
             />
           </div>
           {companyError ? (
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 md:col-span-2">
+            <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770] md:col-span-2">
               {companyError}
             </p>
           ) : null}
@@ -729,7 +729,7 @@ function StatementDetailsModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-3 sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-5"
       role="dialog"
     >
       <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
@@ -1749,7 +1749,7 @@ export function InsuranceClaimsDashboard({
                   <td className={tableStyles.numericCell}>
                     <span
                       className={
-                        statement.outstanding > 0 ? "font-bold text-amber-700" : undefined
+                        statement.outstanding > 0 ? "font-bold text-[#224770]" : undefined
                       }
                     >
                       {usdWhole(statement.outstanding)}
@@ -1843,7 +1843,7 @@ export function InsuranceClaimsDashboard({
       {paymentStatement ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
           role="dialog"
         >
           <div className="w-full max-w-2xl rounded-2xl border border-[#efefef] bg-white shadow-2xl">
@@ -1931,7 +1931,7 @@ export function InsuranceClaimsDashboard({
                 />
               </div>
               {paymentError ? (
-                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 sm:col-span-2">
+                <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770] sm:col-span-2">
                   {paymentError}
                 </p>
               ) : null}
@@ -1963,7 +1963,7 @@ export function InsuranceClaimsDashboard({
       {seasonalModalOpen ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
           role="dialog"
         >
           <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
@@ -2103,12 +2103,12 @@ export function InsuranceClaimsDashboard({
               </div>
 
               {seasonalError ? (
-                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770]">
                   {seasonalError}
                 </p>
               ) : null}
               {!seasonalDateRangeValid ? (
-                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770]">
                   To Date cannot be earlier than From Date.
                 </p>
               ) : null}

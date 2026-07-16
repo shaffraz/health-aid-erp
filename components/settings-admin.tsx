@@ -961,7 +961,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
                   className={cn(
                     "w-fit rounded-full px-3 py-1 text-xs font-semibold",
                     season.active
-                      ? "bg-[#84bc3f]/15 text-[#4f7f22]"
+                      ? "bg-[#84bc3f]/15 text-[#224770]"
                       : "bg-[#efefef] text-[#46484a]"
                   )}
                 >
@@ -1402,7 +1402,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
                   <span className="absolute left-0 top-2 h-8 w-1 rounded-r-full bg-[#224770]" />
                 ) : null}
                 <span>{sectionLabels[section]}</span>
-                {dirty ? <span className="h-2 w-2 rounded-full bg-amber-400" /> : null}
+                {dirty ? <span className="h-2 w-2 rounded-full bg-[#84bc3f]" /> : null}
               </button>
             );
           })}
@@ -1430,7 +1430,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
         ) : null}
 
         {statusMessage ? (
-          <div className="rounded-xl border border-[#dceccc] bg-[#84bc3f]/10 p-4 text-sm font-semibold text-[#4f7f22]">
+          <div className="rounded-xl border border-[#84bc3f]/35 bg-[#84bc3f]/10 p-4 text-sm font-semibold text-[#224770]">
             {statusMessage}
           </div>
         ) : null}
@@ -1449,7 +1449,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             </div>
             <div className="flex flex-wrap gap-2">
               {activeDirty ? (
-                <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                <span className="rounded-full bg-[#efefef] px-3 py-1.5 text-xs font-semibold text-[#46484a]">
                   Unsaved changes
                 </span>
               ) : null}

@@ -138,45 +138,38 @@ const sectionTones: Record<
   {
     panel: string;
     header: string;
-    accent: string;
     title: string;
   }
 > = {
   operations: {
     panel: "border-[#d7e1ec] bg-white",
-    header: "border-[#efefef] bg-[#224770]/5",
-    accent: "bg-[#224770]",
-    title: "text-[#224770]"
+    header: "border-[#224770] bg-[#224770]",
+    title: "text-white"
   },
   performance: {
     panel: "border-[#dceccc] bg-white",
-    header: "border-[#efefef] bg-[#84bc3f]/8",
-    accent: "bg-[#84bc3f]",
-    title: "text-[#3f6f18]"
+    header: "border-[#84bc3f] bg-[#84bc3f]",
+    title: "text-white"
   },
   services: {
     panel: "bg-white",
-    header: "border-[#efefef]",
-    accent: "bg-[#84bc3f]",
-    title: "text-[#3f6f18]"
+    header: "border-[#0eb6ef] bg-[#0eb6ef]",
+    title: "text-white"
   },
   season: {
     panel: "bg-white",
-    header: "border-[#efefef]",
-    accent: "bg-[#224770]",
-    title: "text-[#224770]"
+    header: "border-[#224770] bg-[#224770]",
+    title: "text-white"
   },
   yearly: {
     panel: "bg-white",
-    header: "border-[#efefef]",
-    accent: "bg-[#46484a]",
-    title: "text-[#46484a]"
+    header: "border-[#46484a] bg-[#46484a]",
+    title: "text-white"
   },
   insights: {
     panel: "bg-white",
-    header: "border-[#efefef]",
-    accent: "bg-[#0eb6ef]",
-    title: "text-[#224770]"
+    header: "border-[#0eb6ef] bg-[#0eb6ef]",
+    title: "text-white"
   }
 };
 
@@ -185,7 +178,6 @@ function SectionTitle({ title, tone }: { title: string; tone: SectionTone }) {
 
   return (
     <div className={cn("border-b px-5 py-4", styles.header)}>
-      <div className={cn("mb-3 h-1 w-12 rounded-full", styles.accent)} />
       <h2 className={cn("font-semibold", styles.title)}>{title}</h2>
     </div>
   );
@@ -223,13 +215,11 @@ function SummaryCard({
     <div
       className={[
         "rounded-xl border p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
-        warning ? "border-rose-200 bg-rose-50/60" : "border-[#efefef] bg-white"
+        warning ? "border-[#224770]/30 bg-[#efefef]/60" : "border-[#efefef] bg-white"
       ].join(" ")}
     >
-      <p className={warning ? "label text-rose-700" : "label text-[#46484a]"}>{label}</p>
-      <p className={warning ? "mt-3 break-words text-xl font-bold text-rose-700" : "mt-3 break-words text-xl font-bold text-[#224770]"}>
-        {value}
-      </p>
+      <p className="label text-[#46484a]">{label}</p>
+      <p className="mt-3 break-words text-xl font-bold text-[#224770]">{value}</p>
       {helper ? <p className="mt-1 text-sm font-medium text-[#46484a]">{helper}</p> : null}
     </div>
   );
