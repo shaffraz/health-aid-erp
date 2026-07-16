@@ -73,20 +73,20 @@ export function StaffSalaryDashboard({
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#efefef] p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="field min-h-12 lg:max-w-sm"
             placeholder="Search staff salaries"
           />
-          <p className="text-sm font-medium text-[#46484a] lg:ml-auto">
+          <p className="text-sm font-medium text-white/85 lg:ml-auto">
             {canManage ? "Administrator salary management" : "Read-only salary overview"}
           </p>
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[980px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[980px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Member</th>

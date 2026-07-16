@@ -500,7 +500,7 @@ export function DashboardOverview({
             {monthlyServiceSummary.map((item) => (
               <div
                 key={item.serviceName}
-                className="min-w-[220px] rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
+                className="w-full min-w-[220px] rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
               >
                 <p className="text-sm font-semibold text-[#224770]">{item.serviceName}</p>
                 <p className="mt-4 text-2xl font-bold text-[#224770]">{item.count}</p>
@@ -510,7 +510,7 @@ export function DashboardOverview({
               </div>
             ))}
             {!monthlyServiceSummary.length ? (
-              <div className="min-w-[260px] rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a]">
+              <div className="w-full min-w-[260px] rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a]">
                 No services with recorded value this month.
               </div>
             ) : null}

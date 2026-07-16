@@ -22,12 +22,14 @@ import {
   isAmountOnlyInvoiceServiceName,
   isPayoutEligibleCategory,
   paymentMethods,
+  serviceCategories,
   serviceStorageKey,
   type AssistanceCompany,
   type Doctor,
   type Invoice,
   type InvoiceItem,
-  type Service
+  type Service,
+  type ServiceCategory
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -796,7 +798,7 @@ function SectionHeading({ title, tone = "invoice" }: { title: string; tone?: Inv
 }
 
 function FieldShell({ children }: { children: ReactNode }) {
-  return <div>{children}</div>;
+  return <div className="field-stack">{children}</div>;
 }
 
 function InvoiceTimestampFields({
@@ -867,7 +869,7 @@ function InvoiceHeader({
 }) {
   return (
     <div>
-      <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
+      <div className="form-grid grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
         <div className="min-w-0 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-4">
           <p className="label">Invoice No.</p>
           <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
@@ -877,7 +879,7 @@ function InvoiceHeader({
             {invoiceDate} at {invoiceTime}
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="form-grid grid gap-3 sm:grid-cols-2">
           <InvoiceTimestampFields
             invoiceDate={invoiceDate}
             invoiceTime={invoiceTime}
@@ -949,7 +951,7 @@ function PatientInformationFields({
   onNationalityChange: (value: string) => void;
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="form-grid grid gap-4 md:grid-cols-2">
       <FieldShell>
         <label className="label" htmlFor="patientName">
           Patient name
@@ -1040,7 +1042,7 @@ function BillingDetailsFields({
   onAssistanceCompanyChange: (value: string) => void;
 }) {
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] lg:items-start">
+    <div className="form-grid grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] lg:items-start">
       <FieldShell>
         <label className="label" htmlFor="doctor">
           Doctor
@@ -1175,23 +1177,90 @@ function InvoiceServicesSection({
   onServiceSelect: (serviceId: string) => void;
   onRemoveServiceLine: (id: string) => void;
 }) {
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<ServiceCategory | "all">("all");
+  const availableCategories = useMemo(
+    () =>
+      serviceCategories.filter((category) =>
+        clinicalServiceOptions.some((service) => service.category === category)
+      ),
+    [clinicalServiceOptions]
+  );
+  const filteredClinicalServices = useMemo(() => {
+    const normalizedSearch = serviceSearch.trim().toLowerCase();
+
+    return clinicalServiceOptions.filter((service) => {
+      const categoryMatches = categoryFilter === "all" || service.category === categoryFilter;
+      const searchMatches =
+        !normalizedSearch ||
+        service.name.toLowerCase().includes(normalizedSearch) ||
+        service.category.toLowerCase().includes(normalizedSearch);
+
+      return categoryMatches && searchMatches;
+    });
+  }, [categoryFilter, clinicalServiceOptions, serviceSearch]);
+
   return (
     <WorkflowSection title="Clinical Services" tone="services">
       {clinicalServiceOptions.length ? (
-        <div className="grid max-h-[420px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {clinicalServiceOptions.map((candidate) => (
-            <button
-              key={candidate.id}
-              type="button"
-              onClick={() => onServiceSelect(candidate.id)}
-              className="focus-ring flex min-h-24 flex-col justify-between rounded-md bg-[#0eb6ef] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#224770] active:translate-y-0"
-            >
-              <span className="text-sm font-semibold leading-5">{candidate.name}</span>
-              <span className="mt-3 inline-flex w-fit rounded bg-white/15 px-2 py-1 text-sm font-bold">
-                {usdWhole(roundUsd(candidate.sellingPrice))}
-              </span>
-            </button>
-          ))}
+        <div className="space-y-3">
+          <div className="form-grid grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+            <div>
+              <label className="label" htmlFor="service-search">
+                Search Service
+              </label>
+              <input
+                id="service-search"
+                type="search"
+                value={serviceSearch}
+                onChange={(event) => setServiceSearch(event.target.value)}
+                className="field mt-2 min-h-12"
+                placeholder="Search by service or category"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="service-category">
+                Category
+              </label>
+              <select
+                id="service-category"
+                value={categoryFilter}
+                onChange={(event) =>
+                  setCategoryFilter(event.target.value as ServiceCategory | "all")
+                }
+                className="field mt-2 min-h-12"
+              >
+                <option value="all">All categories</option>
+                {availableCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {filteredClinicalServices.length ? (
+            <div className="grid max-h-[420px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {filteredClinicalServices.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() => onServiceSelect(candidate.id)}
+                  className="focus-ring flex min-h-24 flex-col justify-between rounded-md bg-[#224770] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#0eb6ef] active:translate-y-0"
+                >
+                  <span className="text-sm font-semibold leading-5">{candidate.name}</span>
+                  <span className="mt-3 inline-flex w-fit rounded bg-white/15 px-2 py-1 text-sm font-bold">
+                    {usdWhole(roundUsd(candidate.sellingPrice))}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed border-[#dfe4e7] bg-[#efefef]/55 p-4 text-sm text-[#46484a]">
+              No services match the current search or category.
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -1254,7 +1323,7 @@ function AdditionalChargeInput({
   const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
 
   return (
-    <div className="grid gap-3 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+    <div className="form-grid grid gap-3 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
       <label className="text-sm font-semibold text-[#224770]" htmlFor={`charge-${service.id}`}>
         {label}
       </label>

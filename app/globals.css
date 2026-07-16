@@ -46,4 +46,19 @@ textarea {
   .panel {
     @apply rounded-lg border border-[#dfe4e7] bg-white shadow-sm;
   }
+
+  .field-stack {
+    @apply flex h-full flex-col;
+  }
+
+  @media (min-width: 768px) {
+    .form-grid .field-stack > .label,
+    .form-grid > div > .label:is(label, span),
+    .form-grid label > .label {
+      display: flex;
+      min-height: 2.5rem;
+      align-items: flex-start;
+      line-height: 1.35;
+    }
+  }
 }

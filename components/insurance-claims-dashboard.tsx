@@ -484,7 +484,7 @@ function CompanyFormModal({
         <div className="border-b border-[#efefef] p-5">
           <h2 className="text-lg font-semibold text-[#224770]">{title}</h2>
         </div>
-        <div className="grid gap-4 p-5 md:grid-cols-2">
+        <div className="form-grid grid gap-4 p-5 md:grid-cols-2">
           <div>
             <label className="label" htmlFor="company-name">
               Company Name
@@ -781,7 +781,7 @@ function StatementDetailsModal({
               <h3 className="font-semibold text-[#224770]">Invoice List</h3>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-[980px] text-sm">
+              <table className="w-full min-w-[980px] text-sm">
                 <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
                   <tr>
                     <th className="px-4 py-3">Invoice Number</th>
@@ -1550,20 +1550,20 @@ export function InsuranceClaimsDashboard({
 
       {!isCompanyPortal ? (
         <section className="panel overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-semibold text-[#224770]">Assistance Companies</h2>
+          <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="font-semibold text-white">Assistance Companies</h2>
             {canManageCompanies ? (
               <button
                 type="button"
                 onClick={openAddCompanyModal}
-                className={buttonClass("primary", "min-h-12 px-5")}
+                className={buttonClass("secondary", "min-h-12 border-white bg-white px-5 text-[#224770] hover:border-white hover:bg-[#efefef]")}
               >
                 Add Company
               </button>
             ) : null}
           </div>
           <div className={tableStyles.wrapper}>
-            <table className="min-w-[860px] divide-y divide-[#efefef] text-sm">
+            <table className="w-full min-w-[860px] divide-y divide-[#efefef] text-sm">
               <thead className={tableStyles.head}>
                 <tr>
                   <th className="w-[38%] px-4 py-3">Company Name</th>
@@ -1685,11 +1685,11 @@ export function InsuranceClaimsDashboard({
       ) : null}
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold text-[#224770]">Monthly Insurance Statements</h2>
+            <h2 className="text-lg font-semibold text-white">Monthly Insurance Statements</h2>
             {seasonalConfirmations.length ? (
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/80">
                 {seasonalConfirmations.length} seasonal confirmations recorded
               </p>
             ) : null}
@@ -1698,14 +1698,14 @@ export function InsuranceClaimsDashboard({
             <button
               type="button"
               onClick={openSeasonalModal}
-              className={buttonClass("secondary", "min-h-12 px-5")}
+              className={buttonClass("secondary", "min-h-12 border-white bg-white px-5 text-[#224770] hover:border-white hover:bg-[#efefef]")}
             >
               Confirm Seasonal Summary
             </button>
           ) : null}
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[1180px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[1180px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Month</th>
@@ -1782,8 +1782,8 @@ export function InsuranceClaimsDashboard({
 
       {isCompanyPortal ? (
         <section className="panel overflow-hidden">
-          <div className="border-b border-[#efefef] p-5">
-            <h2 className="text-lg font-semibold text-[#224770]">Payment History</h2>
+          <div className="border-b border-[#224770] bg-[#224770] p-5">
+            <h2 className="text-lg font-semibold text-white">Payment History</h2>
           </div>
           <div className={tableStyles.wrapper}>
             <table className={tableStyles.table}>
@@ -1853,7 +1853,7 @@ export function InsuranceClaimsDashboard({
                 {paymentStatement.assistanceCompany} - {monthLabel(paymentStatement.month)}
               </p>
             </div>
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
+            <div className="form-grid grid gap-4 p-5 sm:grid-cols-2">
               <CompanyDetail
                 label={`Outstanding ${systemSettings.clinic.currency}`}
                 value={usdWhole(paymentStatement.outstanding)}
@@ -1973,7 +1973,7 @@ export function InsuranceClaimsDashboard({
               </h2>
             </div>
             <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-5">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="form-grid grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="seasonal-company">
                     Assistance Company

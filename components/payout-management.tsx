@@ -295,8 +295,8 @@ export function PayoutManagement({
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] bg-[#efefef]/45 px-4 py-3">
-          <h2 className="font-semibold text-[#224770]">Payout Workflow</h2>
+        <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
+          <h2 className="font-semibold text-white">Payout Workflow</h2>
         </div>
         {error ? (
           <div className="mx-4 mt-4 rounded-lg border border-[#46484a]/25 bg-[#efefef] p-3 text-sm font-semibold text-[#224770]">
@@ -304,7 +304,7 @@ export function PayoutManagement({
           </div>
         ) : null}
         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="form-grid grid gap-4 md:grid-cols-3">
             <div>
               <label className="label" htmlFor="payout-doctor">
                 Doctor
@@ -383,8 +383,8 @@ export function PayoutManagement({
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         <section className="panel order-2 overflow-hidden xl:order-2">
-          <div className="border-b border-[#efefef] bg-[#efefef]/35 px-4 py-3">
-            <h2 className="font-semibold text-[#224770]">Doctor Payout Records</h2>
+          <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
+            <h2 className="font-semibold text-white">Doctor Payout Records</h2>
           </div>
           <div className={tableStyles.wrapper}>
             <table className={tableStyles.table}>
@@ -431,10 +431,12 @@ export function PayoutManagement({
           </div>
         </section>
 
-        <section className="panel order-1 p-4 xl:order-1">
-          <h2 className="font-semibold text-[#224770]">Voucher Management</h2>
+        <section className="panel order-1 overflow-hidden xl:order-1">
+          <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
+            <h2 className="font-semibold text-white">Voucher Management</h2>
+          </div>
 
-          <div className="mt-4 space-y-4">
+          <div className="space-y-4 p-4">
             <div>
               <label className="label" htmlFor="voucher">
                 Voucher

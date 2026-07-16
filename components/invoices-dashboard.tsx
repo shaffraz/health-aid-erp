@@ -368,7 +368,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
   return (
     <div className="space-y-6">
       <section className="panel p-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_160px] xl:items-end">
+        <div className="form-grid grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_160px] xl:items-end">
           <div>
             <label className="label" htmlFor="invoice-date-filter">
               Invoice Date
@@ -420,8 +420,8 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] p-5">
-          <h2 className="text-lg font-semibold text-[#224770]">Invoice Registry</h2>
+        <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <h2 className="text-lg font-semibold text-white">Invoice Registry</h2>
         </div>
         <div className={tableStyles.wrapper}>
           <table className={tableStyles.table}>

@@ -226,7 +226,7 @@ export function StaffManagement({
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#efefef] p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -237,7 +237,7 @@ export function StaffManagement({
             <button
               type="button"
               onClick={openAddForm}
-              className={buttonClass("primary", "min-h-12 lg:ml-auto")}
+              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
             >
               Add Staff
             </button>
@@ -245,7 +245,7 @@ export function StaffManagement({
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[860px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[860px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Full Name</th>
@@ -329,13 +329,13 @@ export function StaffManagement({
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] p-5">
-          <h2 className="font-semibold text-[#224770]">
+        <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <h2 className="font-semibold text-white">
             {canManageSalaries ? "Salary Management" : "Salary Overview"}
           </h2>
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[960px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[960px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Member</th>
@@ -408,7 +408,7 @@ export function StaffManagement({
 
               <div>
                 <h3 className="font-semibold text-[#224770]">Personal Information</h3>
-                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <div className="form-grid mt-3 grid gap-4 md:grid-cols-2">
                   <StaffField
                     label="Full Name"
                     value={form.fullName}
@@ -450,7 +450,7 @@ export function StaffManagement({
 
               <div>
                 <h3 className="font-semibold text-[#224770]">Employment</h3>
-                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <div className="form-grid mt-3 grid gap-4 md:grid-cols-2">
                   <StaffField
                     label="Join Date"
                     value={form.joinDate}
@@ -483,7 +483,7 @@ export function StaffManagement({
 
               <div>
                 <h3 className="font-semibold text-[#224770]">User Account</h3>
-                <div className="mt-3 grid gap-4 md:grid-cols-3">
+                <div className="form-grid mt-3 grid gap-4 md:grid-cols-3">
                   <label>
                     <span className="label">Linked User</span>
                     <select

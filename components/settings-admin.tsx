@@ -146,7 +146,7 @@ function FieldShell({
   children: React.ReactNode;
 }) {
   return (
-    <div>
+    <div className="field-stack">
       <label className="label">{label}</label>
       <div className="mt-2">{children}</div>
       {helper ? <p className="mt-1.5 text-xs font-medium text-slate-500">{helper}</p> : null}
@@ -500,7 +500,7 @@ function SeasonEditorModal({
           </button>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="form-grid mt-6 grid gap-4 sm:grid-cols-2">
           <TextField
             label="Season Name"
             value={season.name}
@@ -782,7 +782,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
     if (activeSection === "clinic") {
       return (
         <SettingsCard>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="form-grid grid gap-5 lg:grid-cols-2">
             <TextField
               label="Clinic Name"
               value={draftSettings.clinic.clinicName}
@@ -879,7 +879,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
       return (
         <div className="space-y-5">
           <SettingsCard>
-            <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr_1fr]">
+            <div className="form-grid grid gap-5 lg:grid-cols-[1.2fr_1fr_1fr]">
               <div>
                 <p className="label">Current Doctor Payment Mode</p>
                 <p className="mt-3 text-2xl font-bold text-[#224770]">
@@ -994,7 +994,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
     if (activeSection === "invoice") {
       return (
         <SettingsCard>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="form-grid grid gap-5 lg:grid-cols-2">
             <TextField
               label="Invoice Prefix"
               value={draftSettings.invoice.invoicePrefix}
@@ -1052,7 +1052,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             <h2 className="text-lg font-bold text-[#224770]">
               {paymentModeLabels[paymentModeValues.onCall]}
             </h2>
-            <div className="mt-5 grid gap-5 lg:grid-cols-4">
+            <div className="form-grid mt-5 grid gap-5 lg:grid-cols-4">
               <NumberField
                 label="Day Consultation Rate"
                 value={draftSettings.doctorPayment.lowSeason.dayConsultationPayout}
@@ -1138,7 +1138,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             <h2 className="text-lg font-bold text-[#224770]">
               {paymentModeLabels[paymentModeValues.clinicShift]}
             </h2>
-            <div className="mt-5 grid gap-5 lg:grid-cols-5">
+            <div className="form-grid mt-5 grid gap-5 lg:grid-cols-5">
               <NumberField
                 label="Hourly Rate"
                 value={draftSettings.doctorPayment.peakSeason.hourlyRate}
@@ -1245,7 +1245,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
     if (activeSection === "insurance") {
       return (
         <SettingsCard>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="form-grid grid gap-5 lg:grid-cols-2">
             <TextField
               label="Statement Format"
               value={draftSettings.insurance.defaultStatementFormat}
@@ -1293,7 +1293,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             <h2 className="text-lg font-bold text-[#224770]">User & Security Controls</h2>
             <FutureBadge />
           </div>
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="form-grid grid gap-5 lg:grid-cols-3">
             <InfoBox label="Password Policy" value={draftSettings.userSecurity.passwordPolicy} />
             <InfoBox
               label="Session Timeout"
@@ -1328,7 +1328,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             <h2 className="text-lg font-bold text-[#224770]">Notification Preferences</h2>
             <FutureBadge />
           </div>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="form-grid grid gap-5 lg:grid-cols-2">
             <SwitchField
               label="Email Notifications"
               checked={draftSettings.notifications.emailNotifications}
@@ -1368,7 +1368,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
           <h2 className="text-lg font-bold text-[#224770]">System Status</h2>
           <FutureBadge />
         </div>
-        <div className="grid gap-5 lg:grid-cols-4">
+        <div className="form-grid grid gap-5 lg:grid-cols-4">
           <InfoBox label="Application Version" value={draftSettings.system.applicationVersion} />
           <InfoBox label="Environment" value={draftSettings.system.environment} />
           <InfoBox label="Database Status" value={draftSettings.system.databaseStatus} />

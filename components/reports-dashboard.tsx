@@ -112,7 +112,7 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
   return (
     <div className="space-y-6">
       <section className="panel p-5">
-        <div className="grid gap-4 md:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto] md:items-end">
+        <div className="form-grid grid gap-4 md:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto] md:items-end">
           <div>
             <label className="label" htmlFor="report-date">
               Daily Report Date
@@ -173,9 +173,11 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <section className="panel p-5">
-          <h2 className="font-semibold text-[#224770]">Income by Category</h2>
-          <div className="mt-5 space-y-4">
+        <section className="panel overflow-hidden">
+          <div className="border-b border-[#224770] bg-[#224770] p-5">
+            <h2 className="font-semibold text-white">Income by Category</h2>
+          </div>
+          <div className="space-y-4 p-5">
             {categoryIncome.map((item) => (
               <div key={item.category}>
                 <div className="mb-2 flex items-center justify-between gap-3 text-sm">
@@ -199,8 +201,8 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
         </section>
 
         <section className="panel overflow-hidden">
-          <div className="border-b border-[#efefef] p-5">
-            <h2 className="font-semibold text-[#224770]">Daily Invoice List</h2>
+          <div className="border-b border-[#224770] bg-[#224770] p-5">
+            <h2 className="font-semibold text-white">Daily Invoice List</h2>
           </div>
           <div className={tableStyles.wrapper}>
             <table className={tableStyles.table}>

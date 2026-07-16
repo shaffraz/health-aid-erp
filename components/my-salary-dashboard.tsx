@@ -52,11 +52,11 @@ export function MySalaryDashboard({ salaryRecords, user }: MySalaryDashboardProp
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#efefef] p-5">
-          <h2 className="font-semibold text-[#224770]">My Salary Records</h2>
+        <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <h2 className="font-semibold text-white">My Salary Records</h2>
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[780px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[780px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Period</th>

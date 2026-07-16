@@ -308,7 +308,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
           <label className="relative block w-full lg:max-w-sm">
             <span className="sr-only">Search services</span>
             <input
@@ -335,7 +335,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
             <button
               type="button"
               onClick={openAddForm}
-              className={buttonClass("primary", "min-h-12 lg:ml-auto")}
+              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
             >
               Add Service
             </button>
@@ -376,7 +376,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
                 {expanded ? (
                   <div className={tableStyles.wrapper}>
-                    <table className="min-w-[920px] divide-y divide-[#efefef] text-sm">
+                    <table className="w-full min-w-[920px] divide-y divide-[#efefef] text-sm">
                       <thead className={tableStyles.head}>
                         <tr>
                           <th className={tableStyles.headerCell}>Service Name</th>
@@ -504,7 +504,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                 </div>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="form-grid grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="service-name">
                     Service name

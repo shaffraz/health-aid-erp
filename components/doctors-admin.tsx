@@ -231,8 +231,8 @@ export function DoctorsAdmin({
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-[#224770]">Pending Payouts by Doctor</h2>
+        <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <h2 className="font-semibold text-white">Pending Payouts by Doctor</h2>
         </div>
         <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
           {doctors.map((doctor) => {
@@ -253,15 +253,15 @@ export function DoctorsAdmin({
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-semibold text-[#224770]">Doctor Directory</h2>
+            <h2 className="font-semibold text-white">Doctor Directory</h2>
           </div>
           {canEdit ? (
             <button
               type="button"
               onClick={openAddForm}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary", "border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef]")}
             >
               Add Doctor
             </button>
@@ -393,7 +393,7 @@ export function DoctorsAdmin({
                 </div>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="form-grid grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="doctor-name">
                     Full name

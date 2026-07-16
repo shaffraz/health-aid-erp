@@ -247,7 +247,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#efefef] p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -271,7 +271,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
             <button
               type="button"
               onClick={openAddForm}
-              className={buttonClass("primary", "min-h-12 lg:ml-auto")}
+              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
             >
               Add User
             </button>
@@ -279,7 +279,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[900px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[900px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Name</th>
@@ -378,7 +378,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
                 </div>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="form-grid grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="user-name">
                     Name

@@ -86,14 +86,14 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-ink">Earnings breakdown</h2>
-          <p className="mt-1 text-sm text-slate-500">
+        <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <h2 className="font-semibold text-white">Earnings breakdown</h2>
+          <p className="mt-1 text-sm text-white/80">
             Doctors see service, invoice number, reason, amount, and payment status only.
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
+          <table className="w-full min-w-full divide-y divide-slate-100 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               <tr>
                 <th className="px-5 py-3">Date</th>
