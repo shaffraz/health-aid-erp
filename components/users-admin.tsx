@@ -20,6 +20,7 @@ type UsersAdminProps = {
   initialUsers: ManagedUser[];
   doctors: Doctor[];
   assistanceCompanies: AssistanceCompany[];
+  canEdit: boolean;
 };
 
 type UserForm = {
@@ -30,6 +31,7 @@ type UserForm = {
   username: string;
   password: string;
   role: Role;
+  administratorPrivileges: boolean;
   status: ManagedUser["status"];
   doctorId: string;
   assistanceCompanyId: string;
@@ -42,6 +44,7 @@ const emptyForm: UserForm = {
   username: "",
   password: "",
   role: "staff",
+  administratorPrivileges: false,
   status: "active",
   doctorId: "",
   assistanceCompanyId: ""
@@ -56,13 +59,14 @@ function userToForm(user: ManagedUser): UserForm {
     username: user.username,
     password: user.password,
     role: user.role,
+    administratorPrivileges: Boolean(user.administratorPrivileges),
     status: user.status,
     doctorId: user.doctorId ?? "",
     assistanceCompanyId: user.assistanceCompanyId ?? ""
   };
 }
 
-export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: UsersAdminProps) {
+export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers }: UsersAdminProps) {
   const [users, setUsers] = useState(initialUsers);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
@@ -120,18 +124,30 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
   }
 
   function openAddForm() {
+    if (!canEdit) {
+      return;
+    }
+
     setForm(emptyForm);
     setError("");
     setFormOpen(true);
   }
 
   function editUser(user: ManagedUser) {
+    if (!canEdit) {
+      return;
+    }
+
     setForm(userToForm(user));
     setError("");
     setFormOpen(true);
   }
 
   function saveUser() {
+    if (!canEdit) {
+      return;
+    }
+
     if (!form.name.trim() || !form.email.trim() || !form.username.trim() || !form.password.trim()) {
       setError("Name, email, username, and password are required.");
       return;
@@ -158,6 +174,8 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
       username: form.username.trim(),
       password: form.password,
       role: form.role,
+      administratorPrivileges:
+        form.role === "administrator" || (form.role === "director" && form.administratorPrivileges),
       status: form.status,
       doctorId: form.role === "doctor" ? form.doctorId : undefined,
       assistanceCompanyId:
@@ -175,6 +193,10 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
   }
 
   function toggleUserStatus(userId: string) {
+    if (!canEdit) {
+      return;
+    }
+
     setUsers((current) =>
       current.map((user) =>
         user.id === userId
@@ -200,6 +222,12 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
     setForm((current) => ({
       ...current,
       role,
+      administratorPrivileges:
+        role === "administrator"
+          ? true
+          : role === "director"
+            ? current.administratorPrivileges
+            : false,
       doctorId: role === "doctor" ? current.doctorId : "",
       assistanceCompanyId: role === "assistance_company" ? current.assistanceCompanyId : ""
     }));
@@ -239,25 +267,28 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={openAddForm}
-            className={buttonClass("primary", "min-h-12 lg:ml-auto")}
-          >
-            Add User
-          </button>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={openAddForm}
+              className={buttonClass("primary", "min-h-12 lg:ml-auto")}
+            >
+              Add User
+            </button>
+          ) : null}
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[980px] divide-y divide-[#efefef] text-sm">
+          <table className="min-w-[900px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Name</th>
                 <th className={tableStyles.headerCell}>Username</th>
                 <th className={tableStyles.headerCell}>Role</th>
+                <th className={tableStyles.headerCell}>Administrator Privileges</th>
                 <th className={tableStyles.headerCell}>Linked Profile</th>
                 <th className={tableStyles.headerCell}>Status</th>
-                <th className={tableStyles.actionHeaderCell}>Actions</th>
+                {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -272,34 +303,43 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
                   </td>
                   <td className={tableStyles.cell}>{user.username}</td>
                   <td className={tableStyles.cell}>{roleLabels[user.role]}</td>
+                  <td className={tableStyles.cell}>
+                    {user.role === "administrator" || user.administratorPrivileges ? (
+                      <StatusPill tone="green">Enabled</StatusPill>
+                    ) : (
+                      <span className="text-[#46484a]">Disabled</span>
+                    )}
+                  </td>
                   <td className={tableStyles.cell}>{linkedProfile(user)}</td>
                   <td className={tableStyles.cell}>
                     <StatusPill tone={user.status === "active" ? "green" : "slate"}>
                       {user.status === "active" ? "Active" : "Inactive"}
                     </StatusPill>
                   </td>
-                  <td className={tableStyles.actionCell}>
-                    <ActionSelect
-                      ariaLabel={`Actions for ${user.name}`}
-                      actions={[
-                        {
-                          value: "edit",
-                          label: "Edit",
-                          onSelect: () => editUser(user)
-                        },
-                        {
-                          value: "toggle",
-                          label: user.status === "active" ? "Deactivate" : "Activate",
-                          onSelect: () => toggleUserStatus(user.id)
-                        }
-                      ]}
-                    />
-                  </td>
+                  {canEdit ? (
+                    <td className={tableStyles.actionCell}>
+                      <ActionSelect
+                        ariaLabel={`Actions for ${user.name}`}
+                        actions={[
+                          {
+                            value: "edit",
+                            label: "Edit",
+                            onSelect: () => editUser(user)
+                          },
+                          {
+                            value: "toggle",
+                            label: user.status === "active" ? "Deactivate" : "Activate",
+                            onSelect: () => toggleUserStatus(user.id)
+                          }
+                        ]}
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))}
               {!filteredUsers.length ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={canEdit ? 7 : 6}>
                     No users found.
                   </td>
                 </tr>
@@ -442,6 +482,29 @@ export function UsersAdmin({ assistanceCompanies, doctors, initialUsers }: Users
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
+
+                <label className="flex min-h-12 items-center gap-3 rounded-xl border border-[#efefef] bg-[#f7f9fb] px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={form.role === "administrator" || form.administratorPrivileges}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        administratorPrivileges: event.target.checked
+                      }))
+                    }
+                    disabled={form.role !== "director"}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#224770]">
+                      Administrator Privileges
+                    </span>
+                    <span className="block text-xs text-[#46484a]">
+                      Company Directors can optionally receive full Administrator access.
+                    </span>
+                  </span>
+                </label>
 
                 {form.role === "doctor" ? (
                   <div>

@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 export default async function ReportsPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "reports")) {
+  if (!hasPermission(user, "canViewReports")) {
     return <AccessDenied />;
   }
 

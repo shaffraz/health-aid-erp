@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 export default async function ServicesPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "viewServices")) {
+  if (!hasPermission(user, "canViewServices")) {
     return <AccessDenied />;
   }
 
@@ -20,7 +20,7 @@ export default async function ServicesPage() {
       <ServicesAdmin
         initialServices={data.services}
         invoices={data.invoices}
-        canEdit={hasPermission(user.role, "manageServices")}
+        canEdit={hasPermission(user, "canManageServices")}
       />
     </div>
   );

@@ -29,6 +29,7 @@ export const doctorPaymentSettingsStorageKey = "health-aid-doctor-payment-settin
 export const assistanceCompanyStorageKey = "health-aid-assistance-companies-v1";
 export const insuranceClaimStatusStorageKey = "health-aid-insurance-claim-status-v1";
 export const userStorageKey = "health-aid-users-v1";
+export const staffStorageKey = "health-aid-staff-v1";
 
 export const amountOnlyInvoiceServiceNames = [
   "Medication Charges",
@@ -64,6 +65,7 @@ export type RuleType = "fixed" | "percentage" | "none";
 export type PayoutStatus = "unpaid" | "paid";
 export type VoucherStatus = "unpaid" | "paid";
 export type InsuranceReceivableStatus = "Pending" | "Partially Paid" | "Paid" | "Overdue";
+export type StaffSalaryStatus = "Pending" | "Approved" | "Paid";
 export type InsuranceClaimStatus =
   | "Draft"
   | "Submitted"
@@ -72,7 +74,7 @@ export type InsuranceClaimStatus =
   | "Paid"
   | "Rejected"
   | "Overdue";
-export type DoctorPaymentModelType = "low_season" | "peak_season";
+export type DoctorPaymentModelType = "on_call" | "clinic_shift";
 export type PayoutMode = "invoice" | "shift" | "pending_shift";
 
 export type LowSeasonPaymentModel = {
@@ -91,7 +93,6 @@ export type PeakSeasonPaymentModel = {
 };
 
 export type DoctorPaymentModel = {
-  activeModel: DoctorPaymentModelType;
   lowSeason: LowSeasonPaymentModel;
   peakSeason: PeakSeasonPaymentModel;
 };
@@ -101,7 +102,9 @@ export type AppUser = {
   name: string;
   email: string;
   role: Role;
+  administratorPrivileges?: boolean;
   doctorId?: string;
+  assistanceCompanyId?: string;
   assistanceCompany?: string;
 };
 
@@ -113,10 +116,23 @@ export type ManagedUser = {
   username: string;
   password: string;
   role: Role;
+  administratorPrivileges?: boolean;
   status: "active" | "inactive";
   doctorId?: string;
   assistanceCompanyId?: string;
   assistanceCompany?: string;
+};
+
+export type StaffMember = {
+  id: string;
+  fullName: string;
+  designation: string;
+  mobileNumber: string;
+  email?: string;
+  notes?: string;
+  joinDate: string;
+  status: "active" | "inactive";
+  userId?: string;
 };
 
 export type Doctor = {
@@ -246,6 +262,22 @@ export type InsuranceReceivable = {
   status: InsuranceReceivableStatus;
 };
 
+export type StaffSalaryRecord = {
+  id: string;
+  staffUserId: string;
+  salaryPeriod: string;
+  baseSalaryLkr: number;
+  additionalPaymentLkr: number;
+  deductionLkr: number;
+  netSalaryLkr: number;
+  status: StaffSalaryStatus;
+  paidAt?: string;
+  paymentReference?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AuditLog = {
   id: string;
   actor: string;
@@ -266,5 +298,7 @@ export type WorkspaceData = {
   assistanceCompanies: AssistanceCompany[];
   insuranceReceivables: InsuranceReceivable[];
   users: ManagedUser[];
+  staffMembers: StaffMember[];
+  staffSalaryRecords: StaffSalaryRecord[];
   auditLogs: AuditLog[];
 };

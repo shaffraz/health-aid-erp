@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { generatePayoutVoucherAction, updateVoucherStatusAction } from "@/lib/actions";
 import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
@@ -8,11 +8,7 @@ import { StatusPill } from "@/components/status-pill";
 import { openEmailDraft } from "@/lib/email";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
-import {
-  loadSystemSettings,
-  normalizeSystemSettings,
-  type SystemSettings
-} from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import type { Doctor, DoctorPayout, PayoutVoucher } from "@/lib/types";
 
 type PayoutManagementProps = {
@@ -39,18 +35,8 @@ export function PayoutManagement({
   const [notes, setNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
-    normalizeSystemSettings()
-  );
+  const systemSettings = useSystemSettings();
   const currentMonth = todayISO().slice(0, 7);
-
-  useEffect(() => {
-    try {
-      setSystemSettings(loadSystemSettings());
-    } catch {
-      setSystemSettings(normalizeSystemSettings());
-    }
-  }, []);
 
   const filteredPayouts = useMemo(
     () =>
@@ -76,6 +62,11 @@ export function PayoutManagement({
     .filter((payout) => payout.status === "paid" && monthKey(payout.date) === currentMonth)
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
   const doctorsAwaitingPayout = new Set(unpaidPayouts.map((payout) => payout.doctorId)).size;
+  const selectedDoctor = doctors.find((doctor) => doctor.id === doctorId);
+  const eligibleVoucherTotal = unpaidFiltered.reduce(
+    (sum, payout) => sum + payout.payoutAmount,
+    0
+  );
 
   async function generateVoucher() {
     if (!canEdit) {
@@ -303,67 +294,85 @@ export function PayoutManagement({
         <KpiCard label="Generated Vouchers" value={String(vouchers.length)} tone="primary" />
       </div>
 
-      <section className="panel p-5">
-        <h2 className="mb-4 font-semibold text-[#224770]">Payout Filters</h2>
+      <section className="panel overflow-hidden">
+        <div className="border-b border-[#efefef] bg-[#efefef]/45 px-4 py-3">
+          <h2 className="font-semibold text-[#224770]">Payout Workflow</h2>
+        </div>
         {error ? (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          <div className="mx-4 mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
-        <div className="grid gap-4 md:grid-cols-4">
-          <div>
-            <label className="label" htmlFor="payout-doctor">
-              Doctor
-            </label>
-            <select
-              id="payout-doctor"
-              value={doctorId}
-              onChange={(event) => setDoctorId(event.target.value)}
-              className="field mt-2"
-            >
-              <option value="all">All doctors</option>
-              {doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.name}
-                </option>
-              ))}
-            </select>
+        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="label" htmlFor="payout-doctor">
+                Doctor
+              </label>
+              <select
+                id="payout-doctor"
+                value={doctorId}
+                onChange={(event) => setDoctorId(event.target.value)}
+                className="field mt-2 min-h-12"
+              >
+                <option value="all">All doctors</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="payout-month">
+                Month
+              </label>
+              <input
+                id="payout-month"
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+                className="field mt-2 min-h-12"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="payout-status">
+                Status
+              </label>
+              <select
+                id="payout-status"
+                value={status}
+                onChange={(event) => setStatus(event.target.value as typeof status)}
+                className="field mt-2 min-h-12"
+              >
+                <option value="all">All</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="label" htmlFor="payout-month">
-              Month
-            </label>
-            <input
-              id="payout-month"
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              className="field mt-2"
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="payout-status">
-              Status
-            </label>
-            <select
-              id="payout-status"
-              value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
-              className="field mt-2"
-            >
-              <option value="all">All</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
-          <div className="flex items-end">
+          <div className="rounded-xl border border-[#efefef] bg-[#efefef]/45 p-4">
+            <p className="label">Generate Voucher</p>
+            <p className="mt-2 text-sm font-semibold text-[#224770]">
+              {selectedDoctor ? selectedDoctor.name : "Select one doctor"}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-[#46484a]">Unpaid records</p>
+                <p className="font-bold text-[#224770]">{unpaidFiltered.length}</p>
+              </div>
+              <div>
+                <p className="text-[#46484a]">Total</p>
+                <p className="font-bold text-[#224770]">{money(eligibleVoucherTotal)}</p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={generateVoucher}
               disabled={!canEdit || pending || doctorId === "all" || unpaidFiltered.length === 0}
               className={buttonClass(
                 canEdit && !pending && doctorId !== "all" && unpaidFiltered.length ? "primary" : "muted",
-                "w-full"
+                "mt-4 min-h-12 w-full"
               )}
             >
               {pending ? "Working..." : "Generate voucher"}
@@ -372,9 +381,9 @@ export function PayoutManagement({
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="panel overflow-hidden">
-          <div className="border-b border-slate-100 p-5">
+      <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="panel order-2 overflow-hidden xl:order-2">
+          <div className="border-b border-[#efefef] bg-[#efefef]/35 px-4 py-3">
             <h2 className="font-semibold text-[#224770]">Doctor Payout Records</h2>
           </div>
           <div className={tableStyles.wrapper}>
@@ -409,7 +418,7 @@ export function PayoutManagement({
                       <td className={tableStyles.numericCell}>
                         {money(payout.payoutAmount)}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <StatusPill tone={payout.status === "paid" ? "green" : "amber"}>
                           {payout.status}
                         </StatusPill>
@@ -422,10 +431,10 @@ export function PayoutManagement({
           </div>
         </section>
 
-        <section className="panel p-5">
+        <section className="panel order-1 p-4 xl:order-1">
           <h2 className="font-semibold text-[#224770]">Voucher Management</h2>
 
-          <div className="mt-5 space-y-4">
+          <div className="mt-4 space-y-4">
             <div>
               <label className="label" htmlFor="voucher">
                 Voucher
@@ -447,11 +456,11 @@ export function PayoutManagement({
 
             {selectedVoucher ? (
               <>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-xl border border-[#efefef] bg-[#efefef]/45 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-ink">{selectedVoucher.voucherNo}</p>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="font-semibold text-[#224770]">{selectedVoucher.voucherNo}</p>
+                      <p className="mt-1 text-sm text-[#46484a]">
                         {shortDate(selectedVoucher.periodStart)} to {shortDate(selectedVoucher.periodEnd)}
                       </p>
                     </div>
@@ -459,7 +468,7 @@ export function PayoutManagement({
                       {selectedVoucher.status}
                     </StatusPill>
                   </div>
-                  <p className="mt-4 text-2xl font-bold text-ink">{money(selectedVoucher.totalAmount)}</p>
+                  <p className="mt-4 text-2xl font-bold text-[#224770]">{money(selectedVoucher.totalAmount)}</p>
                 </div>
                 <div>
                   <label className="label" htmlFor="payment-ref">
@@ -530,7 +539,7 @@ export function PayoutManagement({
                 />
               </>
             ) : (
-              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+              <p className="rounded-lg bg-[#efefef]/65 p-3 text-sm text-[#46484a]">
                 Generate or select a voucher to manage payment status.
               </p>
             )}

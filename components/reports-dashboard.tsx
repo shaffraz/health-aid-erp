@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { buttonClass, KpiCard, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount, invoiceRevenueAmount } from "@/lib/calculations";
@@ -8,10 +8,8 @@ import { monthKey, todayISO, usdWhole } from "@/lib/format";
 import { currentOperatingSeason, isWithinSeason } from "@/lib/season";
 import {
   currencyLabel,
-  loadSystemSettings,
-  normalizeSystemSettings,
-  type SystemSettings
 } from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import type { Invoice, PaymentMethod, ServiceCategory } from "@/lib/types";
 
 type ReportsDashboardProps = {
@@ -52,17 +50,7 @@ function average(values: number[]) {
 export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
   const [date, setDate] = useState(todayISO());
   const [month, setMonth] = useState(todayISO().slice(0, 7));
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
-    normalizeSystemSettings()
-  );
-
-  useEffect(() => {
-    try {
-      setSystemSettings(loadSystemSettings());
-    } catch {
-      setSystemSettings(normalizeSystemSettings());
-    }
-  }, []);
+  const systemSettings = useSystemSettings();
 
   const dailyInvoices = invoices.filter((invoice) => invoice.date === date);
   const monthlyInvoices = invoices.filter((invoice) => monthKey(invoice.date) === month);

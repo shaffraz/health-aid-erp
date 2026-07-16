@@ -7,11 +7,7 @@ import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
 import { money, monthKey, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
-import {
-  loadSystemSettings,
-  normalizeSystemSettings,
-  type SystemSettings
-} from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import {
   doctorStorageKey,
   type Doctor,
@@ -85,12 +81,10 @@ export function DoctorsAdmin({
   canEdit
 }: DoctorsAdminProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
-  const [paymentSettings, setPaymentSettings] = useState<SystemSettings["doctorPayment"]>(
-    normalizeSystemSettings().doctorPayment
-  );
-  const [localCurrencyCode, setLocalCurrencyCode] = useState(
-    normalizeSystemSettings().clinic.localCurrency
-  );
+  const systemSettings = useSystemSettings();
+  const paymentSettings = systemSettings.doctorPayment;
+  const activePaymentMode = systemSettings.operational.activePaymentMode;
+  const localCurrencyCode = systemSettings.clinic.localCurrency;
   const [form, setForm] = useState<DoctorForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState("");
@@ -106,9 +100,6 @@ export function DoctorsAdmin({
         }
       }
 
-      const settings = loadSystemSettings();
-      setPaymentSettings(settings.doctorPayment);
-      setLocalCurrencyCode(settings.clinic.localCurrency);
     } finally {
       setHydrated(true);
     }
@@ -123,7 +114,7 @@ export function DoctorsAdmin({
   const visiblePayouts = useMemo(() => {
     const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
 
-    return generatePayoutsForInvoices(initialInvoices, paymentSettings)
+    return generatePayoutsForInvoices(initialInvoices, paymentSettings, activePaymentMode)
       .map((payout) => {
         const existing = existingPayoutsById.get(payout.id);
 
@@ -134,7 +125,7 @@ export function DoctorsAdmin({
         };
       })
       .filter((payout) => payout.payoutMode !== "pending_shift");
-  }, [initialInvoices, paymentSettings, payouts]);
+  }, [activePaymentMode, initialInvoices, paymentSettings, payouts]);
 
   const payoutSummaryByDoctor = useMemo(() => {
     return visiblePayouts.reduce<Map<string, { pending: number }>>((totals, payout) => {
@@ -266,14 +257,15 @@ export function DoctorsAdmin({
           <div>
             <h2 className="font-semibold text-[#224770]">Doctor Directory</h2>
           </div>
-          <button
-            type="button"
-            onClick={openAddForm}
-            disabled={!canEdit}
-            className={buttonClass("primary")}
-          >
-            Add Doctor
-          </button>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={openAddForm}
+              className={buttonClass("primary")}
+            >
+              Add Doctor
+            </button>
+          ) : null}
         </div>
 
         <div className={tableStyles.wrapper}>
@@ -287,7 +279,7 @@ export function DoctorsAdmin({
                 <th className={tableStyles.numericHeaderCell}>
                   Pending payout {localCurrencyCode}
                 </th>
-                <th className={tableStyles.actionHeaderCell}>Actions</th>
+                {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -326,37 +318,37 @@ export function DoctorsAdmin({
                     <td className={tableStyles.numericCell}>
                       {money(summary?.pending ?? 0)}
                     </td>
-                    <td className={tableStyles.actionCell}>
-                      <ActionSelect
-                        ariaLabel={`Actions for ${doctor.name}`}
-                        actions={[
-                          {
-                            value: "edit",
-                            label: "Edit",
-                            disabled: !canEdit,
-                            onSelect: () => editDoctor(doctor)
-                          },
-                          {
-                            value: "toggle",
-                            label: doctor.active ? "Deactivate" : "Reactivate",
-                            disabled: !canEdit,
-                            onSelect: () => toggleDoctorActive(doctor.id)
-                          },
-                          {
-                            value: "delete",
-                            label: doctorIsUsed ? "Delete unavailable" : "Delete",
-                            disabled: !canEdit || doctorIsUsed,
-                            onSelect: () => deleteDoctor(doctor.id)
-                          }
-                        ]}
-                      />
-                    </td>
+                    {canEdit ? (
+                      <td className={tableStyles.actionCell}>
+                        <ActionSelect
+                          ariaLabel={`Actions for ${doctor.name}`}
+                          actions={[
+                            {
+                              value: "edit",
+                              label: "Edit",
+                              onSelect: () => editDoctor(doctor)
+                            },
+                            {
+                              value: "toggle",
+                              label: doctor.active ? "Deactivate" : "Reactivate",
+                              onSelect: () => toggleDoctorActive(doctor.id)
+                            },
+                            {
+                              value: "delete",
+                              label: doctorIsUsed ? "Delete unavailable" : "Delete",
+                              disabled: doctorIsUsed,
+                              onSelect: () => deleteDoctor(doctor.id)
+                            }
+                          ]}
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
               {!doctors.length ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={canEdit ? 6 : 5} className="px-5 py-10 text-center text-sm text-slate-500">
                     No doctors have been added yet.
                   </td>
                 </tr>

@@ -3,12 +3,12 @@ import { InsuranceClaimsDashboard } from "@/components/insurance-claims-dashboar
 import { SectionHeader } from "@/components/section-header";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkspaceData } from "@/lib/data";
-import { hasPermission } from "@/lib/permissions";
+import { hasAnyPermission } from "@/lib/permissions";
 
 export default async function InsuranceClaimsPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "viewInsurance")) {
+  if (!hasAnyPermission(user, ["canViewInsurance", "canViewOwnCompanyInsurance"])) {
     return <AccessDenied />;
   }
 

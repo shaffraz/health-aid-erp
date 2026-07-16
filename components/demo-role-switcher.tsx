@@ -1,7 +1,7 @@
 "use client";
 
 import { RefreshCcw } from "lucide-react";
-import { roleLabels } from "@/lib/permissions";
+import { landingPathForRole, roleLabels } from "@/lib/permissions";
 import { roles, type Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -20,13 +20,7 @@ export function DemoRoleSwitcher({ activeRole }: DemoRoleSwitcherProps) {
 
   function switchRole(role: Role) {
     document.cookie = `demo_role=${role}; path=/; max-age=31536000; SameSite=Lax`;
-    window.location.assign(
-      role === "doctor"
-        ? "/doctor-portal"
-        : role === "assistance_company"
-          ? "/insurance-claims"
-          : "/dashboard"
-    );
+    window.location.assign(landingPathForRole(role));
   }
 
   return (

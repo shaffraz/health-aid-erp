@@ -174,6 +174,8 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
     assistanceCompanies: demoWorkspaceData.assistanceCompanies,
     insuranceReceivables: [],
     users: demoWorkspaceData.users,
+    staffMembers: demoWorkspaceData.staffMembers,
+    staffSalaryRecords: demoWorkspaceData.staffSalaryRecords,
     auditLogs: (auditLogs.data ?? []).map((log) => ({
       id: log.id,
       actor: log.actor_name ?? "System",

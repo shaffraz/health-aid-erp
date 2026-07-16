@@ -9,7 +9,7 @@ import { hasPermission } from "@/lib/permissions";
 export default async function DashboardPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "dashboard")) {
+  if (!hasPermission(user, "canViewDashboard")) {
     return <AccessDenied />;
   }
 
@@ -18,7 +18,7 @@ export default async function DashboardPage() {
       <SectionHeader
         title="Operations Dashboard"
         action={
-          hasPermission(user.role, "createInvoices") ? (
+          hasPermission(user, "canUseInvoicePOS") ? (
             <Link
               href="/invoices/new"
               className="focus-ring inline-flex items-center justify-center rounded-lg bg-[#224770] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0eb6ef]"

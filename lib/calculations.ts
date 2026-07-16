@@ -8,6 +8,7 @@ import {
   type DoctorPaymentRule,
   type DoctorPayout,
   type DoctorPaymentModel,
+  type DoctorPaymentModelType,
   type Invoice,
   type InvoiceItem,
   type RuleType,
@@ -116,7 +117,8 @@ function hasEligibleClinicalService(invoice: Invoice) {
 
 export function generatePayoutsForInvoice(
   invoice: Invoice,
-  paymentSettings: DoctorPaymentModel
+  paymentSettings: DoctorPaymentModel,
+  activePaymentMode: DoctorPaymentModelType
 ): DoctorPayout[] {
   if (!hasEligibleClinicalService(invoice)) {
     return [];
@@ -125,7 +127,7 @@ export function generatePayoutsForInvoice(
   const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
   const invoiceTime = invoice.time ?? "12:00";
 
-  if (paymentModel.activeModel === paymentModeValues.clinicShift) {
+  if (activePaymentMode === paymentModeValues.clinicShift) {
     return [
       {
         id: `${invoice.id}-pending-shift`,
@@ -176,12 +178,13 @@ export function generatePayoutsForInvoice(
 
 export function generateShiftPayoutSummaries(
   invoices: Invoice[],
-  paymentSettings: DoctorPaymentModel
+  paymentSettings: DoctorPaymentModel,
+  activePaymentMode: DoctorPaymentModelType
 ) {
   const summaries: DoctorPayout[] = [];
   const paymentModel = normalizeDoctorPaymentModel(paymentSettings);
 
-  if (paymentModel.activeModel !== paymentModeValues.clinicShift) {
+  if (activePaymentMode !== paymentModeValues.clinicShift) {
     return summaries;
   }
 
@@ -238,10 +241,11 @@ export function generateShiftPayoutSummaries(
 export function generatePayoutsForInvoices(
   invoices: Invoice[],
   paymentSettings: DoctorPaymentModel,
+  activePaymentMode: DoctorPaymentModelType,
   options: { includePendingShiftRecords?: boolean } = {}
 ) {
   const invoicePayouts = invoices.flatMap((invoice) =>
-    generatePayoutsForInvoice(invoice, paymentSettings)
+    generatePayoutsForInvoice(invoice, paymentSettings, activePaymentMode)
   );
   const visibleInvoicePayouts = options.includePendingShiftRecords
     ? invoicePayouts
@@ -249,7 +253,7 @@ export function generatePayoutsForInvoices(
 
   return [
     ...visibleInvoicePayouts,
-    ...generateShiftPayoutSummaries(invoices, paymentSettings)
+    ...generateShiftPayoutSummaries(invoices, paymentSettings, activePaymentMode)
   ];
 }
 

@@ -2,10 +2,11 @@ import type { DoctorPaymentModel, DoctorPaymentModelType } from "@/lib/types";
 import { doctorPaymentSettingsStorageKey } from "@/lib/types";
 
 export const systemSettingsStorageKey = "health-aid-system-settings-v1";
+export const systemSettingsUpdatedEventName = "health-aid-system-settings-updated";
 
 export const paymentModeValues = {
-  onCall: "low_season",
-  clinicShift: "peak_season"
+  onCall: "on_call",
+  clinicShift: "clinic_shift"
 } satisfies Record<string, DoctorPaymentModelType>;
 
 export type ClinicSettings = {
@@ -24,7 +25,7 @@ export type ClinicSettings = {
 };
 
 export type OperationalSettings = {
-  defaultOperatingMode: DoctorPaymentModelType;
+  activePaymentMode: DoctorPaymentModelType;
   lastChangedBy: string;
   lastChangedAt: string;
 };
@@ -90,7 +91,6 @@ export type SystemSettings = {
 };
 
 export const defaultDoctorPaymentSettings: DoctorPaymentModel = {
-  activeModel: paymentModeValues.onCall,
   lowSeason: {
     dayConsultationPayout: 2500,
     nightConsultationPayout: 3500,
@@ -127,7 +127,7 @@ export const defaultSystemSettings: SystemSettings = {
     timeFormat: "14:00"
   },
   operational: {
-    defaultOperatingMode: paymentModeValues.onCall,
+    activePaymentMode: paymentModeValues.onCall,
     lastChangedBy: "System",
     lastChangedAt: ""
   },
@@ -189,6 +189,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+export function normalizePaymentMode(value: unknown): DoctorPaymentModelType {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("-", "_")
+    .replaceAll(" ", "_");
+
+  if (
+    normalized === paymentModeValues.clinicShift ||
+    normalized === "clinicshift" ||
+    normalized === "peak_season" ||
+    normalized === "peakseason"
+  ) {
+    return paymentModeValues.clinicShift;
+  }
+
+  return paymentModeValues.onCall;
+}
+
 function normalizeSeason(season: Partial<SeasonSettings>, index: number): SeasonSettings {
   const fallback = defaultSystemSettings.seasons[index] ?? {
     id: `season-${index + 1}`,
@@ -209,10 +228,18 @@ function normalizeSeason(season: Partial<SeasonSettings>, index: number): Season
 
 export function normalizeSystemSettings(settings?: Partial<SystemSettings>): SystemSettings {
   const doctorPayment = normalizeDoctorPaymentSettings(settings?.doctorPayment);
-  const activeModel =
-    settings?.operational?.defaultOperatingMode ??
-    doctorPayment.activeModel ??
-    defaultSystemSettings.operational.defaultOperatingMode;
+  const operational = settings?.operational as
+    | (Partial<OperationalSettings> & { defaultOperatingMode?: unknown })
+    | undefined;
+  const legacyDoctorPayment = settings?.doctorPayment as
+    | (Partial<DoctorPaymentModel> & { activeModel?: unknown })
+    | undefined;
+  const activePaymentMode = normalizePaymentMode(
+    operational?.activePaymentMode ??
+      operational?.defaultOperatingMode ??
+      legacyDoctorPayment?.activeModel ??
+      defaultSystemSettings.operational.activePaymentMode
+  );
   const seasons =
     settings?.seasons && settings.seasons.length > 0
       ? settings.seasons.map(normalizeSeason)
@@ -224,19 +251,18 @@ export function normalizeSystemSettings(settings?: Partial<SystemSettings>): Sys
       ...settings?.clinic
     },
     operational: {
-      ...defaultSystemSettings.operational,
-      ...settings?.operational,
-      defaultOperatingMode: activeModel
+      activePaymentMode,
+      lastChangedBy:
+        operational?.lastChangedBy ?? defaultSystemSettings.operational.lastChangedBy,
+      lastChangedAt:
+        operational?.lastChangedAt ?? defaultSystemSettings.operational.lastChangedAt
     },
     seasons,
     invoice: {
       ...defaultSystemSettings.invoice,
       ...settings?.invoice
     },
-    doctorPayment: {
-      ...doctorPayment,
-      activeModel
-    },
+    doctorPayment,
     insurance: {
       ...defaultSystemSettings.insurance,
       ...settings?.insurance
@@ -260,7 +286,6 @@ export function normalizeDoctorPaymentSettings(
   model?: Partial<DoctorPaymentModel>
 ): DoctorPaymentModel {
   return {
-    activeModel: model?.activeModel ?? defaultDoctorPaymentSettings.activeModel,
     lowSeason: {
       ...defaultDoctorPaymentSettings.lowSeason,
       ...model?.lowSeason
@@ -298,12 +323,16 @@ export function loadSystemSettings(): SystemSettings {
 
     if (legacyPaymentSettings) {
       try {
-        const doctorPayment = normalizeDoctorPaymentSettings(JSON.parse(legacyPaymentSettings));
+        const parsedLegacyPayment = JSON.parse(legacyPaymentSettings);
+        const doctorPayment = normalizeDoctorPaymentSettings(parsedLegacyPayment);
+        const legacyActivePaymentMode = isRecord(parsedLegacyPayment)
+          ? normalizePaymentMode(parsedLegacyPayment.activeModel)
+          : normalized.operational.activePaymentMode;
         return normalizeSystemSettings({
           ...normalized,
           operational: {
             ...normalized.operational,
-            defaultOperatingMode: doctorPayment.activeModel
+            activePaymentMode: legacyActivePaymentMode
           },
           doctorPayment
         });
@@ -316,17 +345,55 @@ export function loadSystemSettings(): SystemSettings {
   return normalized;
 }
 
-export function saveSystemSettings(settings: SystemSettings) {
+export function saveSystemSettings(
+  settings: SystemSettings,
+  options: { notify?: boolean } = {}
+) {
   if (typeof window === "undefined") {
     return;
   }
 
   const normalized = normalizeSystemSettings(settings);
   window.localStorage.setItem(systemSettingsStorageKey, JSON.stringify(normalized));
-  window.localStorage.setItem(
-    doctorPaymentSettingsStorageKey,
-    JSON.stringify(normalized.doctorPayment)
+
+  if (options.notify !== false) {
+    window.dispatchEvent(
+      new CustomEvent(systemSettingsUpdatedEventName, { detail: normalized })
+    );
+  }
+}
+
+export function updateActivePaymentMode(
+  settings: SystemSettings,
+  activePaymentMode: DoctorPaymentModelType,
+  changedBy: string,
+  changedAt = new Date().toISOString()
+) {
+  return normalizeSystemSettings({
+    ...settings,
+    operational: {
+      ...settings.operational,
+      activePaymentMode: normalizePaymentMode(activePaymentMode),
+      lastChangedBy: changedBy,
+      lastChangedAt: changedAt
+    }
+  });
+}
+
+export function saveActivePaymentMode(
+  activePaymentMode: DoctorPaymentModelType,
+  changedBy: string
+) {
+  const latestSettings = loadSystemSettings();
+  const nextSettings = updateActivePaymentMode(
+    latestSettings,
+    activePaymentMode,
+    changedBy
   );
+
+  saveSystemSettings(nextSettings);
+
+  return nextSettings;
 }
 
 export function invoiceCurrency(settings: SystemSettings = defaultSystemSettings) {

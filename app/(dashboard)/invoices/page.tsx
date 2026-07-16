@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 export default async function InvoicesPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "viewInvoices")) {
+  if (!hasPermission(user, "canViewAllInvoices")) {
     return <AccessDenied />;
   }
 

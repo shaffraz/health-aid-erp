@@ -8,11 +8,9 @@ import { openEmailDraft } from "@/lib/email";
 import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { shortDate, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
-import {
-  loadSystemSettings,
-  normalizeSystemSettings,
-  type SystemSettings
-} from "@/lib/settings";
+import { hasPermission } from "@/lib/permissions";
+import type { SystemSettings } from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import {
   assistanceCompanyStorageKey,
   type AppUser,
@@ -869,8 +867,9 @@ export function InsuranceClaimsDashboard({
   currentUser
 }: InsuranceClaimsDashboardProps) {
   const currentMonth = todayISO().slice(0, 7);
-  const partnerCompany =
-    currentUser.role === "assistance_company" ? currentUser.assistanceCompany ?? "" : "";
+  const isCompanyPortal = hasPermission(currentUser, "canViewOwnCompanyInsurance");
+  const partnerCompanyId = isCompanyPortal ? currentUser.assistanceCompanyId ?? "" : "";
+  const partnerCompany = isCompanyPortal ? currentUser.assistanceCompany ?? "" : "";
   const [companies, setCompanies] = useState<AssistanceCompany[]>(demoAssistanceCompanies);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
@@ -882,21 +881,18 @@ export function InsuranceClaimsDashboard({
   const [paymentStatementId, setPaymentStatementId] = useState("");
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [paymentError, setPaymentError] = useState("");
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
-    normalizeSystemSettings()
-  );
+  const systemSettings = useSystemSettings();
   const [seasonalModalOpen, setSeasonalModalOpen] = useState(false);
   const [seasonalForm, setSeasonalForm] = useState<SeasonalForm>(() =>
     defaultSeasonalForm(partnerCompany)
   );
   const [seasonalError, setSeasonalError] = useState("");
 
-  const canManageCompanies = currentUser.role === "administrator";
-  const canConfirmStatements =
-    currentUser.role === "administrator" || currentUser.role === "staff";
-  const canSubmitStatements = currentUser.role === "administrator" || currentUser.role === "staff";
-  const canRecordPayments = currentUser.role === "administrator" || currentUser.role === "staff";
-  const canConfirmSeasonalSummary = currentUser.role === "administrator";
+  const canManageCompanies = hasPermission(currentUser, "canManageAssistanceCompanies");
+  const canConfirmStatements = hasPermission(currentUser, "canManageInsurance");
+  const canSubmitStatements = hasPermission(currentUser, "canManageInsurance");
+  const canRecordPayments = hasPermission(currentUser, "canManageInsurance");
+  const canConfirmSeasonalSummary = hasPermission(currentUser, "canManageInsurance");
 
   useEffect(() => {
     try {
@@ -926,12 +922,10 @@ export function InsuranceClaimsDashboard({
         }
       }
 
-      setSystemSettings(loadSystemSettings());
     } catch {
       setCompanies(demoAssistanceCompanies);
       setStatementRecords([]);
       setSeasonalConfirmations([]);
-      setSystemSettings(normalizeSystemSettings());
     }
   }, []);
 
@@ -956,15 +950,19 @@ export function InsuranceClaimsDashboard({
   );
 
   const roleScopedClaims = useMemo(() => {
-    if (currentUser.role !== "assistance_company") {
+    if (!isCompanyPortal) {
       return allClaims;
     }
 
-    return allClaims.filter((claim) => claim.assistanceCompany === partnerCompany);
-  }, [allClaims, currentUser.role, partnerCompany]);
+    return allClaims.filter((claim) =>
+      partnerCompanyId
+        ? claim.assistanceCompanyId === partnerCompanyId
+        : claim.assistanceCompany === partnerCompany
+    );
+  }, [allClaims, isCompanyPortal, partnerCompany, partnerCompanyId]);
 
   const companyOptions = useMemo(() => {
-    if (currentUser.role === "assistance_company" && partnerCompany) {
+    if (isCompanyPortal && partnerCompany) {
       return [partnerCompany];
     }
 
@@ -974,7 +972,7 @@ export function InsuranceClaimsDashboard({
         ...roleScopedClaims.map((claim) => claim.assistanceCompany)
       ])
     ].sort((a, b) => a.localeCompare(b));
-  }, [companies, currentUser.role, partnerCompany, roleScopedClaims]);
+  }, [companies, isCompanyPortal, partnerCompany, roleScopedClaims]);
 
   const monthlyStatements = useMemo<MonthlyStatement[]>(() => {
     const claimsByStatement = new Map<
@@ -1010,7 +1008,12 @@ export function InsuranceClaimsDashboard({
     const visibleRecordIds = new Set<string>();
 
     statementRecords.forEach((record) => {
-      if (currentUser.role === "assistance_company" && record.assistanceCompany !== partnerCompany) {
+      if (
+        isCompanyPortal &&
+        (partnerCompanyId
+          ? record.assistanceCompanyId !== partnerCompanyId
+          : record.assistanceCompany !== partnerCompany)
+      ) {
         return;
       }
 
@@ -1066,7 +1069,7 @@ export function InsuranceClaimsDashboard({
       })
       .filter((statement) => visibleRecordIds.has(statement.id) || statement.invoiceCount > 0)
       .sort((a, b) => b.month.localeCompare(a.month) || a.assistanceCompany.localeCompare(b.assistanceCompany));
-  }, [currentUser.role, partnerCompany, roleScopedClaims, statementRecords]);
+  }, [isCompanyPortal, partnerCompany, partnerCompanyId, roleScopedClaims, statementRecords]);
 
   const currentMonthClaims = roleScopedClaims.filter((claim) => claim.date.startsWith(currentMonth));
   const insurancePatientsThisMonth = new Set(
@@ -1365,7 +1368,7 @@ export function InsuranceClaimsDashboard({
     }
 
     if (receivedNow > paymentStatement.outstanding) {
-      if (currentUser.role !== "administrator") {
+      if (!hasPermission(currentUser, "canManageInsurance")) {
         setPaymentError("Amount received cannot exceed the outstanding amount.");
         return;
       }
@@ -1502,7 +1505,7 @@ export function InsuranceClaimsDashboard({
 
   return (
     <div className="space-y-6">
-      {currentUser.role === "assistance_company" ? (
+      {isCompanyPortal ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <KpiCard
             label="Insurance Patients This Month"
@@ -1545,7 +1548,7 @@ export function InsuranceClaimsDashboard({
         </div>
       )}
 
-      {currentUser.role !== "assistance_company" ? (
+      {!isCompanyPortal ? (
         <section className="panel overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-[#efefef] p-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-semibold text-[#224770]">Assistance Companies</h2>
@@ -1560,12 +1563,12 @@ export function InsuranceClaimsDashboard({
             ) : null}
           </div>
           <div className={tableStyles.wrapper}>
-            <table className="min-w-[1080px] divide-y divide-[#efefef] text-sm">
+            <table className="min-w-[860px] divide-y divide-[#efefef] text-sm">
               <thead className={tableStyles.head}>
                 <tr>
-                  <th className="w-[38%] px-5 py-3">Company Name</th>
-                  <th className="w-[18%] px-5 py-3 text-right">Default Claim %</th>
-                  <th className="w-[16%] px-5 py-3">Status</th>
+                  <th className="w-[38%] px-4 py-3">Company Name</th>
+                  <th className="w-[18%] px-4 py-3 text-right">Default Claim %</th>
+                  <th className="w-[16%] px-4 py-3">Status</th>
                   <th className={tableStyles.actionHeaderCell}>Actions</th>
                 </tr>
               </thead>
@@ -1583,10 +1586,10 @@ export function InsuranceClaimsDashboard({
                   return (
                     <Fragment key={company.id}>
                       <tr className={tableStyles.row}>
-                        <td className="px-5 py-4 font-semibold text-[#224770]">
+                        <td className="px-4 py-3 font-semibold text-[#224770]">
                           {company.name}
                         </td>
-                        <td className="px-5 py-4 text-right font-semibold text-[#224770]">
+                        <td className="px-4 py-3 text-right font-semibold text-[#224770]">
                           {company.defaultClaimPercentage}%
                         </td>
                         <td className={tableStyles.cell}>
@@ -1603,24 +1606,26 @@ export function InsuranceClaimsDashboard({
                                 label: isExpanded ? "Hide Details" : "View Details",
                                 onSelect: () => setExpandedCompanyId(isExpanded ? "" : company.id)
                               },
-                              {
-                                value: "edit",
-                                label: "Edit",
-                                disabled: !canManageCompanies,
-                                onSelect: () => editCompany(company)
-                              },
-                              {
-                                value: "toggle",
-                                label: company.active ? "Deactivate" : "Activate",
-                                disabled: !canManageCompanies,
-                                onSelect: () => toggleCompanyActive(company.id)
-                              },
-                              {
-                                value: "delete",
-                                label: used ? "Delete unavailable" : "Delete",
-                                disabled: !canManageCompanies || used,
-                                onSelect: () => deleteCompany(company)
-                              }
+                              ...(canManageCompanies
+                                ? [
+                                    {
+                                      value: "edit",
+                                      label: "Edit",
+                                      onSelect: () => editCompany(company)
+                                    },
+                                    {
+                                      value: "toggle",
+                                      label: company.active ? "Deactivate" : "Activate",
+                                      onSelect: () => toggleCompanyActive(company.id)
+                                    },
+                                    {
+                                      value: "delete",
+                                      label: used ? "Delete unavailable" : "Delete",
+                                      disabled: used,
+                                      onSelect: () => deleteCompany(company)
+                                    }
+                                  ]
+                                : [])
                             ]}
                           />
                         </td>
@@ -1700,11 +1705,11 @@ export function InsuranceClaimsDashboard({
           ) : null}
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="min-w-[1420px] divide-y divide-[#efefef] text-sm">
+          <table className="min-w-[1180px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Month</th>
-                {currentUser.role !== "assistance_company" ? (
+                {!isCompanyPortal ? (
                   <th className={tableStyles.headerCell}>Assistance Company</th>
                 ) : null}
                 <th className={tableStyles.numericHeaderCell}>Insurance Patients</th>
@@ -1729,7 +1734,7 @@ export function InsuranceClaimsDashboard({
               {monthlyStatements.map((statement) => (
                 <tr key={statement.id} className={tableStyles.row}>
                   <td className={tableStyles.strongCell}>{monthLabel(statement.month)}</td>
-                  {currentUser.role !== "assistance_company" ? (
+                  {!isCompanyPortal ? (
                     <td className={tableStyles.cell}>{statement.assistanceCompany}</td>
                   ) : null}
                   <td className={tableStyles.numericCell}>{statement.insurancePatients}</td>
@@ -1764,7 +1769,7 @@ export function InsuranceClaimsDashboard({
                 <tr>
                   <td
                     className="px-5 py-8 text-center text-sm text-[#46484a]"
-                    colSpan={currentUser.role === "assistance_company" ? 9 : 10}
+                    colSpan={isCompanyPortal ? 9 : 10}
                   >
                     No monthly insurance statements found.
                   </td>
@@ -1775,7 +1780,7 @@ export function InsuranceClaimsDashboard({
         </div>
       </section>
 
-      {currentUser.role === "assistance_company" ? (
+      {isCompanyPortal ? (
         <section className="panel overflow-hidden">
           <div className="border-b border-[#efefef] p-5">
             <h2 className="text-lg font-semibold text-[#224770]">Payment History</h2>

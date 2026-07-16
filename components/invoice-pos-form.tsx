@@ -13,11 +13,9 @@ import { openEmailDraft } from "@/lib/email";
 import { money, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
 import {
-  loadSystemSettings,
-  normalizeSystemSettings,
   paymentModeLabels,
-  type SystemSettings
 } from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import {
   assistanceCompanyStorageKey,
   doctorStorageKey,
@@ -110,10 +108,9 @@ function WorkflowSection({
   return (
     <section
       className={cn(
-        "rounded-xl border border-t-4 border-[#efefef] bg-white p-4 shadow-sm",
+        "rounded-lg border border-[#dfe4e7] bg-white p-4 shadow-sm",
         className
       )}
-      style={{ borderTopColor: invoiceSectionColors[tone] }}
     >
       <SectionHeading title={title} tone={tone} />
       <div className="mt-4">{children}</div>
@@ -132,8 +129,7 @@ function SidePanel({
 }) {
   return (
     <section
-      className="panel border-t-4 bg-white p-5"
-      style={{ borderTopColor: invoiceSectionColors[tone] }}
+      className="panel bg-white p-4"
     >
       <SectionHeading title={title} tone={tone} />
       <div className="mt-4">{children}</div>
@@ -197,9 +193,7 @@ export function InvoicePosForm({
   );
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(
-    normalizeSystemSettings()
-  );
+  const systemSettings = useSystemSettings();
   const [invoiceDate, setInvoiceDate] = useState(() => todayISO());
   const [invoiceTime, setInvoiceTime] = useState(() => currentTimeHHMM());
   const [patientName, setPatientName] = useState("");
@@ -213,7 +207,6 @@ export function InvoicePosForm({
   const [assistanceCompanyId, setAssistanceCompanyId] = useState("");
   const [claimPercentage, setClaimPercentage] = useState(0);
   const [notes, setNotes] = useState("");
-  const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceLines, setServiceLines] = useState<DraftLine[]>([]);
   const [chargeLines, setChargeLines] = useState<DraftLine[]>(() =>
     additionalChargeOptions.map((service) => ({
@@ -292,14 +285,6 @@ export function InvoicePosForm({
   }, []);
 
   useEffect(() => {
-    try {
-      setSystemSettings(loadSystemSettings());
-    } catch {
-      setSystemSettings(normalizeSystemSettings());
-    }
-  }, []);
-
-  useEffect(() => {
     if (paymentMethod !== "insurance") {
       return;
     }
@@ -359,6 +344,7 @@ export function InvoicePosForm({
     timeZone: systemSettings.clinic.timeZone
   });
   const paymentSettings = systemSettings.doctorPayment;
+  const activePaymentMode = systemSettings.operational.activePaymentMode;
 
   const serviceItemsUsd = useMemo<InvoiceItem[]>(
     () =>
@@ -451,7 +437,7 @@ export function InvoicePosForm({
     items: payoutEligibleItems
   } satisfies Invoice;
   const payoutPreview = payoutEligibleItems.length
-    ? generatePayoutsForInvoice(payoutInvoice, paymentSettings)
+    ? generatePayoutsForInvoice(payoutInvoice, paymentSettings, activePaymentMode)
     : [];
   const payoutPreviewTotal = payoutPreview.reduce((sum, payout) => sum + payout.payoutAmount, 0);
 
@@ -464,7 +450,6 @@ export function InvoicePosForm({
       ...current,
       { id: makeId(), serviceId, amountUsd: 0 }
     ]);
-    setSelectedServiceId("");
   }
 
   function removeServiceLine(id: string) {
@@ -705,7 +690,6 @@ export function InvoicePosForm({
             </WorkflowSection>
 
             <InvoiceServicesSection
-              selectedServiceId={selectedServiceId}
               clinicalServiceOptions={clinicalServiceOptions}
               serviceLines={serviceLines}
               invoiceServices={invoiceServices}
@@ -736,7 +720,7 @@ export function InvoicePosForm({
           <SidePanel title="Invoice Preview" tone="preview">
             <div className="space-y-4">
               <PreviewGroup title="Clinical Services" items={clinicalInvoiceItems} />
-              <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
+              <div className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[#46484a]">Medication Charges</span>
                   <span className="font-semibold text-[#224770]">
@@ -762,11 +746,11 @@ export function InvoicePosForm({
           </SidePanel>
 
           <SidePanel title="Doctor Payout Preview" tone="payout">
-            <div className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3 text-sm">
+            <div className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 text-sm">
               <div className="flex justify-between gap-3">
                 <span className="text-[#46484a]">Current Payment Mode</span>
                 <span className="font-semibold text-[#224770]">
-                  {paymentModeLabels[paymentSettings.activeModel]}
+                  {paymentModeLabels[activePaymentMode]}
                 </span>
               </div>
             </div>
@@ -774,7 +758,7 @@ export function InvoicePosForm({
               {payoutPreview.length ? (
                 <>
                   {payoutPreview.map((payout) => (
-                    <div key={payout.id} className="rounded-lg border border-[#efefef] bg-[#efefef]/50 p-3">
+                    <div key={payout.id} className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm font-semibold text-[#224770]">{payout.serviceName}</p>
                         <p className="text-sm font-bold text-[#84bc3f]">{money(payout.payoutAmount)}</p>
@@ -782,13 +766,13 @@ export function InvoicePosForm({
                       <p className="mt-1 text-xs leading-5 text-[#46484a]">{payout.paymentReason}</p>
                     </div>
                   ))}
-                  <div className="flex justify-between rounded-lg bg-[#84bc3f]/10 px-3 py-2 text-sm font-semibold text-[#4f7f22]">
+                  <div className="flex justify-between rounded-md bg-[#84bc3f]/12 px-3 py-2 text-sm font-semibold text-[#4f7f22]">
                     <span>Estimated total payout {systemSettings.clinic.localCurrency}</span>
                     <span>{money(payoutPreviewTotal)}</span>
                   </div>
                 </>
               ) : (
-                <p className="rounded-lg bg-[#efefef] p-3 text-sm text-[#46484a]">
+                <p className="rounded-md bg-[#efefef] p-3 text-sm text-[#46484a]">
                   No doctor payout is estimated for the current invoice.
                 </p>
               )}
@@ -802,9 +786,9 @@ export function InvoicePosForm({
 
 function SectionHeading({ title, tone = "invoice" }: { title: string; tone?: InvoiceSectionTone }) {
   return (
-    <div className="flex items-center gap-2 border-b border-[#efefef] pb-3">
+    <div className="flex items-center gap-3 border-b border-[#efefef] pb-3">
       <span
-        className="h-2.5 w-2.5 rounded-full"
+        className="h-1.5 w-8 rounded-full"
         style={{ backgroundColor: invoiceSectionColors[tone] }}
         aria-hidden="true"
       />
@@ -886,7 +870,7 @@ function InvoiceHeader({
   return (
     <div>
       <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
-        <div className="min-w-0 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-4">
+        <div className="min-w-0 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-4">
           <p className="label">Invoice No.</p>
           <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
             {invoiceNo}
@@ -1131,7 +1115,7 @@ function PaymentMethodButtons({
                 "focus-ring min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 ease-out",
                 isSelected
                   ? "border-[#84BC3F] bg-[#84BC3F] text-white shadow-sm"
-                  : "border-[#efefef] bg-white text-[#46484a] shadow-sm hover:-translate-y-0.5 hover:border-[#0eb6ef]/40 hover:shadow-md"
+                  : "border-[#dfe4e7] bg-[#efefef]/45 text-[#46484a] hover:border-[#0eb6ef] hover:bg-white hover:text-[#224770]"
               )}
             >
               {paymentLabels[method]}
@@ -1153,7 +1137,7 @@ function InsuranceClaimFields({
   onAssistanceCompanyChange: (value: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-[#efefef] bg-white p-3 shadow-sm">
+    <div className="rounded-lg border border-[#dfe4e7] bg-[#efefef]/45 p-3">
       <FieldShell>
         <label className="label" htmlFor="assistance-company">
           Assistance Company
@@ -1181,14 +1165,12 @@ function InsuranceClaimFields({
 }
 
 function InvoiceServicesSection({
-  selectedServiceId,
   clinicalServiceOptions,
   serviceLines,
   invoiceServices,
   onServiceSelect,
   onRemoveServiceLine
 }: {
-  selectedServiceId: string;
   clinicalServiceOptions: Service[];
   serviceLines: DraftLine[];
   invoiceServices: Service[];
@@ -1197,33 +1179,25 @@ function InvoiceServicesSection({
 }) {
   return (
     <WorkflowSection title="Clinical Services" tone="services">
-      <FieldShell>
-        <label className="label" htmlFor="service-selector">
-          Select Service
-        </label>
-        <select
-          id="service-selector"
-          value={selectedServiceId}
-          onChange={(event) => {
-            onServiceSelect(event.target.value);
-          }}
-          disabled={!clinicalServiceOptions.length}
-          className="field mt-2"
-        >
-          <option value="">
-            {clinicalServiceOptions.length
-              ? "Select a service to add"
-              : "No active clinical services"}
-          </option>
+      {clinicalServiceOptions.length ? (
+        <div className="grid max-h-[420px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {clinicalServiceOptions.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.name} - {usdWhole(roundUsd(candidate.sellingPrice))}
-            </option>
+            <button
+              key={candidate.id}
+              type="button"
+              onClick={() => onServiceSelect(candidate.id)}
+              className="focus-ring flex min-h-24 flex-col justify-between rounded-md bg-[#224770] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#0EB6EF] active:translate-y-0"
+            >
+              <span className="text-sm font-semibold leading-5">{candidate.name}</span>
+              <span className="mt-3 inline-flex w-fit rounded bg-white/15 px-2 py-1 text-sm font-bold">
+                {usdWhole(roundUsd(candidate.sellingPrice))}
+              </span>
+            </button>
           ))}
-        </select>
-      </FieldShell>
+        </div>
+      ) : null}
 
-      <div className="space-y-3">
+      <div className="mt-4 space-y-2">
         {serviceLines.map((line) => {
           const service = invoiceServices.find((candidate) => candidate.id === line.serviceId);
           const lineTotalUsd = roundUsd(service?.sellingPrice ?? 0);
@@ -1231,7 +1205,7 @@ function InvoiceServicesSection({
           return (
             <div
               key={line.id}
-              className="flex flex-col gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/50 p-3 sm:flex-row sm:items-center"
+              className="flex flex-col gap-3 rounded-md border border-[#dfe4e7] bg-white p-3 sm:flex-row sm:items-center"
             >
               <p className="min-w-0 flex-1 text-sm font-semibold text-[#224770]">
                 {service?.name ?? "Unknown service"}
@@ -1249,9 +1223,9 @@ function InvoiceServicesSection({
           );
         })}
         {!serviceLines.length ? (
-          <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+          <p className="rounded-md border border-dashed border-[#dfe4e7] bg-[#efefef]/55 p-4 text-sm text-[#46484a]">
             {clinicalServiceOptions.length
-              ? "No clinical services selected."
+              ? "Tap a service tile to add it to the invoice."
               : "No active clinical services are available."}
           </p>
         ) : null}
@@ -1282,7 +1256,7 @@ function AdditionalChargeInput({
   const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
 
   return (
-    <div className="grid gap-3 rounded-xl border border-[#efefef] bg-[#efefef]/40 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+    <div className="grid gap-3 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
       <label className="text-sm font-semibold text-[#224770]" htmlFor={`charge-${service.id}`}>
         {label}
       </label>
@@ -1369,8 +1343,7 @@ function TotalsPanel({
 }) {
   return (
     <div
-      className="rounded-xl border border-t-4 border-[#efefef] bg-white p-4 shadow-sm"
-      style={{ borderTopColor: invoiceSectionColors.totals }}
+      className="rounded-lg border border-[#dfe4e7] bg-white p-4 shadow-sm"
     >
       <SectionHeading title="Invoice Total" tone="totals" />
       <div className="mt-4 space-y-3 text-sm">
@@ -1398,8 +1371,8 @@ function TotalsPanel({
         onClick={onSaveInvoice}
         disabled={!formReady}
         className={buttonClass(
-          formReady ? "primary" : "muted",
-          "mt-4 w-full"
+          formReady ? "success" : "muted",
+          "mt-4 min-h-12 w-full"
         )}
       >
         Save invoice
@@ -1410,26 +1383,26 @@ function TotalsPanel({
 
 function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+    <div className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-ink">{title}</p>
-        <p className="text-sm font-bold text-ink">
+        <p className="text-sm font-semibold text-[#224770]">{title}</p>
+        <p className="text-sm font-bold text-[#224770]">
           {usdWhole(items.reduce((sum, item) => sum + item.lineTotal, 0))}
         </p>
       </div>
       {items.length ? (
         <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-3 text-xs text-slate-500">
+            <div key={item.id} className="flex items-start justify-between gap-3 text-xs text-[#46484a]">
               <span>
                 {item.serviceName}
               </span>
-              <span className="font-semibold text-slate-700">{usdWhole(item.lineTotal)}</span>
+              <span className="font-semibold text-[#224770]">{usdWhole(item.lineTotal)}</span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-slate-500">No items added.</p>
+        <p className="text-xs text-[#46484a]">No items added.</p>
       )}
     </div>
   );

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #efefef;
+  --background: #f3f5f6;
   --foreground: #224770;
 }
 
@@ -36,7 +36,7 @@ textarea {
   }
 
   .field {
-    @apply w-full rounded-lg border border-[#efefef] bg-white px-3 py-2 text-sm text-[#224770] shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0eb6ef] focus:ring-2 focus:ring-[#0eb6ef]/15;
+    @apply w-full rounded-md border border-[#dfe4e7] bg-white px-3 py-2 text-sm text-[#224770] outline-none transition placeholder:text-slate-400 focus:border-[#0eb6ef] focus:ring-2 focus:ring-[#0eb6ef]/15;
   }
 
   .label {
@@ -44,6 +44,6 @@ textarea {
   }
 
   .panel {
-    @apply rounded-xl border border-[#efefef] bg-white shadow-sm;
+    @apply rounded-lg border border-[#dfe4e7] bg-white shadow-sm;
   }
 }

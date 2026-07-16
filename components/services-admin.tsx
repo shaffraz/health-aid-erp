@@ -8,7 +8,7 @@ import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount } from "@/lib/calculations";
 import { money, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
-import { loadSystemSettings, normalizeSystemSettings } from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import {
   isPayoutEligibleCategory,
   serviceCategories,
@@ -83,12 +83,9 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
   const [categoryFilter, setCategoryFilter] = useState<"all" | ServiceCategory>("all");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
-  const [invoiceCurrencyCode, setInvoiceCurrencyCode] = useState(
-    normalizeSystemSettings().clinic.currency
-  );
-  const [localCurrencyCode, setLocalCurrencyCode] = useState(
-    normalizeSystemSettings().clinic.localCurrency
-  );
+  const systemSettings = useSystemSettings();
+  const invoiceCurrencyCode = systemSettings.clinic.currency;
+  const localCurrencyCode = systemSettings.clinic.localCurrency;
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(serviceGroups.map((group) => [group.title, true]))
   );
@@ -103,9 +100,6 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
         }
       }
 
-      const settings = loadSystemSettings();
-      setInvoiceCurrencyCode(settings.clinic.currency);
-      setLocalCurrencyCode(settings.clinic.localCurrency);
     } finally {
       setHydrated(true);
     }
@@ -382,7 +376,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
                 {expanded ? (
                   <div className={tableStyles.wrapper}>
-                    <table className="min-w-[1080px] divide-y divide-[#efefef] text-sm">
+                    <table className="min-w-[920px] divide-y divide-[#efefef] text-sm">
                       <thead className={tableStyles.head}>
                         <tr>
                           <th className={tableStyles.headerCell}>Service Name</th>
@@ -394,7 +388,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                             Doctor Payout Amount {localCurrencyCode}
                           </th>
                           <th className={tableStyles.headerCell}>Status</th>
-                          <th className={tableStyles.actionHeaderCell}>Actions</th>
+                          {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#efefef]">
@@ -421,38 +415,38 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                                 {service.active ? "Active" : "Inactive"}
                               </StatusPill>
                             </td>
-                            <td className={tableStyles.actionCell}>
-                              <ActionSelect
-                                ariaLabel={`Actions for ${service.name}`}
-                                actions={[
-                                  {
-                                    value: "edit",
-                                    label: "Edit",
-                                    disabled: !canEdit,
-                                    onSelect: () => editService(service)
-                                  },
-                                  {
-                                    value: "toggle",
-                                    label: service.active ? "Deactivate" : "Activate",
-                                    disabled: !canEdit,
-                                    onSelect: () => toggleServiceActive(service.id)
-                                  },
-                                  {
-                                    value: "delete",
-                                    label: serviceIsUsed ? "Delete unavailable" : "Delete",
-                                    disabled: !canEdit || serviceIsUsed,
-                                    onSelect: () => deleteService(service.id)
-                                  }
-                                ]}
-                              />
-                            </td>
+                            {canEdit ? (
+                              <td className={tableStyles.actionCell}>
+                                <ActionSelect
+                                  ariaLabel={`Actions for ${service.name}`}
+                                  actions={[
+                                    {
+                                      value: "edit",
+                                      label: "Edit",
+                                      onSelect: () => editService(service)
+                                    },
+                                    {
+                                      value: "toggle",
+                                      label: service.active ? "Deactivate" : "Activate",
+                                      onSelect: () => toggleServiceActive(service.id)
+                                    },
+                                    {
+                                      value: "delete",
+                                      label: serviceIsUsed ? "Delete unavailable" : "Delete",
+                                      disabled: serviceIsUsed,
+                                      onSelect: () => deleteService(service.id)
+                                    }
+                                  ]}
+                                />
+                              </td>
+                            ) : null}
                           </tr>
                         );
                         })}
                         {!groupServices.length ? (
                           <tr>
                             <td
-                              colSpan={6}
+                              colSpan={canEdit ? 6 : 5}
                               className="px-5 py-8 text-center text-sm text-[#46484a]"
                             >
                               No services configured in this category.

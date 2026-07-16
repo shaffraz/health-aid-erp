@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
+import { landingPathForRole, roleLabels } from "@/lib/permissions";
 import { isSupabaseConfigured, withSupabaseTimeout } from "@/lib/supabase/config";
+import type { Role } from "@/lib/types";
 
 const protectedRoutes = [
   "/dashboard",
@@ -10,16 +12,22 @@ const protectedRoutes = [
   "/services",
   "/doctors",
   "/doctor-portal",
+  "/my-profile",
+  "/my-salary",
   "/payouts",
   "/reports",
   "/settings",
+  "/staff",
+  "/staff-salaries",
   "/users"
 ];
 
 export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/") {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    const demoRole = request.cookies.get("demo_role")?.value;
+    const role: Role = demoRole && demoRole in roleLabels ? (demoRole as Role) : "administrator";
+    url.pathname = landingPathForRole(role);
     return NextResponse.redirect(url);
   }
 

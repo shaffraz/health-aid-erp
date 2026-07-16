@@ -1,16 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ActionSelect } from "@/components/action-select";
 import { buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { openEmailDraft } from "@/lib/email";
 import { shortDate, usdWhole } from "@/lib/format";
-import {
-  loadSystemSettings,
-  normalizeSystemSettings,
-  type SystemSettings
-} from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import {
   isAmountOnlyInvoiceServiceName,
   type Doctor,
@@ -304,17 +300,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
   const [invoiceNumberSearch, setInvoiceNumberSearch] = useState("");
   const [patientNameSearch, setPatientNameSearch] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
-    normalizeSystemSettings()
-  );
-
-  useEffect(() => {
-    try {
-      setSystemSettings(loadSystemSettings());
-    } catch {
-      setSystemSettings(normalizeSystemSettings());
-    }
-  }, []);
+  const systemSettings = useSystemSettings();
 
   const filteredInvoices = useMemo(() => {
     const invoiceNumberTerm = invoiceNumberSearch.trim().toLowerCase();

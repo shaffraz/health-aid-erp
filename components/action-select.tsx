@@ -22,7 +22,7 @@ type ActionSelectProps = {
 export function ActionSelect({
   actions,
   ariaLabel = "Row actions",
-  buttonLabel = "Apply",
+  buttonLabel = "Go",
   className,
   placeholder = "Select action"
 }: ActionSelectProps) {
@@ -43,7 +43,7 @@ export function ActionSelect({
   return (
     <div
       className={cn(
-        "flex min-w-[220px] items-center justify-end gap-2 rounded-lg bg-[#f7f9fb] p-1.5",
+        "flex w-full min-w-[176px] max-w-[210px] items-center justify-end gap-1.5 rounded-lg bg-[#efefef] p-1",
         className
       )}
     >
@@ -54,7 +54,7 @@ export function ActionSelect({
         id={id}
         value={selectedValue}
         onChange={(event) => setSelectedValue(event.target.value)}
-        className="focus-ring min-h-10 w-36 rounded-lg border border-[#dbe3ea] bg-white px-3 py-2 text-xs font-semibold text-[#46484a] shadow-sm"
+        className="focus-ring min-h-10 min-w-0 flex-1 rounded-lg border border-[#d9d9d9] bg-white px-2.5 py-2 text-xs font-semibold text-[#46484a]"
       >
         <option value="">{placeholder}</option>
         {actions.map((action) => (
@@ -67,7 +67,7 @@ export function ActionSelect({
         type="button"
         onClick={applyAction}
         disabled={!canApply}
-        className={buttonClass(canApply ? "secondary" : "muted", "min-h-10 px-3 py-2 text-xs")}
+        className={buttonClass(canApply ? "primary" : "muted", "min-h-10 px-3 py-2 text-xs shadow-none")}
       >
         {buttonLabel}
       </button>

@@ -72,7 +72,7 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "min-h-32 rounded-xl border p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
+        "min-h-32 rounded-lg border p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
         styles.panel,
         className
       )}
@@ -99,15 +99,15 @@ type ButtonVariant = "primary" | "secondary" | "success" | "danger" | "muted";
 
 export function buttonClass(variant: ButtonVariant = "secondary", className?: string) {
   return cn(
-    "focus-ring inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition duration-200 ease-out disabled:cursor-not-allowed",
+    "focus-ring inline-flex items-center justify-center rounded-md px-4 py-2.5 text-sm font-semibold transition duration-200 ease-out disabled:cursor-not-allowed",
     variant === "primary" &&
-      "bg-[#224770] text-white shadow-sm hover:bg-[#0eb6ef] disabled:bg-slate-300",
+      "bg-[#224770] text-white shadow-sm hover:bg-[#0eb6ef] disabled:bg-[#d9d9d9]",
     variant === "secondary" &&
-      "border border-[#efefef] bg-white text-[#46484a] shadow-sm hover:-translate-y-0.5 hover:shadow-md disabled:bg-slate-100 disabled:text-slate-400",
+      "border border-[#dfe4e7] bg-white text-[#46484a] hover:border-[#0eb6ef] hover:text-[#224770] disabled:bg-[#efefef] disabled:text-slate-400",
     variant === "success" &&
-      "bg-[#84bc3f] text-white shadow-sm hover:bg-[#73a832] disabled:bg-slate-300",
+      "bg-[#84bc3f] text-white shadow-sm hover:bg-[#73a832] disabled:bg-[#d9d9d9]",
     variant === "danger" &&
-      "border border-rose-200 bg-white text-rose-600 shadow-sm hover:bg-rose-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400",
+      "border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 disabled:border-slate-200 disabled:bg-[#efefef] disabled:text-slate-400",
     variant === "muted" &&
       "bg-[#efefef] text-[#46484a] hover:bg-slate-200 disabled:text-slate-400",
     className
@@ -127,14 +127,14 @@ export const tableStyles = {
   table: "min-w-full divide-y divide-[#efefef] text-sm",
   head: "bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]",
   row: "transition duration-150 hover:bg-[#efefef]/45",
-  cell: "px-5 py-4 text-[#46484a]",
-  strongCell: "px-5 py-4 font-semibold text-[#224770]",
-  headerCell: "px-5 py-3",
-  numericHeaderCell: "px-5 py-3 text-right",
-  numericCell: "whitespace-nowrap px-5 py-4 text-right font-semibold text-[#224770]",
+  cell: "px-4 py-3 text-[#46484a]",
+  strongCell: "px-4 py-3 font-semibold text-[#224770]",
+  headerCell: "px-4 py-3",
+  numericHeaderCell: "px-4 py-3 text-right",
+  numericCell: "whitespace-nowrap px-4 py-3 text-right font-semibold text-[#224770]",
   actionHeaderCell:
-    "sticky right-0 z-20 bg-[#e9edf1] px-5 py-3 text-right",
+    "bg-[#efefef] px-4 py-3 text-right text-[#46484a]",
   actionCell:
-    "sticky right-0 z-10 bg-[#f7f9fb] px-5 py-4",
-  actions: "flex min-w-max items-center justify-end gap-2"
+    "bg-[#f8f8f8] px-4 py-3",
+  actions: "flex min-w-max items-center justify-end gap-1.5"
 };

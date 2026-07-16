@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 export default async function DoctorsPage() {
   const [user, data] = await Promise.all([getCurrentUser(), getWorkspaceData()]);
 
-  if (!hasPermission(user.role, "viewDoctors")) {
+  if (!hasPermission(user, "canViewDoctors")) {
     return <AccessDenied />;
   }
 
@@ -21,7 +21,7 @@ export default async function DoctorsPage() {
         initialDoctors={data.doctors}
         initialInvoices={data.invoices}
         payouts={data.payouts}
-        canEdit={hasPermission(user.role, "manageDoctors")}
+        canEdit={hasPermission(user, "canManageDoctors")}
       />
     </div>
   );

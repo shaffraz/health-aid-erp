@@ -12,13 +12,10 @@ import { money, monthKey, todayISO, usdWhole } from "@/lib/format";
 import {
   currencyLabelParenthetical,
   invoiceCurrency,
-  loadSystemSettings,
   localCurrency,
-  normalizeSystemSettings,
-  paymentModeLabels,
-  paymentModeValues,
-  type SystemSettings
+  paymentModeLabels
 } from "@/lib/settings";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import {
   doctorStorageKey,
   serviceStorageKey,
@@ -146,16 +143,16 @@ const sectionTones: Record<
   }
 > = {
   operations: {
-    panel: "border-[#224770] bg-[#224770]",
-    header: "border-white/25",
-    accent: "bg-white",
-    title: "text-white"
+    panel: "border-[#d7e1ec] bg-white",
+    header: "border-[#efefef] bg-[#224770]/5",
+    accent: "bg-[#224770]",
+    title: "text-[#224770]"
   },
   performance: {
-    panel: "border-[#84bc3f] bg-[#84bc3f]",
-    header: "border-white/25",
-    accent: "bg-white",
-    title: "text-white"
+    panel: "border-[#dceccc] bg-white",
+    header: "border-[#efefef] bg-[#84bc3f]/8",
+    accent: "bg-[#84bc3f]",
+    title: "text-[#3f6f18]"
   },
   services: {
     panel: "bg-white",
@@ -291,9 +288,8 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   const [doctors, setDoctors] = useState(() => initialDoctors.map(normalizeDoctor));
   const [services, setServices] = useState(initialServices);
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() =>
-    normalizeSystemSettings()
-  );
+  const systemSettings = useSystemSettings();
+  const activePaymentMode = systemSettings.operational.activePaymentMode;
 
   useEffect(() => {
     try {
@@ -313,9 +309,8 @@ export function DashboardOverview({
         }
       }
 
-      setSystemSettings(loadSystemSettings());
     } catch {
-      setSystemSettings(normalizeSystemSettings());
+      // Keep bundled demo data when local storage is unavailable.
     }
   }, []);
 
@@ -335,7 +330,7 @@ export function DashboardOverview({
   const visiblePayouts = useMemo(() => {
     const existingPayoutsById = new Map(payouts.map((payout) => [payout.id, payout]));
 
-    return generatePayoutsForInvoices(invoices, paymentSettings)
+    return generatePayoutsForInvoices(invoices, paymentSettings, activePaymentMode)
       .map((payout) => {
         const existing = existingPayoutsById.get(payout.id);
 
@@ -346,7 +341,7 @@ export function DashboardOverview({
         };
       })
       .filter((payout) => payout.payoutMode !== "pending_shift");
-  }, [invoices, paymentSettings, payouts]);
+  }, [activePaymentMode, invoices, paymentSettings, payouts]);
 
   const monthlyPayouts = visiblePayouts.filter(
     (payout) => monthKey(payout.date) === selectedMonth
@@ -461,40 +456,17 @@ export function DashboardOverview({
     (sum, row) => sum + row.amount,
     0
   );
-
   return (
     <div className="space-y-6">
       <DashboardSection title="Operations" tone="operations">
         <div className="grid gap-4 p-5 md:grid-cols-3">
-          <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md">
-            <p className="label">Current Payment Mode</p>
-            <p className="mt-3 text-2xl font-bold tracking-tight text-[#224770]">
-              {paymentModeLabels[paymentSettings.activeModel]}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1",
-                  paymentSettings.activeModel === paymentModeValues.onCall
-                    ? "bg-[#224770] text-white"
-                    : "bg-[#efefef] text-[#46484a]"
-                )}
-              >
-                {paymentModeLabels[paymentModeValues.onCall]}
-              </span>
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1",
-                  paymentSettings.activeModel === paymentModeValues.clinicShift
-                    ? "bg-[#224770] text-white"
-                    : "bg-[#efefef] text-[#46484a]"
-                )}
-              >
-                {paymentModeLabels[paymentModeValues.clinicShift]}
-              </span>
-            </div>
-            <p className="mt-3 text-xs font-semibold text-[#46484a]">Active system mode</p>
-          </div>
+          <KpiCard
+            label="Active Doctor Payment Mode"
+            value={paymentModeLabels[activePaymentMode]}
+            helper="Active system mode"
+            tone="primary"
+            className="min-h-full"
+          />
           <KpiCard
             label="Active Doctors"
             value={String(activeDoctors.length)}

@@ -16,6 +16,8 @@ import type {
   ManagedUser,
   PayoutVoucher,
   Service,
+  StaffMember,
+  StaffSalaryRecord,
   WorkspaceData
 } from "@/lib/types";
 
@@ -79,16 +81,18 @@ export const demoUsers: ManagedUser[] = [
     username: "administrator",
     password: "demo-password",
     role: "administrator",
+    administratorPrivileges: true,
     status: "active"
   },
   {
     id: "user-director",
-    name: "Demo Director",
+    name: "Demo Company Director",
     email: "director@healthaid.local",
     phone: "+94 77 100 1001",
     username: "director",
     password: "demo-password",
     role: "director",
+    administratorPrivileges: false,
     status: "active"
   },
   {
@@ -99,6 +103,7 @@ export const demoUsers: ManagedUser[] = [
     username: "staff",
     password: "demo-password",
     role: "staff",
+    administratorPrivileges: false,
     status: "active"
   },
   {
@@ -109,6 +114,7 @@ export const demoUsers: ManagedUser[] = [
     username: "doctor",
     password: "demo-password",
     role: "doctor",
+    administratorPrivileges: false,
     status: "active",
     doctorId: "doc-ameer"
   },
@@ -120,9 +126,34 @@ export const demoUsers: ManagedUser[] = [
     username: "global-travel",
     password: "demo-password",
     role: "assistance_company",
+    administratorPrivileges: false,
     status: "active",
     assistanceCompanyId: "assist-global-travel",
     assistanceCompany: "Global Travel Assist"
+  }
+];
+
+export const demoStaffMembers: StaffMember[] = [
+  {
+    id: "staff-demo-reception",
+    fullName: "Demo Staff",
+    designation: "Reception and billing",
+    mobileNumber: "+94 77 100 1002",
+    email: "staff@healthaid.local",
+    notes: "Handles invoice creation and front desk coordination.",
+    joinDate: "2026-01-10",
+    status: "active",
+    userId: "user-staff"
+  },
+  {
+    id: "staff-clinic-assistant",
+    fullName: "Nimali Perera",
+    designation: "Clinic assistant",
+    mobileNumber: "+94 77 155 2201",
+    email: "nimali@healthaid.local",
+    notes: "Assists with day care admissions and consumables.",
+    joinDate: "2026-03-01",
+    status: "active"
   }
 ];
 
@@ -409,7 +440,11 @@ export const demoInvoices: Invoice[] = [
   })
 ];
 
-const generatedPayouts = generatePayoutsForInvoices(demoInvoices, defaultDoctorPaymentModel);
+const generatedPayouts = generatePayoutsForInvoices(
+  demoInvoices,
+  defaultDoctorPaymentModel,
+  defaultSystemSettings.operational.activePaymentMode
+);
 
 export const demoPayouts = generatedPayouts.map((payout, index) => ({
   ...payout,
@@ -492,12 +527,43 @@ export const demoAuditLogs: AuditLog[] = [
   },
   {
     id: "audit-002",
-    actor: "Director",
+    actor: "Company Director",
     action: "voucher.status_changed",
     entityType: "payout_voucher",
     entityId: "voucher-001",
     timestamp: `${today}T12:40:00+05:30`,
     summary: "Marked voucher DPV-2026-0001 as paid with reference BANK-TRF-8841."
+  }
+];
+
+export const demoStaffSalaryRecords: StaffSalaryRecord[] = [
+  {
+    id: "salary-staff-july-2026",
+    staffUserId: "user-staff",
+    salaryPeriod: today.slice(0, 7),
+    baseSalaryLkr: 90000,
+    additionalPaymentLkr: 10000,
+    deductionLkr: 0,
+    netSalaryLkr: 100000,
+    status: "Approved",
+    notes: "Operational staff salary for the current period.",
+    createdAt: `${monthStart}T09:00:00+05:30`,
+    updatedAt: `${today}T09:00:00+05:30`
+  },
+  {
+    id: "salary-staff-june-2026",
+    staffUserId: "user-staff",
+    salaryPeriod: "2026-06",
+    baseSalaryLkr: 90000,
+    additionalPaymentLkr: 5000,
+    deductionLkr: 0,
+    netSalaryLkr: 95000,
+    status: "Paid",
+    paidAt: "2026-06-30",
+    paymentReference: "SAL-202606-001",
+    notes: "Paid by bank transfer.",
+    createdAt: "2026-06-01T09:00:00+05:30",
+    updatedAt: "2026-06-30T15:00:00+05:30"
   }
 ];
 
@@ -511,5 +577,7 @@ export const demoWorkspaceData: WorkspaceData = {
   assistanceCompanies: demoAssistanceCompanies,
   insuranceReceivables: demoInsuranceReceivables,
   users: demoUsers,
+  staffMembers: demoStaffMembers,
+  staffSalaryRecords: demoStaffSalaryRecords,
   auditLogs: demoAuditLogs
 };

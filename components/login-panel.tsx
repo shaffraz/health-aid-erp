@@ -5,7 +5,7 @@ import { Activity, ArrowRight, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { defaultSystemSettings } from "@/lib/settings";
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { roleLabels } from "@/lib/permissions";
+import { landingPathForRole, roleLabels } from "@/lib/permissions";
 import { roles, type Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,18 @@ export function LoginPanel() {
         return;
       }
 
-      window.location.assign("/dashboard");
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      const { data: profile } = user
+        ? await supabase.from("profiles").select("role").eq("id", user.id).single()
+        : { data: null };
+      const role =
+        profile?.role && profile.role in roleLabels
+          ? (profile.role as Role)
+          : "administrator";
+
+      window.location.assign(landingPathForRole(role));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to sign in.");
     } finally {
@@ -43,13 +54,7 @@ export function LoginPanel() {
 
   function enterDemo(role: Role) {
     document.cookie = `demo_role=${role}; path=/; max-age=31536000; SameSite=Lax`;
-    window.location.assign(
-      role === "doctor"
-        ? "/doctor-portal"
-        : role === "assistance_company"
-          ? "/insurance-claims"
-          : "/dashboard"
-    );
+    window.location.assign(landingPathForRole(role));
   }
 
   return (
@@ -68,7 +73,7 @@ export function LoginPanel() {
           </p>
           <div className="mt-8 grid gap-3 text-sm">
             {[
-              "Role-aware access for administrator, director, staff, doctor, and assistance company users",
+              "Role-aware access for administrator, company director, staff, doctor, and assistance company users",
               "Automatic doctor payout generation from invoice services",
               "PostgreSQL RLS policies keep doctor earnings private"
             ].map((item) => (

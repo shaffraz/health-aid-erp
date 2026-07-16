@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { buttonClass } from "@/components/erp-ui";
+import { Button } from "@/components/erp-ui";
 import { generateId } from "@/lib/id";
 import {
   defaultSystemSettings,
@@ -9,6 +9,7 @@ import {
   normalizeSystemSettings,
   paymentModeLabels,
   paymentModeValues,
+  saveActivePaymentMode,
   saveSystemSettings,
   type ClinicSettings,
   type InsuranceSettings,
@@ -18,6 +19,7 @@ import {
   type SystemSettings
 } from "@/lib/settings";
 import type { DoctorPaymentModelType } from "@/lib/types";
+import { useSystemSettings } from "@/lib/use-system-settings";
 import { cn } from "@/lib/utils";
 
 type SettingsAdminProps = {
@@ -36,6 +38,11 @@ type ActiveSectionKey =
 type FutureSectionKey = "userSecurity" | "notifications" | "system";
 type SectionKey = ActiveSectionKey | FutureSectionKey;
 
+type SeasonModalState = {
+  mode: "add" | "edit";
+  season: SeasonSettings;
+};
+
 const sectionLabels: Record<SectionKey, string> = {
   clinic: "General",
   operational: "Operational",
@@ -48,6 +55,15 @@ const sectionLabels: Record<SectionKey, string> = {
   system: "System"
 };
 
+const sectionDescriptions: Partial<Record<SectionKey, string>> = {
+  clinic: "Clinic identity, currencies, and regional display defaults.",
+  operational: "Set the active doctor payment mode used across the ERP.",
+  seasons: "Define tourism and business periods used by dashboards and reports.",
+  invoice: "Invoice numbering, timestamps, editing controls, and print defaults.",
+  doctorPayment: "Global payout rules for on-call and clinic shift payment modes.",
+  insurance: "Statement defaults and receivable behavior for assistance company billing."
+};
+
 const activeSections: ActiveSectionKey[] = [
   "clinic",
   "operational",
@@ -58,6 +74,7 @@ const activeSections: ActiveSectionKey[] = [
 ];
 
 const futureSections: FutureSectionKey[] = ["userSecurity", "notifications", "system"];
+const allSections: SectionKey[] = [...activeSections, ...futureSections];
 
 function toAmount(value: string | number, fallback = 0) {
   const amount = Number(value);
@@ -65,8 +82,19 @@ function toAmount(value: string | number, fallback = 0) {
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : fallback;
 }
 
-function toBoolean(value: string) {
-  return value === "yes";
+function isActiveSection(section: SectionKey): section is ActiveSectionKey {
+  return (activeSections as SectionKey[]).includes(section);
+}
+
+function comparableSection(settings: SystemSettings, section: SectionKey) {
+  if (section === "doctorPayment") {
+    return {
+      lowSeason: settings.doctorPayment.lowSeason,
+      peakSeason: settings.doctorPayment.peakSeason
+    };
+  }
+
+  return settings[section];
 }
 
 function sectionDirty<Key extends SectionKey>(
@@ -74,7 +102,10 @@ function sectionDirty<Key extends SectionKey>(
   draft: SystemSettings,
   section: Key
 ) {
-  return JSON.stringify(saved[section]) !== JSON.stringify(draft[section]);
+  return (
+    JSON.stringify(comparableSection(saved, section)) !==
+    JSON.stringify(comparableSection(draft, section))
+  );
 }
 
 function displayDateTime(value: string) {
@@ -88,9 +119,17 @@ function displayDateTime(value: string) {
   });
 }
 
+function dateInputFromMonthDay(value: string) {
+  return value ? `2026-${value}` : "";
+}
+
+function monthDayFromDateInput(value: string) {
+  return value.slice(5) || value;
+}
+
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#efefef] bg-white p-4">
+    <div className="rounded-xl border border-[#e5eaf0] bg-white p-4">
       <p className="label">{label}</p>
       <p className="mt-2 font-semibold text-[#224770]">{value || "Not configured"}</p>
     </div>
@@ -99,15 +138,18 @@ function InfoBox({ label, value }: { label: string; value: string }) {
 
 function FieldShell({
   label,
+  helper,
   children
 }: {
   label: string;
+  helper?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
       <label className="label">{label}</label>
       <div className="mt-2">{children}</div>
+      {helper ? <p className="mt-1.5 text-xs font-medium text-slate-500">{helper}</p> : null}
     </div>
   );
 }
@@ -118,7 +160,9 @@ function TextField({
   onChange,
   disabled,
   type = "text",
-  placeholder
+  placeholder,
+  readOnly,
+  helper
 }: {
   label: string;
   value: string;
@@ -126,16 +170,46 @@ function TextField({
   disabled: boolean;
   type?: string;
   placeholder?: string;
+  readOnly?: boolean;
+  helper?: string;
 }) {
   return (
-    <FieldShell label={label}>
+    <FieldShell label={label} helper={helper}>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
+        readOnly={readOnly}
         placeholder={placeholder}
-        className="field min-h-12 disabled:bg-slate-100 disabled:text-slate-500"
+        className="field min-h-12 disabled:bg-slate-100 disabled:text-slate-500 read-only:bg-slate-50"
+      />
+    </FieldShell>
+  );
+}
+
+function TextareaField({
+  label,
+  value,
+  onChange,
+  disabled,
+  placeholder
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <FieldShell label={label}>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        placeholder={placeholder}
+        rows={4}
+        className="field min-h-28 resize-y disabled:bg-slate-100 disabled:text-slate-500"
       />
     </FieldShell>
   );
@@ -146,25 +220,39 @@ function NumberField({
   value,
   onChange,
   disabled,
-  min = 0
+  min = 0,
+  suffix,
+  helper
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   disabled: boolean;
   min?: number;
+  suffix?: string;
+  helper?: string;
 }) {
   return (
-    <FieldShell label={label}>
-      <input
-        type="number"
-        min={min}
-        step="1"
-        value={value}
-        onChange={(event) => onChange(toAmount(event.target.value, value))}
-        disabled={disabled}
-        className="field min-h-12 disabled:bg-slate-100 disabled:text-slate-500"
-      />
+    <FieldShell label={label} helper={helper}>
+      <div className="relative">
+        <input
+          type="number"
+          min={min}
+          step="1"
+          value={value}
+          onChange={(event) => onChange(toAmount(event.target.value, value))}
+          disabled={disabled}
+          className={cn(
+            "field min-h-12 disabled:bg-slate-100 disabled:text-slate-500",
+            suffix ? "pr-12" : ""
+          )}
+        />
+        {suffix ? (
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-slate-500">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
     </FieldShell>
   );
 }
@@ -174,16 +262,18 @@ function SelectField({
   value,
   onChange,
   disabled,
-  options
+  options,
+  helper
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
   options: Array<{ value: string; label: string }>;
+  helper?: string;
 }) {
   return (
-    <FieldShell label={label}>
+    <FieldShell label={label} helper={helper}>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -200,140 +290,296 @@ function SelectField({
   );
 }
 
-function YesNoField({
+function SwitchField({
   label,
-  value,
+  checked,
   onChange,
-  disabled
+  disabled,
+  helper
 }: {
   label: string;
-  value: boolean;
+  checked: boolean;
   onChange: (value: boolean) => void;
   disabled: boolean;
+  helper?: string;
 }) {
   return (
-    <SelectField
-      label={label}
-      value={value ? "yes" : "no"}
-      onChange={(nextValue) => onChange(toBoolean(nextValue))}
-      disabled={disabled}
-      options={[
-        { value: "yes", label: "Yes" },
-        { value: "no", label: "No" }
-      ]}
-    />
+    <div className="rounded-xl border border-[#e5eaf0] bg-white p-4">
+      <div className="flex min-h-12 items-center justify-between gap-4">
+        <div>
+          <p className="label">{label}</p>
+          {helper ? <p className="mt-1 text-sm font-medium text-slate-500">{helper}</p> : null}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          onClick={() => onChange(!checked)}
+          disabled={disabled}
+          className={cn(
+            "focus-ring relative h-8 w-14 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-60",
+            checked ? "bg-[#84bc3f]" : "bg-slate-300"
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition",
+              checked ? "left-7" : "left-1"
+            )}
+          />
+          <span className="sr-only">{checked ? "On" : "Off"}</span>
+        </button>
+      </div>
+    </div>
   );
 }
 
-function SettingsSection({
-  section,
-  open,
-  dirty,
-  canEdit,
-  future,
-  onToggle,
-  onSave,
-  onCancel,
-  children
+function SegmentedControl({
+  value,
+  onChange,
+  disabled,
+  options
 }: {
-  section: SectionKey;
-  open: boolean;
-  dirty: boolean;
-  canEdit: boolean;
-  future?: boolean;
-  onToggle: () => void;
-  onSave?: () => void;
-  onCancel?: () => void;
-  children: React.ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <section
-      className={cn(
-        "overflow-hidden rounded-2xl border bg-white shadow-sm transition",
-        dirty ? "border-amber-300 ring-2 ring-amber-100" : "border-[#efefef]"
-      )}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-[#efefef]/40"
-      >
-        <div>
-          <h2 className="font-semibold text-[#224770]">{sectionLabels[section]}</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {dirty ? (
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-                Unsaved changes
-              </span>
-            ) : null}
-            {future ? (
-              <span className="rounded-full bg-[#efefef] px-3 py-1 text-xs font-semibold text-[#46484a]">
-                Future section
-              </span>
-            ) : null}
-            {!canEdit && !future ? (
-              <span className="rounded-full bg-[#efefef] px-3 py-1 text-xs font-semibold text-[#46484a]">
-                Read-only
-              </span>
-            ) : null}
-          </div>
-        </div>
-        <span className="rounded-full bg-[#efefef] px-3 py-1 text-sm font-semibold text-[#224770]">
-          {open ? "Close" : "Open"}
-        </span>
-      </button>
+    <div className="grid gap-2 rounded-xl bg-[#efefef] p-1 sm:grid-cols-2">
+      {options.map((option) => {
+        const selected = option.value === value;
 
-      {open ? (
-        <div className="border-t border-[#efefef]">
-          <div className="p-5">{children}</div>
-          {!future ? (
-            <div className="flex flex-col-reverse gap-2 border-t border-[#efefef] bg-[#fafafa] px-5 py-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={onCancel}
-                disabled={!dirty}
-                className={buttonClass("secondary")}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={!canEdit || !dirty}
-                className={buttonClass(canEdit && dirty ? "primary" : "muted")}
-              >
-                Save Changes
-              </button>
-            </div>
-          ) : null}
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            disabled={disabled}
+            className={cn(
+              "focus-ring min-h-12 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed",
+              selected
+                ? "bg-white text-[#224770] shadow-sm"
+                : "text-[#46484a] hover:bg-white/70"
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SettingsCard({
+  children,
+  className
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-2xl border border-[#e5eaf0] bg-white p-5 shadow-sm", className)}>
+      {children}
+    </div>
+  );
+}
+
+function FutureBadge() {
+  return (
+    <span className="rounded-full bg-[#efefef] px-3 py-1 text-xs font-semibold text-[#46484a]">
+      Future
+    </span>
+  );
+}
+
+function SectionFooter({
+  dirty,
+  canEdit,
+  onSave,
+  onCancel,
+  future
+}: {
+  dirty: boolean;
+  canEdit: boolean;
+  onSave: () => void;
+  onCancel: () => void;
+  future: boolean;
+}) {
+  if (future) {
+    return null;
+  }
+
+  return (
+    <div className="sticky bottom-0 mt-6 rounded-2xl border border-[#e5eaf0] bg-white/95 p-4 shadow-sm backdrop-blur">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#224770]">
+            {dirty ? "Unsaved changes" : "No unsaved changes"}
+          </p>
+          <p className="text-xs font-medium text-slate-500">
+            Save changes to apply them across the ERP.
+          </p>
         </div>
-      ) : null}
-    </section>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <Button type="button" onClick={onCancel} disabled={!dirty} variant="secondary">
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={!canEdit || !dirty}
+            variant={canEdit && dirty ? "primary" : "muted"}
+          >
+            Save Changes
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnsavedChangesDialog({
+  onKeepEditing,
+  onDiscard
+}: {
+  onKeepEditing: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#224770]/30 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-[#e5eaf0] bg-white p-6 shadow-xl">
+        <h2 className="text-xl font-bold text-[#224770]">Unsaved changes</h2>
+        <p className="mt-3 text-sm font-medium leading-6 text-[#46484a]">
+          You have unsaved changes. Discard them and continue?
+        </p>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" onClick={onKeepEditing}>
+            Keep Editing
+          </Button>
+          <Button type="button" variant="danger" onClick={onDiscard}>
+            Discard Changes
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeasonEditorModal({
+  state,
+  canEdit,
+  onClose,
+  onSave
+}: {
+  state: SeasonModalState;
+  canEdit: boolean;
+  onClose: () => void;
+  onSave: (season: SeasonSettings) => void;
+}) {
+  const [season, setSeason] = useState<SeasonSettings>(state.season);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#224770]/30 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-2xl border border-[#e5eaf0] bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-[#224770]">
+              {state.mode === "add" ? "Add Season" : "Edit Season"}
+            </h2>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              Configure a business season used by dashboard and report calculations.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="focus-ring rounded-lg border border-[#e5eaf0] px-3 py-2 text-sm font-semibold text-[#46484a] transition hover:bg-[#efefef]"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Season Name"
+            value={season.name}
+            onChange={(name) => setSeason((current) => ({ ...current, name }))}
+            disabled={!canEdit}
+          />
+          <SwitchField
+            label="Status"
+            checked={season.active}
+            onChange={(active) => setSeason((current) => ({ ...current, active }))}
+            disabled={!canEdit}
+            helper={season.active ? "Active" : "Inactive"}
+          />
+          <TextField
+            label="Start Date"
+            type="date"
+            value={dateInputFromMonthDay(season.startDate)}
+            onChange={(startDate) =>
+              setSeason((current) => ({ ...current, startDate: monthDayFromDateInput(startDate) }))
+            }
+            disabled={!canEdit}
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            value={dateInputFromMonthDay(season.endDate)}
+            onChange={(endDate) =>
+              setSeason((current) => ({ ...current, endDate: monthDayFromDateInput(endDate) }))
+            }
+            disabled={!canEdit}
+          />
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" variant="primary" onClick={() => onSave(season)} disabled={!canEdit}>
+            Save Season
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) {
+  const liveSettings = useSystemSettings();
   const [savedSettings, setSavedSettings] = useState<SystemSettings>(
     normalizeSystemSettings(defaultSystemSettings)
   );
   const [draftSettings, setDraftSettings] = useState<SystemSettings>(
     normalizeSystemSettings(defaultSystemSettings)
   );
-  const [openSections, setOpenSections] = useState<SectionKey[]>(["clinic"]);
-
-  useEffect(() => {
-    const settings = loadSystemSettings();
-    setSavedSettings(settings);
-    setDraftSettings(settings);
-  }, []);
+  const [activeSection, setActiveSection] = useState<SectionKey>("clinic");
+  const [pendingSection, setPendingSection] = useState<SectionKey | null>(null);
+  const [seasonModal, setSeasonModal] = useState<SeasonModalState | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
 
   const dirtySections = useMemo(
-    () =>
-      [...activeSections, ...futureSections].filter((section) =>
-        sectionDirty(savedSettings, draftSettings, section)
-      ),
+    () => allSections.filter((section) => sectionDirty(savedSettings, draftSettings, section)),
     [draftSettings, savedSettings]
   );
+
+  useEffect(() => {
+    const hasUnsavedChanges = allSections.some((section) =>
+      sectionDirty(savedSettings, draftSettings, section)
+    );
+
+    setSavedSettings(liveSettings);
+
+    if (!hasUnsavedChanges) {
+      setDraftSettings(liveSettings);
+    }
+  }, [draftSettings, liveSettings, savedSettings]);
+
+  const activeDirty = sectionDirty(savedSettings, draftSettings, activeSection);
+  const activeFuture = !isActiveSection(activeSection);
+  const editable = canEdit && !activeFuture;
 
   function updateClinic(patch: Partial<ClinicSettings>) {
     setDraftSettings((current) =>
@@ -348,11 +594,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
     setDraftSettings((current) =>
       normalizeSystemSettings({
         ...current,
-        operational: { ...current.operational, ...patch },
-        doctorPayment: {
-          ...current.doctorPayment,
-          activeModel: patch.defaultOperatingMode ?? current.operational.defaultOperatingMode
-        }
+        operational: { ...current.operational, ...patch }
       })
     );
   }
@@ -386,24 +628,6 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
     );
   }
 
-  function addSeason() {
-    setDraftSettings((current) =>
-      normalizeSystemSettings({
-        ...current,
-        seasons: [
-          ...current.seasons,
-          {
-            id: generateId(),
-            name: "New Season",
-            startDate: "01-01",
-            endDate: "12-31",
-            active: true
-          }
-        ]
-      })
-    );
-  }
-
   function removeSeason(id: string) {
     setDraftSettings((current) =>
       normalizeSystemSettings({
@@ -413,18 +637,41 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
     );
   }
 
-  function toggleSection(section: SectionKey) {
-    setOpenSections((current) =>
-      current.includes(section)
-        ? current.filter((candidate) => candidate !== section)
-        : [...current, section]
-    );
+  function selectSection(section: SectionKey) {
+    if (section === activeSection) {
+      return;
+    }
+
+    if (activeDirty && isActiveSection(activeSection)) {
+      setPendingSection(section);
+      return;
+    }
+
+    setStatusMessage("");
+    setActiveSection(section);
   }
 
-  function openSection(section: SectionKey) {
-    setOpenSections((current) =>
-      current.includes(section) ? current : [...current, section]
+  function discardAndSwitch() {
+    if (!pendingSection || !isActiveSection(activeSection)) {
+      setPendingSection(null);
+      return;
+    }
+
+    setDraftSettings((current) =>
+      normalizeSystemSettings({
+        ...current,
+        [activeSection]: savedSettings[activeSection],
+        operational:
+          activeSection === "operational" ? savedSettings.operational : current.operational,
+        doctorPayment:
+          activeSection === "operational" || activeSection === "doctorPayment"
+            ? savedSettings.doctorPayment
+            : current.doctorPayment
+      })
     );
+    setStatusMessage("");
+    setActiveSection(pendingSection);
+    setPendingSection(null);
   }
 
   function saveSection(section: ActiveSectionKey) {
@@ -432,43 +679,38 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
       return;
     }
 
+    const latestSettings = loadSystemSettings();
     let nextSettings = normalizeSystemSettings({
-      ...savedSettings,
+      ...latestSettings,
       [section]: draftSettings[section]
     });
 
     if (section === "operational") {
       const modeChanged =
-        savedSettings.operational.defaultOperatingMode !==
-        draftSettings.operational.defaultOperatingMode;
+        latestSettings.operational.activePaymentMode !==
+        draftSettings.operational.activePaymentMode;
 
-      nextSettings = normalizeSystemSettings({
-        ...nextSettings,
-        operational: {
-          ...nextSettings.operational,
-          lastChangedBy: modeChanged
-            ? currentUserName
-            : nextSettings.operational.lastChangedBy,
-          lastChangedAt: modeChanged ? new Date().toISOString() : nextSettings.operational.lastChangedAt
-        },
-        doctorPayment: {
-          ...nextSettings.doctorPayment,
-          activeModel: draftSettings.operational.defaultOperatingMode
-        }
-      });
+      nextSettings = modeChanged
+        ? saveActivePaymentMode(
+            draftSettings.operational.activePaymentMode,
+            currentUserName
+          )
+        : normalizeSystemSettings({
+            ...latestSettings,
+            operational: draftSettings.operational
+          });
     }
 
     if (section === "doctorPayment") {
       nextSettings = normalizeSystemSettings({
         ...nextSettings,
-        doctorPayment: {
-          ...draftSettings.doctorPayment,
-          activeModel: savedSettings.operational.defaultOperatingMode
-        }
+        doctorPayment: draftSettings.doctorPayment
       });
     }
 
-    saveSystemSettings(nextSettings);
+    if (section !== "operational") {
+      saveSystemSettings(nextSettings);
+    }
     setSavedSettings(nextSettings);
     setDraftSettings((current) =>
       normalizeSystemSettings({
@@ -477,6 +719,11 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
         operational: nextSettings.operational,
         doctorPayment: nextSettings.doctorPayment
       })
+    );
+    setStatusMessage(
+      section === "operational"
+        ? `Operating mode updated to ${paymentModeLabels[nextSettings.operational.activePaymentMode]}.`
+        : `${sectionLabels[section]} settings saved.`
     );
   }
 
@@ -500,74 +747,72 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             : current.doctorPayment
       })
     );
+    setStatusMessage("");
   }
 
-  const editable = canEdit;
+  function openAddSeason() {
+    setSeasonModal({
+      mode: "add",
+      season: {
+        id: generateId(),
+        name: "",
+        startDate: "01-01",
+        endDate: "12-31",
+        active: true
+      }
+    });
+  }
 
-  return (
-    <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className="panel h-fit p-3 xl:sticky xl:top-5">
-        <nav className="space-y-1" aria-label="Settings sections">
-          {[...activeSections, ...futureSections].map((section) => {
-            const dirty = dirtySections.includes(section);
+  function saveSeasonFromModal(season: SeasonSettings) {
+    if (seasonModal?.mode === "add") {
+      setDraftSettings((current) =>
+        normalizeSystemSettings({
+          ...current,
+          seasons: [...current.seasons, season]
+        })
+      );
+    } else {
+      updateSeason(season.id, season);
+    }
 
-            return (
-              <button
-                key={section}
-                type="button"
-                onClick={() => openSection(section)}
-                className={cn(
-                  "focus-ring flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition",
-                  openSections.includes(section)
-                    ? "bg-[#224770] text-white"
-                    : "text-[#46484a] hover:bg-[#efefef]"
-                )}
-              >
-                <span>{sectionLabels[section]}</span>
-                {dirty ? <span className="h-2 w-2 rounded-full bg-amber-400" /> : null}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+    setSeasonModal(null);
+  }
 
-      <div className="space-y-4">
-        {!canEdit ? (
-          <div className="rounded-xl border border-[#efefef] bg-white p-4 text-sm font-semibold text-[#46484a]">
-            Director access is read-only in this phase.
-          </div>
-        ) : null}
-
-        <SettingsSection
-          section="clinic"
-          open={openSections.includes("clinic")}
-          dirty={sectionDirty(savedSettings, draftSettings, "clinic")}
-          canEdit={editable}
-          onToggle={() => toggleSection("clinic")}
-          onSave={() => saveSection("clinic")}
-          onCancel={() => cancelSection("clinic")}
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
+  function renderContent() {
+    if (activeSection === "clinic") {
+      return (
+        <SettingsCard>
+          <div className="grid gap-5 lg:grid-cols-2">
             <TextField
               label="Clinic Name"
               value={draftSettings.clinic.clinicName}
               onChange={(clinicName) => updateClinic({ clinicName })}
               disabled={!editable}
             />
+            <FieldShell label="Logo" helper="Logo upload will be connected in a later phase.">
+              <div className="flex min-h-12 flex-col gap-3 rounded-lg border border-[#efefef] bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <span className="break-all text-sm font-semibold text-[#224770]">
+                  {draftSettings.clinic.brandLogo}
+                </span>
+                <button
+                  type="button"
+                  disabled
+                  className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-slate-400"
+                >
+                  Upload Logo
+                </button>
+              </div>
+            </FieldShell>
+            <div className="lg:col-span-2">
+              <TextareaField
+                label="Address"
+                value={draftSettings.clinic.address}
+                onChange={(address) => updateClinic({ address })}
+                disabled={!editable}
+              />
+            </div>
             <TextField
-              label="Brand Logo"
-              value={draftSettings.clinic.brandLogo}
-              onChange={(brandLogo) => updateClinic({ brandLogo })}
-              disabled={!editable}
-            />
-            <TextField
-              label="Address"
-              value={draftSettings.clinic.address}
-              onChange={(address) => updateClinic({ address })}
-              disabled={!editable}
-            />
-            <TextField
-              label="Phone Number"
+              label="Phone"
               value={draftSettings.clinic.phoneNumber}
               onChange={(phoneNumber) => updateClinic({ phoneNumber })}
               disabled={!editable}
@@ -585,13 +830,6 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               onChange={(website) => updateClinic({ website })}
               disabled={!editable}
             />
-            <TextField
-              label="Tax Registration"
-              value={draftSettings.clinic.taxRegistration}
-              onChange={(taxRegistration) => updateClinic({ taxRegistration })}
-              disabled={!editable}
-              placeholder="Future"
-            />
             <SelectField
               label="Time Zone"
               value={draftSettings.clinic.timeZone}
@@ -603,18 +841,22 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               ]}
             />
             <TextField
-              label="Currency"
+              label="Invoice Currency"
               value={draftSettings.clinic.currency}
               onChange={(currency) => updateClinic({ currency: currency.toUpperCase() })}
               disabled={!editable}
+              readOnly
+              helper="Patient-facing invoice currency."
             />
             <TextField
-              label="Local Currency"
+              label="Payout Currency"
               value={draftSettings.clinic.localCurrency}
               onChange={(localCurrency) =>
                 updateClinic({ localCurrency: localCurrency.toUpperCase() })
               }
               disabled={!editable}
+              readOnly
+              helper="Internal doctor payout currency."
             />
             <TextField
               label="Date Format"
@@ -629,125 +871,130 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               disabled={!editable}
             />
           </div>
-        </SettingsSection>
+        </SettingsCard>
+      );
+    }
 
-        <SettingsSection
-          section="operational"
-          open={openSections.includes("operational")}
-          dirty={sectionDirty(savedSettings, draftSettings, "operational")}
-          canEdit={editable}
-          onToggle={() => toggleSection("operational")}
-          onSave={() => saveSection("operational")}
-          onCancel={() => cancelSection("operational")}
-        >
-          <div className="grid gap-4 lg:grid-cols-3">
-            <SelectField
-              label="Default Operating Mode"
-              value={draftSettings.operational.defaultOperatingMode}
-              onChange={(defaultOperatingMode) =>
-                updateOperational({
-                  defaultOperatingMode: defaultOperatingMode as DoctorPaymentModelType
-                })
-              }
-              disabled={!editable}
-              options={[
-                {
-                  value: paymentModeValues.onCall,
-                  label: paymentModeLabels[paymentModeValues.onCall]
-                },
-                {
-                  value: paymentModeValues.clinicShift,
-                  label: paymentModeLabels[paymentModeValues.clinicShift]
-                }
-              ]}
-            />
-            <InfoBox
-              label="Last Changed By"
-              value={draftSettings.operational.lastChangedBy}
-            />
-            <InfoBox
-              label="Last Changed Date / Time"
-              value={displayDateTime(draftSettings.operational.lastChangedAt)}
-            />
+    if (activeSection === "operational") {
+      return (
+        <div className="space-y-5">
+          <SettingsCard>
+            <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr_1fr]">
+              <div>
+                <p className="label">Current Doctor Payment Mode</p>
+                <p className="mt-3 text-2xl font-bold text-[#224770]">
+                  {paymentModeLabels[draftSettings.operational.activePaymentMode]}
+                </p>
+                <div className="mt-5">
+                  <SegmentedControl
+                    value={draftSettings.operational.activePaymentMode}
+                    onChange={(activePaymentMode) =>
+                      updateOperational({
+                        activePaymentMode: activePaymentMode as DoctorPaymentModelType
+                      })
+                    }
+                    disabled={!editable}
+                    options={[
+                      {
+                        value: paymentModeValues.onCall,
+                        label: paymentModeLabels[paymentModeValues.onCall]
+                      },
+                      {
+                        value: paymentModeValues.clinicShift,
+                        label: paymentModeLabels[paymentModeValues.clinicShift]
+                      }
+                    ]}
+                  />
+                </div>
+              </div>
+              <InfoBox label="Last Changed By" value={draftSettings.operational.lastChangedBy} />
+              <InfoBox
+                label="Last Changed Date / Time"
+                value={displayDateTime(draftSettings.operational.lastChangedAt)}
+              />
+            </div>
+          </SettingsCard>
+        </div>
+      );
+    }
+
+    if (activeSection === "seasons") {
+      return (
+        <SettingsCard>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[#224770]">Configured Seasons</h2>
+              <p className="mt-1 text-sm font-medium text-slate-500">
+                Compact season list used by current season reporting.
+              </p>
+            </div>
+            <Button type="button" variant="primary" onClick={openAddSeason} disabled={!editable}>
+              Add Season
+            </Button>
           </div>
-        </SettingsSection>
-
-        <SettingsSection
-          section="seasons"
-          open={openSections.includes("seasons")}
-          dirty={sectionDirty(savedSettings, draftSettings, "seasons")}
-          canEdit={editable}
-          onToggle={() => toggleSection("seasons")}
-          onSave={() => saveSection("seasons")}
-          onCancel={() => cancelSection("seasons")}
-        >
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={addSeason}
-                disabled={!editable}
-                className={buttonClass("primary")}
-              >
-                Add Season
-              </button>
+          <div className="mt-5 overflow-hidden rounded-xl border border-[#e5eaf0]">
+            <div className="hidden grid-cols-[1.3fr_1fr_1fr_1fr_180px] gap-4 bg-[#efefef] px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a] lg:grid">
+              <span>Season Name</span>
+              <span>Start Date</span>
+              <span>End Date</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
             </div>
             {draftSettings.seasons.map((season) => (
               <div
                 key={season.id}
-                className="grid gap-4 rounded-xl border border-[#efefef] bg-[#fafafa] p-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]"
+                className="grid gap-3 border-t border-[#e5eaf0] px-4 py-4 first:border-t-0 lg:grid-cols-[1.3fr_1fr_1fr_1fr_180px] lg:items-center"
               >
-                <TextField
-                  label="Season Name"
-                  value={season.name}
-                  onChange={(name) => updateSeason(season.id, { name })}
-                  disabled={!editable}
-                />
-                <TextField
-                  label="Start Date"
-                  value={season.startDate}
-                  onChange={(startDate) => updateSeason(season.id, { startDate })}
-                  disabled={!editable}
-                  placeholder="MM-DD"
-                />
-                <TextField
-                  label="End Date"
-                  value={season.endDate}
-                  onChange={(endDate) => updateSeason(season.id, { endDate })}
-                  disabled={!editable}
-                  placeholder="MM-DD"
-                />
-                <YesNoField
-                  label="Active"
-                  value={season.active}
-                  onChange={(active) => updateSeason(season.id, { active })}
-                  disabled={!editable}
-                />
-                <div className="flex items-end">
-                  <button
+                <div>
+                  <p className="font-semibold text-[#224770]">{season.name}</p>
+                  <p className="text-sm font-medium text-slate-500 lg:hidden">
+                    {season.startDate} to {season.endDate}
+                  </p>
+                </div>
+                <p className="hidden text-sm font-semibold text-[#46484a] lg:block">
+                  {season.startDate}
+                </p>
+                <p className="hidden text-sm font-semibold text-[#46484a] lg:block">
+                  {season.endDate}
+                </p>
+                <span
+                  className={cn(
+                    "w-fit rounded-full px-3 py-1 text-xs font-semibold",
+                    season.active
+                      ? "bg-[#84bc3f]/15 text-[#4f7f22]"
+                      : "bg-[#efefef] text-[#46484a]"
+                  )}
+                >
+                  {season.active ? "Active" : "Inactive"}
+                </span>
+                <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+                  <Button
                     type="button"
+                    variant="secondary"
+                    onClick={() => setSeasonModal({ mode: "edit", season })}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
                     onClick={() => removeSeason(season.id)}
                     disabled={!editable || draftSettings.seasons.length <= 1}
-                    className={buttonClass("danger", "min-h-12 w-full")}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
-        </SettingsSection>
+        </SettingsCard>
+      );
+    }
 
-        <SettingsSection
-          section="invoice"
-          open={openSections.includes("invoice")}
-          dirty={sectionDirty(savedSettings, draftSettings, "invoice")}
-          canEdit={editable}
-          onToggle={() => toggleSection("invoice")}
-          onSave={() => saveSection("invoice")}
-          onCancel={() => cancelSection("invoice")}
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
+    if (activeSection === "invoice") {
+      return (
+        <SettingsCard>
+          <div className="grid gap-5 lg:grid-cols-2">
             <TextField
               label="Invoice Prefix"
               value={draftSettings.invoice.invoicePrefix}
@@ -760,9 +1007,9 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               onChange={(invoiceNumberFormat) => updateInvoice({ invoiceNumberFormat })}
               disabled={!editable}
             />
-            <YesNoField
-              label="Automatic Time Stamp"
-              value={draftSettings.invoice.automaticTimestamp}
+            <SwitchField
+              label="Automatic Timestamp"
+              checked={draftSettings.invoice.automaticTimestamp}
               onChange={(automaticTimestamp) => updateInvoice({ automaticTimestamp })}
               disabled={!editable}
             />
@@ -773,16 +1020,17 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
                 updateInvoice({ defaultCurrency: defaultCurrency.toUpperCase() })
               }
               disabled={!editable}
+              readOnly
             />
-            <YesNoField
+            <SwitchField
               label="Allow Invoice Editing"
-              value={draftSettings.invoice.allowInvoiceEditing}
+              checked={draftSettings.invoice.allowInvoiceEditing}
               onChange={(allowInvoiceEditing) => updateInvoice({ allowInvoiceEditing })}
               disabled={!editable}
             />
-            <YesNoField
+            <SwitchField
               label="Allow Invoice Voiding"
-              value={draftSettings.invoice.allowInvoiceVoiding}
+              checked={draftSettings.invoice.allowInvoiceVoiding}
               onChange={(allowInvoiceVoiding) => updateInvoice({ allowInvoiceVoiding })}
               disabled={!editable}
             />
@@ -793,231 +1041,219 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               disabled={!editable}
             />
           </div>
-        </SettingsSection>
+        </SettingsCard>
+      );
+    }
 
-        <SettingsSection
-          section="doctorPayment"
-          open={openSections.includes("doctorPayment")}
-          dirty={sectionDirty(savedSettings, draftSettings, "doctorPayment")}
-          canEdit={editable}
-          onToggle={() => toggleSection("doctorPayment")}
-          onSave={() => saveSection("doctorPayment")}
-          onCancel={() => cancelSection("doctorPayment")}
-        >
-          <div className="space-y-5">
-            <div className="rounded-xl border border-[#efefef] bg-[#fafafa] p-4">
-              <h3 className="font-semibold text-[#224770]">
-                {paymentModeLabels[paymentModeValues.onCall]}
-              </h3>
-              <div className="mt-4 grid gap-4 lg:grid-cols-4">
-                <NumberField
-                  label="Day Consultation Rate"
-                  value={draftSettings.doctorPayment.lowSeason.dayConsultationPayout}
-                  onChange={(dayConsultationPayout) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          lowSeason: {
-                            ...current.doctorPayment.lowSeason,
-                            dayConsultationPayout
-                          }
+    if (activeSection === "doctorPayment") {
+      return (
+        <div className="space-y-5">
+          <SettingsCard>
+            <h2 className="text-lg font-bold text-[#224770]">
+              {paymentModeLabels[paymentModeValues.onCall]}
+            </h2>
+            <div className="mt-5 grid gap-5 lg:grid-cols-4">
+              <NumberField
+                label="Day Consultation Rate"
+                value={draftSettings.doctorPayment.lowSeason.dayConsultationPayout}
+                onChange={(dayConsultationPayout) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        lowSeason: {
+                          ...current.doctorPayment.lowSeason,
+                          dayConsultationPayout
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <NumberField
-                  label="Night Consultation Rate"
-                  value={draftSettings.doctorPayment.lowSeason.nightConsultationPayout}
-                  onChange={(nightConsultationPayout) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          lowSeason: {
-                            ...current.doctorPayment.lowSeason,
-                            nightConsultationPayout
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <NumberField
+                label="Night Consultation Rate"
+                value={draftSettings.doctorPayment.lowSeason.nightConsultationPayout}
+                onChange={(nightConsultationPayout) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        lowSeason: {
+                          ...current.doctorPayment.lowSeason,
+                          nightConsultationPayout
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <TextField
-                  label="Night Start Time"
-                  type="time"
-                  value={draftSettings.doctorPayment.lowSeason.nightStartTime}
-                  onChange={(nightStartTime) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          lowSeason: {
-                            ...current.doctorPayment.lowSeason,
-                            nightStartTime
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <TextField
+                label="Night Start"
+                type="time"
+                value={draftSettings.doctorPayment.lowSeason.nightStartTime}
+                onChange={(nightStartTime) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        lowSeason: {
+                          ...current.doctorPayment.lowSeason,
+                          nightStartTime
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <TextField
-                  label="Night End Time"
-                  type="time"
-                  value={draftSettings.doctorPayment.lowSeason.nightEndTime}
-                  onChange={(nightEndTime) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          lowSeason: {
-                            ...current.doctorPayment.lowSeason,
-                            nightEndTime
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <TextField
+                label="Night End"
+                type="time"
+                value={draftSettings.doctorPayment.lowSeason.nightEndTime}
+                onChange={(nightEndTime) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        lowSeason: {
+                          ...current.doctorPayment.lowSeason,
+                          nightEndTime
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-              </div>
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
             </div>
+          </SettingsCard>
 
-            <div className="rounded-xl border border-[#efefef] bg-[#fafafa] p-4">
-              <h3 className="font-semibold text-[#224770]">
-                {paymentModeLabels[paymentModeValues.clinicShift]}
-              </h3>
-              <div className="mt-4 grid gap-4 lg:grid-cols-5">
-                <NumberField
-                  label="Hourly Rate"
-                  value={draftSettings.doctorPayment.peakSeason.hourlyRate}
-                  onChange={(hourlyRate) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          peakSeason: {
-                            ...current.doctorPayment.peakSeason,
-                            hourlyRate
-                          }
+          <SettingsCard>
+            <h2 className="text-lg font-bold text-[#224770]">
+              {paymentModeLabels[paymentModeValues.clinicShift]}
+            </h2>
+            <div className="mt-5 grid gap-5 lg:grid-cols-5">
+              <NumberField
+                label="Hourly Rate"
+                value={draftSettings.doctorPayment.peakSeason.hourlyRate}
+                onChange={(hourlyRate) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        peakSeason: {
+                          ...current.doctorPayment.peakSeason,
+                          hourlyRate
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <TextField
-                  label="Shift Start"
-                  type="time"
-                  value={draftSettings.doctorPayment.peakSeason.shiftStartTime}
-                  onChange={(shiftStartTime) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          peakSeason: {
-                            ...current.doctorPayment.peakSeason,
-                            shiftStartTime
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <TextField
+                label="Shift Start"
+                type="time"
+                value={draftSettings.doctorPayment.peakSeason.shiftStartTime}
+                onChange={(shiftStartTime) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        peakSeason: {
+                          ...current.doctorPayment.peakSeason,
+                          shiftStartTime
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <TextField
-                  label="Shift End"
-                  type="time"
-                  value={draftSettings.doctorPayment.peakSeason.shiftEndTime}
-                  onChange={(shiftEndTime) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          peakSeason: {
-                            ...current.doctorPayment.peakSeason,
-                            shiftEndTime
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <TextField
+                label="Shift End"
+                type="time"
+                value={draftSettings.doctorPayment.peakSeason.shiftEndTime}
+                onChange={(shiftEndTime) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        peakSeason: {
+                          ...current.doctorPayment.peakSeason,
+                          shiftEndTime
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <NumberField
-                  label="Patient Threshold"
-                  value={draftSettings.doctorPayment.peakSeason.bonusThresholdPatients}
-                  onChange={(bonusThresholdPatients) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          peakSeason: {
-                            ...current.doctorPayment.peakSeason,
-                            bonusThresholdPatients
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <NumberField
+                label="Patient Threshold"
+                value={draftSettings.doctorPayment.peakSeason.bonusThresholdPatients}
+                onChange={(bonusThresholdPatients) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        peakSeason: {
+                          ...current.doctorPayment.peakSeason,
+                          bonusThresholdPatients
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-                <NumberField
-                  label="Per Patient Bonus"
-                  value={draftSettings.doctorPayment.peakSeason.bonusPerPatient}
-                  onChange={(bonusPerPatient) =>
-                    setDraftSettings((current) =>
-                      normalizeSystemSettings({
-                        ...current,
-                        doctorPayment: {
-                          ...current.doctorPayment,
-                          peakSeason: {
-                            ...current.doctorPayment.peakSeason,
-                            bonusPerPatient
-                          }
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
+              <NumberField
+                label="Per-Patient Bonus"
+                value={draftSettings.doctorPayment.peakSeason.bonusPerPatient}
+                onChange={(bonusPerPatient) =>
+                  setDraftSettings((current) =>
+                    normalizeSystemSettings({
+                      ...current,
+                      doctorPayment: {
+                        ...current.doctorPayment,
+                        peakSeason: {
+                          ...current.doctorPayment.peakSeason,
+                          bonusPerPatient
                         }
-                      })
-                    )
-                  }
-                  disabled={!editable}
-                />
-              </div>
+                      }
+                    })
+                  )
+                }
+                disabled={!editable}
+              />
             </div>
-          </div>
-        </SettingsSection>
+          </SettingsCard>
+        </div>
+      );
+    }
 
-        <SettingsSection
-          section="insurance"
-          open={openSections.includes("insurance")}
-          dirty={sectionDirty(savedSettings, draftSettings, "insurance")}
-          canEdit={editable}
-          onToggle={() => toggleSection("insurance")}
-          onSave={() => saveSection("insurance")}
-          onCancel={() => cancelSection("insurance")}
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
+    if (activeSection === "insurance") {
+      return (
+        <SettingsCard>
+          <div className="grid gap-5 lg:grid-cols-2">
             <TextField
-              label="Default Statement Format"
+              label="Statement Format"
               value={draftSettings.insurance.defaultStatementFormat}
-              onChange={(defaultStatementFormat) =>
-                updateInsurance({ defaultStatementFormat })
-              }
+              onChange={(defaultStatementFormat) => updateInsurance({ defaultStatementFormat })}
               disabled={!editable}
             />
             <TextField
-              label="Default Statement Number Format"
+              label="Statement Number Format"
               value={draftSettings.insurance.defaultStatementNumberFormat}
               onChange={(defaultStatementNumberFormat) =>
                 updateInsurance({ defaultStatementNumberFormat })
@@ -1025,23 +1261,20 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               disabled={!editable}
             />
             <NumberField
-              label="Default Due Period (Days)"
+              label="Default Due Period"
               value={draftSettings.insurance.defaultDuePeriodDays}
-              onChange={(defaultDuePeriodDays) =>
-                updateInsurance({ defaultDuePeriodDays })
-              }
+              onChange={(defaultDuePeriodDays) => updateInsurance({ defaultDuePeriodDays })}
               disabled={!editable}
+              suffix="days"
             />
-            <YesNoField
+            <SwitchField
               label="Enable Partial Payments"
-              value={draftSettings.insurance.enablePartialPayments}
-              onChange={(enablePartialPayments) =>
-                updateInsurance({ enablePartialPayments })
-              }
+              checked={draftSettings.insurance.enablePartialPayments}
+              onChange={(enablePartialPayments) => updateInsurance({ enablePartialPayments })}
               disabled={!editable}
             />
             <TextField
-              label="Default Payment Reference Prefix"
+              label="Payment Reference Prefix"
               value={draftSettings.insurance.defaultPaymentReferencePrefix}
               onChange={(defaultPaymentReferencePrefix) =>
                 updateInsurance({ defaultPaymentReferencePrefix })
@@ -1049,83 +1282,221 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               disabled={!editable}
             />
           </div>
-        </SettingsSection>
+        </SettingsCard>
+      );
+    }
 
-        <SettingsSection
-          section="userSecurity"
-          open={openSections.includes("userSecurity")}
-          dirty={false}
-          canEdit={false}
-          future
-          onToggle={() => toggleSection("userSecurity")}
-        >
-          <div className="grid gap-4 lg:grid-cols-3">
+    if (activeSection === "userSecurity") {
+      return (
+        <SettingsCard>
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-[#224770]">User & Security Controls</h2>
+            <FutureBadge />
+          </div>
+          <div className="grid gap-5 lg:grid-cols-3">
             <InfoBox label="Password Policy" value={draftSettings.userSecurity.passwordPolicy} />
             <InfoBox
               label="Session Timeout"
               value={`${draftSettings.userSecurity.sessionTimeoutMinutes} minutes`}
             />
             <InfoBox
-              label="Two-Factor Authentication"
-              value={draftSettings.userSecurity.twoFactorAuthentication ? "Enabled" : "Disabled"}
-            />
-            <InfoBox
               label="Login Attempt Limit"
               value={String(draftSettings.userSecurity.loginAttemptLimit)}
             />
-            <InfoBox
+            <SwitchField
               label="Audit Logging"
-              value={draftSettings.userSecurity.auditLoggingEnabled ? "Enabled" : "Disabled"}
+              checked={draftSettings.userSecurity.auditLoggingEnabled}
+              onChange={() => undefined}
+              disabled
+            />
+            <SwitchField
+              label="Two-Factor Authentication"
+              checked={draftSettings.userSecurity.twoFactorAuthentication}
+              onChange={() => undefined}
+              disabled
+              helper="Future"
             />
           </div>
-        </SettingsSection>
+        </SettingsCard>
+      );
+    }
 
-        <SettingsSection
-          section="notifications"
-          open={openSections.includes("notifications")}
-          dirty={false}
-          canEdit={false}
-          future
-          onToggle={() => toggleSection("notifications")}
-        >
-          <div className="grid gap-4 lg:grid-cols-4">
-            <InfoBox
+    if (activeSection === "notifications") {
+      return (
+        <SettingsCard>
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-[#224770]">Notification Preferences</h2>
+            <FutureBadge />
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <SwitchField
               label="Email Notifications"
-              value={draftSettings.notifications.emailNotifications ? "Enabled" : "Planned"}
+              checked={draftSettings.notifications.emailNotifications}
+              onChange={() => undefined}
+              disabled
+              helper="Future"
             />
-            <InfoBox
+            <SwitchField
               label="Insurance Statement Notifications"
-              value={
-                draftSettings.notifications.insuranceStatementNotifications ? "Enabled" : "Planned"
-              }
+              checked={draftSettings.notifications.insuranceStatementNotifications}
+              onChange={() => undefined}
+              disabled
+              helper="Future"
             />
-            <InfoBox
+            <SwitchField
               label="Doctor Payout Notifications"
-              value={draftSettings.notifications.doctorPayoutNotifications ? "Enabled" : "Planned"}
+              checked={draftSettings.notifications.doctorPayoutNotifications}
+              onChange={() => undefined}
+              disabled
+              helper="Future"
             />
-            <InfoBox
+            <SwitchField
               label="Payment Received Notifications"
-              value={draftSettings.notifications.paymentReceivedNotifications ? "Enabled" : "Planned"}
+              checked={draftSettings.notifications.paymentReceivedNotifications}
+              onChange={() => undefined}
+              disabled
+              helper="Future"
             />
           </div>
-        </SettingsSection>
+        </SettingsCard>
+      );
+    }
 
-        <SettingsSection
-          section="system"
-          open={openSections.includes("system")}
-          dirty={false}
-          canEdit={false}
-          future
-          onToggle={() => toggleSection("system")}
-        >
-          <div className="grid gap-4 lg:grid-cols-4">
-            <InfoBox label="Database Status" value={draftSettings.system.databaseStatus} />
-            <InfoBox label="Last Backup" value={draftSettings.system.lastBackup} />
-            <InfoBox label="Environment" value={draftSettings.system.environment} />
-            <InfoBox label="Application Version" value={draftSettings.system.applicationVersion} />
+    return (
+      <SettingsCard>
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h2 className="text-lg font-bold text-[#224770]">System Status</h2>
+          <FutureBadge />
+        </div>
+        <div className="grid gap-5 lg:grid-cols-4">
+          <InfoBox label="Application Version" value={draftSettings.system.applicationVersion} />
+          <InfoBox label="Environment" value={draftSettings.system.environment} />
+          <InfoBox label="Database Status" value={draftSettings.system.databaseStatus} />
+          <InfoBox label="Last Backup" value={draftSettings.system.lastBackup} />
+        </div>
+      </SettingsCard>
+    );
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="hidden h-fit rounded-2xl border border-[#e5eaf0] bg-white p-2 shadow-sm lg:sticky lg:top-5 lg:block">
+        <nav className="space-y-1" aria-label="Settings sections">
+          {allSections.map((section) => {
+            const dirty = dirtySections.includes(section);
+            const selected = activeSection === section;
+
+            return (
+              <button
+                key={section}
+                type="button"
+                onClick={() => selectSection(section)}
+                className={cn(
+                  "focus-ring relative flex min-h-12 w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold transition",
+                  selected
+                    ? "bg-[#0eb6ef]/10 text-[#224770]"
+                    : "text-[#46484a] hover:bg-[#efefef]/70"
+                )}
+              >
+                {selected ? (
+                  <span className="absolute left-0 top-2 h-8 w-1 rounded-r-full bg-[#224770]" />
+                ) : null}
+                <span>{sectionLabels[section]}</span>
+                {dirty ? <span className="h-2 w-2 rounded-full bg-amber-400" /> : null}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-[#e5eaf0] bg-white p-3 shadow-sm lg:hidden">
+          <SelectField
+            label="Settings Category"
+            value={activeSection}
+            onChange={(section) => selectSection(section as SectionKey)}
+            disabled={false}
+            options={allSections.map((section) => ({
+              value: section,
+              label: sectionLabels[section]
+            }))}
+          />
+        </div>
+
+        {!canEdit ? (
+          <div className="rounded-xl border border-[#efefef] bg-white p-4 text-sm font-semibold text-[#46484a]">
+            Company Director access is read-only in this phase.
           </div>
-        </SettingsSection>
+        ) : null}
+
+        {statusMessage ? (
+          <div className="rounded-xl border border-[#dceccc] bg-[#84bc3f]/10 p-4 text-sm font-semibold text-[#4f7f22]">
+            {statusMessage}
+          </div>
+        ) : null}
+
+        <section>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-[#224770]">
+                {sectionLabels[activeSection]}
+              </h1>
+              {sectionDescriptions[activeSection] ? (
+                <p className="mt-1 max-w-2xl text-sm font-medium text-[#46484a]">
+                  {sectionDescriptions[activeSection]}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activeDirty ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                  Unsaved changes
+                </span>
+              ) : null}
+              {activeFuture ? <FutureBadge /> : null}
+              {!canEdit && !activeFuture ? (
+                <span className="rounded-full bg-[#efefef] px-3 py-1.5 text-xs font-semibold text-[#46484a]">
+                  Read-only
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          {renderContent()}
+
+          <SectionFooter
+            dirty={activeDirty}
+            canEdit={canEdit}
+            future={activeFuture}
+            onSave={() => {
+              if (isActiveSection(activeSection)) {
+                saveSection(activeSection);
+              }
+            }}
+            onCancel={() => {
+              if (isActiveSection(activeSection)) {
+                cancelSection(activeSection);
+              }
+            }}
+          />
+        </section>
       </div>
+
+      {pendingSection ? (
+        <UnsavedChangesDialog
+          onKeepEditing={() => setPendingSection(null)}
+          onDiscard={discardAndSwitch}
+        />
+      ) : null}
+
+      {seasonModal ? (
+        <SeasonEditorModal
+          state={seasonModal}
+          canEdit={editable}
+          onClose={() => setSeasonModal(null)}
+          onSave={saveSeasonFromModal}
+        />
+      ) : null}
     </div>
   );
 }

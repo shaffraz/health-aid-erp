@@ -20,8 +20,14 @@ type ActionResult<T = undefined> = ActionSuccess<T> | { ok: false; error: string
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type Permission = keyof typeof permissions;
 type SupabaseActionContext =
-  | { supabase: null; userId: string; role: Role; error?: never }
-  | { supabase: SupabaseServerClient; userId: string; role: Role; error?: never }
+  | { supabase: null; userId: string; role: Role; administratorPrivileges?: boolean; error?: never }
+  | {
+      supabase: SupabaseServerClient;
+      userId: string;
+      role: Role;
+      administratorPrivileges?: boolean;
+      error?: never;
+    }
   | { supabase: SupabaseServerClient; userId?: never; error: string };
 
 const nonEmptyText = z.string().trim().min(1);
@@ -104,7 +110,7 @@ async function getSupabaseUser(): Promise<SupabaseActionContext> {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, administrator_privileges")
     .eq("id", user.id)
     .single();
 
@@ -112,7 +118,12 @@ async function getSupabaseUser(): Promise<SupabaseActionContext> {
     return { supabase, error: "Your user profile is missing. Please contact an administrator." };
   }
 
-  return { supabase, userId: user.id, role: normalizeRole(profile.role) };
+  return {
+    supabase,
+    userId: user.id,
+    role: normalizeRole(profile.role),
+    administratorPrivileges: Boolean(profile.administrator_privileges)
+  };
 }
 
 function emptyToNull(value?: string) {
@@ -124,7 +135,7 @@ function requireActionPermission(auth: SupabaseActionContext, permission: Permis
     return auth.error;
   }
 
-  if (!hasPermission(auth.role, permission)) {
+  if (!hasPermission(auth, permission)) {
     return "Your role does not have permission to perform this action.";
   }
 
@@ -142,7 +153,7 @@ export async function createInvoiceAction(input: unknown): Promise<ActionResult<
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
-  const permissionError = requireActionPermission(auth, "createInvoices");
+  const permissionError = requireActionPermission(auth, "canCreateInvoice");
   if (permissionError) {
     return { ok: false, error: permissionError };
   }
@@ -260,7 +271,7 @@ export async function createServiceAction(input: unknown): Promise<ActionResult<
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
-  const permissionError = requireActionPermission(auth, "manageServices");
+  const permissionError = requireActionPermission(auth, "canManageServices");
   if (permissionError) {
     return { ok: false, error: permissionError };
   }
@@ -304,7 +315,7 @@ export async function createDoctorAction(input: unknown): Promise<ActionResult<{
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
-  const permissionError = requireActionPermission(auth, "manageDoctors");
+  const permissionError = requireActionPermission(auth, "canManageDoctors");
   if (permissionError) {
     return { ok: false, error: permissionError };
   }
@@ -346,7 +357,7 @@ export async function createDoctorPaymentRuleAction(input: unknown): Promise<Act
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
-  const permissionError = requireActionPermission(auth, "manageDoctors");
+  const permissionError = requireActionPermission(auth, "canManageDoctors");
   if (permissionError) {
     return { ok: false, error: permissionError };
   }
@@ -391,7 +402,7 @@ export async function generatePayoutVoucherAction(input: unknown): Promise<Actio
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
-  const permissionError = requireActionPermission(auth, "managePayouts");
+  const permissionError = requireActionPermission(auth, "canManagePayouts");
   if (permissionError) {
     return { ok: false, error: permissionError };
   }
@@ -494,7 +505,7 @@ export async function updateVoucherStatusAction(input: unknown): Promise<ActionR
   if (auth.error) {
     return { ok: false, error: auth.error };
   }
-  const permissionError = requireActionPermission(auth, "managePayouts");
+  const permissionError = requireActionPermission(auth, "canManagePayouts");
   if (permissionError) {
     return { ok: false, error: permissionError };
   }
