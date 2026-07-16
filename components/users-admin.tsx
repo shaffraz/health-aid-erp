@@ -351,7 +351,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
 
       {formOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1726]/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="user-form-title"

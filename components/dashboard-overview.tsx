@@ -142,12 +142,12 @@ const sectionTones: Record<
   }
 > = {
   operations: {
-    panel: "border-[#d7e1ec] bg-white",
+    panel: "border-[#d9d9d9] bg-white",
     header: "border-[#224770] bg-[#224770]",
     title: "text-white"
   },
   performance: {
-    panel: "border-[#dceccc] bg-white",
+    panel: "border-[#84bc3f]/35 bg-white",
     header: "border-[#84bc3f] bg-[#84bc3f]",
     title: "text-white"
   },
