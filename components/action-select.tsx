@@ -40,7 +40,7 @@ export function ActionSelect({
   return (
     <div
       className={cn(
-        "flex w-full min-w-[132px] max-w-[156px] items-center gap-1 rounded-lg bg-[#efefef] p-1",
+        "flex w-full min-w-[124px] max-w-[144px] items-center gap-1 rounded-lg bg-[#efefef]/80 p-1",
         className
       )}
     >

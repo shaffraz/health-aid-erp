@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { ActionSelect } from "@/components/action-select";
-import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
+import { KpiCard, buttonClass } from "@/components/erp-ui";
+import { StatusPill } from "@/components/status-pill";
 import { generatePayoutsForInvoices } from "@/lib/calculations";
 import { money, monthKey, todayISO } from "@/lib/format";
 import { generateId } from "@/lib/id";
@@ -14,7 +14,6 @@ import {
   type DoctorPayout,
   type Invoice
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type DoctorsAdminProps = {
   initialDoctors: Doctor[];
@@ -87,6 +86,7 @@ export function DoctorsAdmin({
   const localCurrencyCode = systemSettings.clinic.localCurrency;
   const [form, setForm] = useState<DoctorForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
@@ -151,6 +151,14 @@ export function DoctorsAdmin({
     .filter((payout) => payout.status === "paid" && monthKey(payout.date) === currentMonth)
     .reduce((sum, payout) => sum + payout.payoutAmount, 0);
   const editing = Boolean(form.id);
+  const selectedDoctor = doctors.find((doctor) => doctor.id === selectedDoctorId);
+  const selectedDoctorPending = selectedDoctor
+    ? payoutSummaryByDoctor.get(selectedDoctor.id)?.pending ?? 0
+    : 0;
+  const selectedDoctorIsUsed = selectedDoctor
+    ? initialInvoices.some((invoice) => invoice.doctorId === selectedDoctor.id) ||
+      visiblePayouts.some((payout) => payout.doctorId === selectedDoctor.id)
+    : false;
 
   function resetForm() {
     setForm(emptyForm);
@@ -231,29 +239,7 @@ export function DoctorsAdmin({
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#224770] bg-[#224770] p-5">
-          <h2 className="font-semibold text-white">Pending Payouts by Doctor</h2>
-        </div>
-        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-          {doctors.map((doctor) => {
-            const pending = payoutSummaryByDoctor.get(doctor.id)?.pending ?? 0;
-
-            return (
-              <div
-                key={doctor.id}
-                className="rounded-xl border border-[#efefef] bg-white p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <p className="font-semibold text-[#224770]">{doctor.name}</p>
-                <p className="mt-1 text-sm text-[#46484a]">{doctor.designation}</p>
-                <p className="mt-3 text-lg font-bold text-[#224770]">{money(pending)}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold text-white">Doctor Directory</h2>
           </div>
@@ -268,93 +254,42 @@ export function DoctorsAdmin({
           ) : null}
         </div>
 
-        <div className={tableStyles.wrapper}>
-          <table className={tableStyles.table}>
-            <thead className={tableStyles.head}>
-              <tr>
-                <th className={tableStyles.headerCell}>Name</th>
-                <th className={tableStyles.headerCell}>Designation</th>
-                <th className={tableStyles.headerCell}>Phone</th>
-                <th className={tableStyles.headerCell}>Status</th>
-                <th className={tableStyles.numericHeaderCell}>
-                  Pending payout {localCurrencyCode}
-                </th>
-                {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefef]">
-              {doctors.map((doctor) => {
-                const summary = payoutSummaryByDoctor.get(doctor.id);
-                const doctorIsUsed =
-                  initialInvoices.some((invoice) => invoice.doctorId === doctor.id) ||
-                  visiblePayouts.some((payout) => payout.doctorId === doctor.id);
+        <div className="grid gap-3 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4">
+          {doctors.map((doctor) => {
+            const pending = payoutSummaryByDoctor.get(doctor.id)?.pending ?? 0;
 
-                return (
-                  <tr key={doctor.id} className={tableStyles.row}>
-                    <td className={tableStyles.strongCell}>
-                      <p>{doctor.name}</p>
-                      {doctor.notes ? (
-                        <p className="mt-1 max-w-xs text-xs leading-5 text-[#46484a]">
-                          {doctor.notes}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className={tableStyles.cell}>
+            return (
+              <button
+                key={doctor.id}
+                type="button"
+                onClick={() => setSelectedDoctorId(doctor.id)}
+                className="focus-ring min-h-36 rounded-xl border border-[#efefef] bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#0eb6ef]/45 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-[#224770]">
+                      {doctor.name}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm font-medium text-[#46484a]">
                       {doctor.designation}
-                    </td>
-                    <td className={tableStyles.cell}>
-                      {doctor.phone ?? "-"}
-                    </td>
-                    <td className={tableStyles.cell}>
-                      <span
-                        className={cn(
-                          "font-semibold",
-                          doctor.active ? "text-[#84bc3f]" : "text-[#46484a]"
-                        )}
-                      >
-                        {doctor.active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className={tableStyles.numericCell}>
-                      {money(summary?.pending ?? 0)}
-                    </td>
-                    {canEdit ? (
-                      <td className={tableStyles.actionCell}>
-                        <ActionSelect
-                          ariaLabel={`Actions for ${doctor.name}`}
-                          actions={[
-                            {
-                              value: "edit",
-                              label: "Edit",
-                              onSelect: () => editDoctor(doctor)
-                            },
-                            {
-                              value: "toggle",
-                              label: doctor.active ? "Deactivate" : "Reactivate",
-                              onSelect: () => toggleDoctorActive(doctor.id)
-                            },
-                            {
-                              value: "delete",
-                              label: doctorIsUsed ? "Delete unavailable" : "Delete",
-                              disabled: doctorIsUsed,
-                              onSelect: () => deleteDoctor(doctor.id)
-                            }
-                          ]}
-                        />
-                      </td>
-                    ) : null}
-                  </tr>
-                );
-              })}
-              {!doctors.length ? (
-                <tr>
-                  <td colSpan={canEdit ? 6 : 5} className="px-5 py-10 text-center text-sm text-[#46484a]">
-                    No doctors have been added yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+                    </p>
+                  </div>
+                  <StatusPill tone={doctor.active ? "green" : "slate"}>
+                    {doctor.active ? "Active" : "Inactive"}
+                  </StatusPill>
+                </div>
+                <div className="mt-5">
+                  <span className="label">Pending Payout</span>
+                  <p className="mt-1 text-lg font-bold text-[#224770]">{money(pending)}</p>
+                </div>
+              </button>
+            );
+          })}
+          {!doctors.length ? (
+            <div className="rounded-xl border border-dashed border-[#d9d9d9] bg-[#efefef]/35 p-6 text-center text-sm text-[#46484a] sm:col-span-2 xl:col-span-4">
+              No doctors have been added yet.
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -497,6 +432,97 @@ export function DoctorsAdmin({
           </section>
         </div>
       ) : null}
+
+      {selectedDoctor ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="doctor-details-title"
+        >
+          <section className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#efefef] px-5 py-4">
+              <h2 id="doctor-details-title" className="font-semibold text-[#224770]">
+                Doctor Details
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedDoctorId("")}
+                className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
+                aria-label="Close doctor details"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Detail label="Full Name" value={selectedDoctor.name} />
+                <Detail label="Designation" value={selectedDoctor.designation} />
+                <Detail label="Phone" value={selectedDoctor.phone ?? "N/A"} />
+                <Detail label="Status" value={selectedDoctor.active ? "Active" : "Inactive"} />
+                <Detail label={`Pending Payout ${localCurrencyCode}`} value={money(selectedDoctorPending)} />
+                <div className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-3 sm:col-span-2">
+                  <span className="label">Notes</span>
+                  <p className="mt-1 font-semibold text-[#224770]">
+                    {selectedDoctor.notes ?? "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-[#efefef] px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedDoctorId("")}
+                className={buttonClass("secondary")}
+              >
+                Close
+              </button>
+              {canEdit ? (
+                <>
+                  {!selectedDoctorIsUsed ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        deleteDoctor(selectedDoctor.id);
+                        setSelectedDoctorId("");
+                      }}
+                      className={buttonClass("danger")}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => toggleDoctorActive(selectedDoctor.id)}
+                    className={buttonClass("secondary")}
+                  >
+                    {selectedDoctor.active ? "Deactivate" : "Activate"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editDoctor(selectedDoctor);
+                      setSelectedDoctorId("");
+                    }}
+                    className={buttonClass("primary")}
+                  >
+                    Edit Doctor
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-3">
+      <span className="label">{label}</span>
+      <p className="mt-1 font-semibold text-[#224770]">{value}</p>
     </div>
   );
 }

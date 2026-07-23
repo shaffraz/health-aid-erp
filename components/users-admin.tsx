@@ -72,6 +72,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
@@ -116,6 +117,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
   const doctorLinkedUsers = users.filter((user) => Boolean(user.doctorId)).length;
   const assistanceCompanyUsers = users.filter((user) => user.role === "assistance_company").length;
   const editing = Boolean(form.id);
+  const selectedUser = users.find((user) => user.id === selectedUserId);
 
   function resetForm() {
     setForm(emptyForm);
@@ -247,7 +249,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] px-4 py-3 lg:flex-row lg:items-center">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -271,7 +273,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
             <button
               type="button"
               onClick={openAddForm}
-              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
+              className={buttonClass("secondary", "border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
             >
               Add User
             </button>
@@ -279,67 +281,72 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[780px] divide-y divide-[#efefef] text-sm">
+          <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Name</th>
-                <th className={tableStyles.headerCell}>Username</th>
                 <th className={tableStyles.headerCell}>Role</th>
-                <th className={tableStyles.headerCell}>Administrator Privileges</th>
                 <th className={tableStyles.headerCell}>Linked Profile</th>
                 <th className={tableStyles.headerCell}>Status</th>
                 {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className={tableStyles.row}>
-                  <td className={tableStyles.strongCell}>
-                    <p>{user.name}</p>
-                    <p className="text-xs font-normal text-[#46484a]">{user.email}</p>
-                    {user.phone ? (
-                      <p className="text-xs font-normal text-[#46484a]">{user.phone}</p>
-                    ) : null}
-                  </td>
-                  <td className={tableStyles.cell}>{user.username}</td>
-                  <td className={tableStyles.cell}>{roleLabels[user.role]}</td>
-                  <td className={tableStyles.cell}>
-                    {user.role === "administrator" || user.administratorPrivileges ? (
-                      <StatusPill tone="green">Enabled</StatusPill>
-                    ) : (
-                      <span className="text-[#46484a]">Disabled</span>
-                    )}
-                  </td>
-                  <td className={tableStyles.cell}>{linkedProfile(user)}</td>
-                  <td className={tableStyles.cell}>
-                    <StatusPill tone={user.status === "active" ? "green" : "slate"}>
-                      {user.status === "active" ? "Active" : "Inactive"}
-                    </StatusPill>
-                  </td>
-                  {canEdit ? (
-                    <td className={tableStyles.actionCell}>
-                      <ActionSelect
-                        ariaLabel={`Actions for ${user.name}`}
-                        actions={[
-                          {
-                            value: "edit",
-                            label: "Edit",
-                            onSelect: () => editUser(user)
-                          },
-                          {
-                            value: "toggle",
-                            label: user.status === "active" ? "Deactivate" : "Activate",
-                            onSelect: () => toggleUserStatus(user.id)
-                          }
-                        ]}
-                      />
+              {filteredUsers.map((user) => {
+                const actions = [
+                  {
+                    value: "view",
+                    label: "View",
+                    onSelect: () => setSelectedUserId(user.id)
+                  },
+                  ...(canEdit
+                    ? [
+                        {
+                          value: "edit",
+                          label: "Edit",
+                          onSelect: () => editUser(user)
+                        },
+                        {
+                          value: "toggle",
+                          label: user.status === "active" ? "Deactivate" : "Activate",
+                          onSelect: () => toggleUserStatus(user.id)
+                        }
+                      ]
+                    : [])
+                ];
+
+                return (
+                  <tr key={user.id} className={tableStyles.row}>
+                    <td className={tableStyles.strongCell}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUserId(user.id)}
+                        className="text-left font-semibold text-[#224770] underline-offset-4 hover:underline"
+                      >
+                        {user.name}
+                      </button>
                     </td>
-                  ) : null}
-                </tr>
-              ))}
+                    <td className={tableStyles.cell}>{roleLabels[user.role]}</td>
+                    <td className={tableStyles.cell}>{linkedProfile(user)}</td>
+                    <td className={tableStyles.cell}>
+                      <StatusPill tone={user.status === "active" ? "green" : "slate"}>
+                        {user.status === "active" ? "Active" : "Inactive"}
+                      </StatusPill>
+                    </td>
+                    {canEdit ? (
+                      <td className={tableStyles.actionCell}>
+                        <ActionSelect
+                          ariaLabel={`Actions for ${user.name}`}
+                          actions={actions}
+                        />
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
               {!filteredUsers.length ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={canEdit ? 7 : 6}>
+                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={canEdit ? 5 : 4}>
                     No users found.
                   </td>
                 </tr>
@@ -568,6 +575,71 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
           </section>
         </div>
       ) : null}
+
+      {selectedUser ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="user-details-title"
+        >
+          <section className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#efefef] px-5 py-4">
+              <h2 id="user-details-title" className="font-semibold text-[#224770]">
+                User Details
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedUserId("")}
+                className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
+                aria-label="Close user details"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <UserDetail label="Name" value={selectedUser.name} />
+                <UserDetail label="Role" value={roleLabels[selectedUser.role]} />
+                <UserDetail label="Email" value={selectedUser.email} />
+                <UserDetail label="Phone" value={selectedUser.phone ?? "N/A"} />
+                <UserDetail label="Username" value={selectedUser.username} />
+                <UserDetail
+                  label="Administrator Privileges"
+                  value={
+                    selectedUser.role === "administrator" || selectedUser.administratorPrivileges
+                      ? "Enabled"
+                      : "Disabled"
+                  }
+                />
+                <UserDetail label="Linked Profile" value={linkedProfile(selectedUser)} />
+                <UserDetail
+                  label="Status"
+                  value={selectedUser.status === "active" ? "Active" : "Inactive"}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-[#efefef] px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setSelectedUserId("")}
+                className={buttonClass("secondary")}
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
+  );
+}
+
+function UserDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-3">
+      <span className="label">{label}</span>
+      <p className="mt-1 font-semibold text-[#224770]">{value}</p>
+    </div>
   );
 }

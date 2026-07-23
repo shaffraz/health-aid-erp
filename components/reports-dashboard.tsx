@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { buttonClass, KpiCard, tableStyles } from "@/components/erp-ui";
-import { StatusPill } from "@/components/status-pill";
+import { buttonClass, KpiCard } from "@/components/erp-ui";
 import { invoiceItemRevenueAmount, invoiceRevenueAmount } from "@/lib/calculations";
 import { monthKey, todayISO, usdWhole } from "@/lib/format";
 import { currentOperatingSeason, isWithinSeason } from "@/lib/season";
@@ -22,19 +21,58 @@ const paymentLabels: Record<PaymentMethod, string> = {
   other: "Other"
 };
 
-function downloadCsv(fileName: string, rows: string[][]) {
-  const csv = rows
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replaceAll("\"", "\"\"")}"`).join(",")
+function escapeHtml(value: string | number) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function openReportPdf(title: string, rows: string[][]) {
+  const reportWindow = window.open("", "_blank", "noopener,noreferrer");
+
+  if (!reportWindow) {
+    return;
+  }
+
+  const [header = [], ...bodyRows] = rows;
+  const headerHtml = header
+    .map((cell) => `<th>${escapeHtml(cell)}</th>`)
+    .join("");
+  const bodyHtml = bodyRows
+    .map(
+      (row) =>
+        `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`
     )
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+    .join("");
+
+  reportWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      body { color: #224770; font-family: Arial, sans-serif; margin: 32px; }
+      h1 { margin: 0 0 18px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border-bottom: 1px solid #dfe4e7; padding: 10px; text-align: left; vertical-align: top; }
+      th { background: #efefef; color: #46484a; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+      td { color: #224770; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>${escapeHtml(title)}</h1>
+    <table>
+      <thead><tr>${headerHtml}</tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>
+  </body>
+</html>`);
+  reportWindow.document.close();
+  reportWindow.focus();
+  reportWindow.print();
 }
 
 function average(values: number[]) {
@@ -92,9 +130,21 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
   }, [monthlyInvoices]);
 
   const maxCategoryIncome = Math.max(...categoryIncome.map((item) => item.total), 1);
+  const paymentSummary = useMemo(() => {
+    return Object.entries(paymentLabels)
+      .map(([method, label]) => ({
+        method: method as PaymentMethod,
+        label,
+        total: monthlyInvoices
+          .filter((invoice) => invoice.paymentMethod === method)
+          .reduce((sum, invoice) => sum + invoiceRevenueAmount(invoice), 0)
+      }))
+      .filter((item) => item.total > 0);
+  }, [monthlyInvoices]);
+  const maxPaymentTotal = Math.max(...paymentSummary.map((item) => item.total), 1);
 
-  function exportMonthlyRevenue() {
-    downloadCsv("monthly-revenue-report.csv", [
+  function exportMonthlyRevenuePdf() {
+    openReportPdf("Monthly Revenue Report", [
       ["Invoice", "Date", "Patient", "Payment Method", currencyLabel("Recognized Revenue", invoiceCurrencyCode)],
       ...monthlyInvoices.map((invoice) => [
         invoice.invoiceNo,
@@ -107,10 +157,26 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
     ]);
   }
 
+  function exportCategoryIncomePdf() {
+    openReportPdf("Category Income Report", [
+      ["Category", currencyLabel("Revenue", invoiceCurrencyCode)],
+      ...categoryIncome.map((item) => [item.category, String(item.total)]),
+      ["Total", String(monthlyRevenue)]
+    ]);
+  }
+
+  function exportPaymentSummaryPdf() {
+    openReportPdf("Payment Summary Report", [
+      ["Payment Method", currencyLabel("Revenue", invoiceCurrencyCode)],
+      ...paymentSummary.map((item) => [item.label, String(item.total)]),
+      ["Total", String(monthlyRevenue)]
+    ]);
+  }
+
   return (
     <div className="space-y-6">
       <section className="panel p-5">
-        <div className="form-grid grid gap-4 md:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto] md:items-end">
+        <div className="form-grid grid gap-4 md:grid-cols-2">
           <div>
             <label className="label" htmlFor="report-date">
               Daily Report Date
@@ -135,13 +201,6 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
               className="field mt-2 min-h-12"
             />
           </div>
-          <button
-            type="button"
-            onClick={exportMonthlyRevenue}
-            className={buttonClass("primary", "min-h-12 px-5")}
-          >
-            Export Monthly CSV
-          </button>
         </div>
       </section>
 
@@ -170,9 +229,9 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <section className="panel overflow-hidden">
-          <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
             <h2 className="font-semibold text-white">Income by Category</h2>
           </div>
           <div className="space-y-4 p-5">
@@ -199,48 +258,61 @@ export function ReportsDashboard({ invoices }: ReportsDashboardProps) {
         </section>
 
         <section className="panel overflow-hidden">
-          <div className="border-b border-[#224770] bg-[#224770] p-5">
-            <h2 className="font-semibold text-white">Daily Invoice List</h2>
+          <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
+            <h2 className="font-semibold text-white">Payment Summary</h2>
           </div>
-          <div className={tableStyles.wrapper}>
-            <table className={tableStyles.table}>
-              <thead className={tableStyles.head}>
-                <tr>
-                  <th className={tableStyles.headerCell}>Invoice</th>
-                  <th className={tableStyles.headerCell}>Patient</th>
-                  <th className={tableStyles.headerCell}>Payment</th>
-                  <th className={tableStyles.numericHeaderCell}>
-                    {currencyLabel("Revenue", invoiceCurrencyCode)}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#efefef]">
-                {dailyInvoices.map((invoice) => (
-                  <tr key={invoice.id} className={tableStyles.row}>
-                    <td className={tableStyles.strongCell}>{invoice.invoiceNo}</td>
-                    <td className={tableStyles.cell}>{invoice.patientName}</td>
-                    <td className={tableStyles.cell}>
-                      <StatusPill tone={invoice.paymentMethod === "insurance" ? "cyan" : "slate"}>
-                        {paymentLabels[invoice.paymentMethod]}
-                      </StatusPill>
-                    </td>
-                    <td className={tableStyles.numericCell}>
-                      {usdWhole(invoiceRevenueAmount(invoice))}
-                    </td>
-                  </tr>
-                ))}
-                {!dailyInvoices.length ? (
-                  <tr>
-                    <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={4}>
-                      No invoices found for the selected date.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+          <div className="space-y-4 p-5">
+            {paymentSummary.map((item) => (
+              <div key={item.method}>
+                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-[#224770]">{item.label}</span>
+                  <span className="font-semibold text-[#224770]">{usdWhole(item.total)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-[#efefef]">
+                  <div
+                    className="h-2 rounded-full bg-[#84bc3f]"
+                    style={{ width: `${Math.max(8, (item.total / maxPaymentTotal) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            {!paymentSummary.length ? (
+              <p className="rounded-lg bg-[#efefef] p-4 text-sm font-semibold text-[#46484a]">
+                No payment revenue recorded for the selected month.
+              </p>
+            ) : null}
           </div>
         </section>
       </div>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
+          <h2 className="font-semibold text-white">Important Reports</h2>
+        </div>
+        <div className="grid gap-3 p-5 md:grid-cols-3">
+          <button
+            type="button"
+            onClick={exportMonthlyRevenuePdf}
+            className={buttonClass("secondary", "min-h-12")}
+          >
+            Monthly Revenue PDF
+          </button>
+          <button
+            type="button"
+            onClick={exportCategoryIncomePdf}
+            className={buttonClass("secondary", "min-h-12")}
+          >
+            Category Income PDF
+          </button>
+          <button
+            type="button"
+            onClick={exportPaymentSummaryPdf}
+            className={buttonClass("secondary", "min-h-12")}
+          >
+            Payment Summary PDF
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

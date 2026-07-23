@@ -420,11 +420,11 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#224770] bg-[#224770] p-5">
+        <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
           <h2 className="text-lg font-semibold text-white">Invoice Registry</h2>
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[760px] divide-y divide-[#efefef] text-sm">
+          <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Invoice No.</th>

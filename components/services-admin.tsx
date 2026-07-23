@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { ActionSelect } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
@@ -75,6 +75,10 @@ function normalizeService(service: Service): Service {
   };
 }
 
+function groupTitleForCategory(category: ServiceCategory) {
+  return serviceGroups.find((group) => group.categories.includes(category))?.title ?? serviceGroups[0].title;
+}
+
 export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAdminProps) {
   const [services, setServices] = useState(initialServices);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
@@ -86,9 +90,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
   const systemSettings = useSystemSettings();
   const invoiceCurrencyCode = systemSettings.clinic.currency;
   const localCurrencyCode = systemSettings.clinic.localCurrency;
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(serviceGroups.map((group) => [group.title, true]))
-  );
+  const [selectedGroupTitle, setSelectedGroupTitle] = useState(serviceGroups[0]?.title ?? "");
 
   useEffect(() => {
     try {
@@ -263,13 +265,6 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
     );
   }
 
-  function toggleGroup(groupTitle: string) {
-    setExpandedGroups((current) => ({
-      ...current,
-      [groupTitle]: !current[groupTitle]
-    }));
-  }
-
   function formatPayout(service: Service) {
     if (!service.payoutEnabled || service.defaultPayoutValue <= 0) {
       return "No payout";
@@ -277,6 +272,11 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
     return money(service.defaultPayoutValue);
   }
+
+  const selectedGroup = serviceGroups.find((group) => group.title === selectedGroupTitle) ?? serviceGroups[0];
+  const selectedGroupServices = selectedGroup
+    ? filteredServices.filter((service) => selectedGroup.categories.includes(service.category))
+    : filteredServices;
 
   return (
     <>
@@ -308,7 +308,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] px-4 py-3 lg:flex-row lg:items-center">
           <label className="relative block w-full lg:max-w-sm">
             <span className="sr-only">Search services</span>
             <input
@@ -321,7 +321,13 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
           <select
             aria-label="Filter services by category"
             value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value as "all" | ServiceCategory)}
+            onChange={(event) => {
+              const nextCategory = event.target.value as "all" | ServiceCategory;
+              setCategoryFilter(nextCategory);
+              if (nextCategory !== "all") {
+                setSelectedGroupTitle(groupTitleForCategory(nextCategory));
+              }
+            }}
             className="field lg:max-w-xs"
           >
             <option value="all">All categories</option>
@@ -335,137 +341,131 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
             <button
               type="button"
               onClick={openAddForm}
-              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
+              className={buttonClass("secondary", "border-white bg-white text-[#224770] hover:border-white hover:bg-[#efefef] lg:ml-auto")}
             >
               Add Service
             </button>
           ) : null}
         </div>
 
-        <div className="divide-y divide-[#efefef]">
-          {serviceGroups.map((group) => {
-            const groupServices = filteredServices.filter((service) =>
-              group.categories.includes(service.category)
-            );
-            const expanded = expandedGroups[group.title] ?? true;
+        <div className="space-y-4 p-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {serviceGroups.map((group) => {
+              const groupServices = filteredServices.filter((service) =>
+                group.categories.includes(service.category)
+              );
+              const active = selectedGroupTitle === group.title;
 
-            if (!groupServices.length && (query.trim() || categoryFilter !== "all")) {
-              return null;
-            }
-
-            return (
-              <section key={group.title} className="bg-white">
+              return (
                 <button
+                  key={group.title}
                   type="button"
-                  onClick={() => toggleGroup(group.title)}
-                  className="flex min-h-14 w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-[#efefef]/45"
-                  aria-expanded={expanded}
+                  onClick={() => setSelectedGroupTitle(group.title)}
+                  className={`focus-ring min-h-20 rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    active
+                      ? "border-[#224770] bg-[#224770] text-white"
+                      : "border-[#efefef] bg-white text-[#224770] hover:border-[#0eb6ef]/45"
+                  }`}
                 >
-                  <span className="flex items-center gap-3">
-                    {expanded ? (
-                      <ChevronDown className="h-4 w-4 text-[#46484a]" aria-hidden="true" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-[#46484a]" aria-hidden="true" />
-                    )}
-                    <span className="font-semibold text-[#224770]">{group.title}</span>
-                  </span>
-                  <span className="rounded-full bg-[#efefef] px-3 py-1 text-xs font-semibold text-[#46484a]">
+                  <span className="block font-semibold">{group.title}</span>
+                  <span className={`mt-2 block text-sm font-medium ${active ? "text-white/80" : "text-[#46484a]"}`}>
                     {groupServices.length} service{groupServices.length === 1 ? "" : "s"}
                   </span>
                 </button>
+              );
+            })}
+          </div>
 
-                {expanded ? (
-                  <div className={tableStyles.wrapper}>
-                    <table className="w-full min-w-[760px] divide-y divide-[#efefef] text-sm">
-                      <thead className={tableStyles.head}>
-                        <tr>
-                          <th className={tableStyles.headerCell}>Service Name</th>
-                          <th className={tableStyles.numericHeaderCell}>
-                            Price {invoiceCurrencyCode}
-                          </th>
-                          <th className={tableStyles.headerCell}>Payout Eligible</th>
-                          <th className={tableStyles.numericHeaderCell}>
-                            Payout {localCurrencyCode}
-                          </th>
-                          <th className={tableStyles.headerCell}>Status</th>
-                          {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#efefef]">
-                        {groupServices.map((service) => {
-                          const serviceIsUsed = (usageCountByService.get(service.id) ?? 0) > 0;
+          <div className="overflow-hidden rounded-xl border border-[#efefef] bg-white">
+            <div className="flex flex-col gap-1 border-b border-[#efefef] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-semibold text-[#224770]">{selectedGroup?.title ?? "Services"}</h3>
+              <span className="text-sm font-semibold text-[#46484a]">
+                {selectedGroupServices.length} service{selectedGroupServices.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className={tableStyles.wrapper}>
+              <table className={tableStyles.table}>
+                <thead className={tableStyles.head}>
+                  <tr>
+                    <th className={tableStyles.headerCell}>Service Name</th>
+                    <th className={tableStyles.numericHeaderCell}>
+                      Price {invoiceCurrencyCode}
+                    </th>
+                    <th className={tableStyles.numericHeaderCell}>
+                      Doctor Payout {localCurrencyCode}
+                    </th>
+                    <th className={tableStyles.headerCell}>Status</th>
+                    {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#efefef]">
+                  {selectedGroupServices.map((service) => {
+                    const serviceIsUsed = (usageCountByService.get(service.id) ?? 0) > 0;
 
-                          return (
-                          <tr key={service.id} className={tableStyles.row}>
-                            <td className={tableStyles.strongCell}>
-                              <p>{service.name}</p>
-                              <p className="mt-1 text-xs font-normal text-[#46484a]">
-                                {service.category}
-                              </p>
-                            </td>
-                            <td className={tableStyles.numericCell}>
-                              {usdWhole(service.sellingPrice)}
-                            </td>
-                            <td className={tableStyles.cell}>
-                              {service.payoutEnabled && service.defaultPayoutValue > 0 ? "Yes" : "No"}
-                            </td>
-                            <td className={tableStyles.numericCell}>{formatPayout(service)}</td>
-                            <td className={tableStyles.cell}>
-                              <StatusPill tone={service.active ? "green" : "slate"}>
-                                {service.active ? "Active" : "Inactive"}
-                              </StatusPill>
-                            </td>
-                            {canEdit ? (
-                              <td className={tableStyles.actionCell}>
-                                <ActionSelect
-                                  ariaLabel={`Actions for ${service.name}`}
-                                  actions={[
-                                    {
-                                      value: "edit",
-                                      label: "Edit",
-                                      onSelect: () => editService(service)
-                                    },
-                                    {
-                                      value: "toggle",
-                                      label: service.active ? "Deactivate" : "Activate",
-                                      onSelect: () => toggleServiceActive(service.id)
-                                    },
-                                    {
+                    return (
+                      <tr key={service.id} className={tableStyles.row}>
+                        <td className={tableStyles.strongCell}>
+                          <p>{service.name}</p>
+                          <p className="mt-1 text-xs font-normal text-[#46484a]">
+                            {service.category}
+                          </p>
+                        </td>
+                        <td className={tableStyles.numericCell}>
+                          {usdWhole(service.sellingPrice)}
+                        </td>
+                        <td className={tableStyles.numericCell}>{formatPayout(service)}</td>
+                        <td className={tableStyles.cell}>
+                          <StatusPill tone={service.active ? "green" : "slate"}>
+                            {service.active ? "Active" : "Inactive"}
+                          </StatusPill>
+                        </td>
+                        {canEdit ? (
+                          <td className={tableStyles.actionCell}>
+                            <ActionSelect
+                              ariaLabel={`Actions for ${service.name}`}
+                              actions={[
+                                {
+                                  value: "edit",
+                                  label: "Edit",
+                                  onSelect: () => editService(service)
+                                },
+                                {
+                                  value: "toggle",
+                                  label: service.active ? "Deactivate" : "Activate",
+                                  onSelect: () => toggleServiceActive(service.id)
+                                },
+                                !serviceIsUsed
+                                  ? {
                                       value: "delete",
-                                      label: serviceIsUsed ? "Delete unavailable" : "Delete",
-                                      disabled: serviceIsUsed,
+                                      label: "Delete",
                                       onSelect: () => deleteService(service.id)
                                     }
-                                  ]}
-                                />
-                              </td>
-                            ) : null}
-                          </tr>
-                        );
-                        })}
-                        {!groupServices.length ? (
-                          <tr>
-                            <td
-                              colSpan={canEdit ? 6 : 5}
-                              className="px-5 py-8 text-center text-sm text-[#46484a]"
-                            >
-                              No services configured in this category.
-                            </td>
-                          </tr>
+                                  : null
+                              ].filter((action): action is {
+                                value: string;
+                                label: string;
+                                onSelect: () => void;
+                              } => Boolean(action))}
+                            />
+                          </td>
                         ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-              </section>
-            );
-          })}
-
-          {!filteredServices.length ? (
-            <div className="px-5 py-10 text-center text-sm text-[#46484a]">
-              No services match your search.
+                      </tr>
+                    );
+                  })}
+                  {!selectedGroupServices.length ? (
+                    <tr>
+                      <td
+                        colSpan={canEdit ? 5 : 4}
+                        className="px-5 py-8 text-center text-sm text-[#46484a]"
+                      >
+                        No services found for this category.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
             </div>
-          ) : null}
+          </div>
         </div>
       </section>
 

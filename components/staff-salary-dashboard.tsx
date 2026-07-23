@@ -66,7 +66,7 @@ export function StaffSalaryDashboard({
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] px-4 py-3 lg:flex-row lg:items-center">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -79,7 +79,7 @@ export function StaffSalaryDashboard({
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[520px] divide-y divide-[#efefef] text-sm">
+          <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Member</th>

@@ -251,20 +251,10 @@ export function StaffManagement({
     return localSalaryRecords.filter((record) => staffIdForSalary(record) === staffId);
   }
 
-  function latestSalaryForStaff(staffId: string) {
-    return [...salaryRecordsForStaff(staffId)].sort((a, b) =>
-      b.salaryPeriod.localeCompare(a.salaryPeriod)
-    )[0];
-  }
-
-  function lastPaidSalaryForStaff(staffId: string) {
-    return [...salaryRecordsForStaff(staffId)]
-      .filter((record) => record.status === "Paid")
-      .sort((a, b) => {
-        const aDate = paymentDateFor(a) ?? "";
-        const bDate = paymentDateFor(b) ?? "";
-        return bDate.localeCompare(aDate);
-      })[0];
+  function currentMonthSalaryForStaff(staffId: string) {
+    return salaryRecordsForStaff(staffId).find(
+      (record) => record.salaryPeriod === currentMonthValue()
+    );
   }
 
   function deleteBlockReason(staff: StaffMember) {
@@ -612,26 +602,9 @@ export function StaffManagement({
     setSalaryModal(null);
   }
 
-  function approveSalary(record: StaffSalaryRecord) {
-    if (!canManageSalaries || record.status === "Paid") {
-      return;
-    }
-
-    setLocalSalaryRecords((current) =>
-      current.map((salaryRecord) =>
-        salaryRecord.id === record.id
-          ? { ...salaryRecord, status: "Approved", updatedAt: new Date().toISOString() }
-          : salaryRecord
-      )
-    );
-  }
-
   const selectedStaffForView = staffModal?.staffId ? staffById.get(staffModal.staffId) : undefined;
-  const selectedStaffSalary = selectedStaffForView
-    ? latestSalaryForStaff(selectedStaffForView.id)
-    : undefined;
-  const selectedStaffPaidSalary = selectedStaffForView
-    ? lastPaidSalaryForStaff(selectedStaffForView.id)
+  const selectedStaffCurrentMonthSalary = selectedStaffForView
+    ? currentMonthSalaryForStaff(selectedStaffForView.id)
     : undefined;
   const salaryNetPreview = salaryModal
     ? wholeNumber(salaryModal.form.baseSalaryLkr) +
@@ -642,13 +615,13 @@ export function StaffManagement({
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] px-4 py-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold text-white">Staff Directory</h2>
           {canEdit ? (
             <button
               type="button"
               onClick={openAddStaff}
-              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:bg-[#efefef]")}
+              className={buttonClass("secondary", "border-white bg-white text-[#224770] hover:bg-[#efefef]")}
             >
               Add Staff
             </button>
@@ -680,108 +653,62 @@ export function StaffManagement({
           </label>
         </div>
 
-        <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[780px] divide-y divide-[#efefef] text-sm">
-            <thead className={tableStyles.head}>
-              <tr>
-                <th className={tableStyles.headerCell}>Staff Name</th>
-                <th className={tableStyles.headerCell}>Designation</th>
-                <th className={tableStyles.headerCell}>Mobile Number</th>
-                <th className={tableStyles.headerCell}>Join Date</th>
-                <th className={tableStyles.headerCell}>Salary Paid</th>
-                <th className={tableStyles.headerCell}>Status</th>
-                <th className={tableStyles.headerCell}>User Account</th>
-                <th className={tableStyles.actionHeaderCell}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefef]">
-              {filteredStaff.map((staff) => {
-                const linkedUser = staff.userId ? userById.get(staff.userId) : undefined;
-                const latestSalary = latestSalaryForStaff(staff.id);
-                const deleteReason = deleteBlockReason(staff);
+        <div className="grid gap-3 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4">
+          {filteredStaff.map((staff) => {
+            const currentMonthSalary = currentMonthSalaryForStaff(staff.id);
 
-                return (
-                  <tr key={staff.id} className={tableStyles.row}>
-                    <td className={tableStyles.strongCell}>{staff.fullName}</td>
-                    <td className={tableStyles.cell}>{staff.designation}</td>
-                    <td className={tableStyles.cell}>{staff.mobileNumber}</td>
-                    <td className={tableStyles.cell}>{shortDate(staff.joinDate)}</td>
-                    <td className={tableStyles.cell}>
-                      <StatusPill tone={latestSalary?.status === "Paid" ? "green" : "amber"}>
-                        {latestSalary?.status === "Paid" ? "Paid" : "Not paid"}
-                      </StatusPill>
-                    </td>
-                    <td className={tableStyles.cell}>
-                      <StatusPill tone={staff.status === "active" ? "green" : "slate"}>
-                        {statusLabel(staff.status)}
-                      </StatusPill>
-                    </td>
-                    <td className={tableStyles.cell}>{linkedUser?.username ?? "Not linked"}</td>
-                    <td className={tableStyles.actionCell}>
-                      <ActionSelect
-                        ariaLabel={`Actions for ${staff.fullName}`}
-                        actions={[
-                          {
-                            value: "view",
-                            label: "View",
-                            onSelect: () => openStaff(staff, "view")
-                          },
-                          ...(canEdit
-                            ? [
-                                {
-                                  value: "edit",
-                                  label: "Edit",
-                                  onSelect: () => openStaff(staff, "edit" as const)
-                                },
-                                {
-                                  value: "toggle",
-                                  label: staff.status === "active" ? "Deactivate" : "Activate",
-                                  onSelect: () => toggleStaffStatus(staff.id)
-                                },
-                                {
-                                  value: "delete",
-                                  label: deleteReason ? "Delete unavailable" : "Delete",
-                                  disabled: Boolean(deleteReason),
-                                  onSelect: () => deleteStaff(staff)
-                                }
-                              ]
-                            : [])
-                        ]}
-                      />
-                      {deleteReason ? (
-                        <p className="mt-2 text-xs font-medium text-[#46484a]/70">{deleteReason}</p>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-              {!filteredStaff.length ? (
-                <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={8}>
-                    No staff records found.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+            return (
+              <button
+                key={staff.id}
+                type="button"
+                onClick={() => openStaff(staff, "view")}
+                className="focus-ring min-h-36 rounded-xl border border-[#efefef] bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#0eb6ef]/45 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-[#224770]">
+                      {staff.fullName}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm font-medium text-[#46484a]">
+                      {staff.designation}
+                    </p>
+                  </div>
+                  <StatusPill tone={staff.status === "active" ? "green" : "slate"}>
+                    {statusLabel(staff.status)}
+                  </StatusPill>
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <span className="label">This Month Salary</span>
+                  <StatusPill tone={currentMonthSalary?.status === "Paid" ? "green" : "amber"}>
+                    {currentMonthSalary?.status === "Paid" ? "Paid" : "Not paid"}
+                  </StatusPill>
+                </div>
+              </button>
+            );
+          })}
+          {!filteredStaff.length ? (
+            <div className="rounded-xl border border-dashed border-[#d9d9d9] bg-[#efefef]/35 p-6 text-center text-sm text-[#46484a] sm:col-span-2 xl:col-span-4">
+              No staff records found.
+            </div>
+          ) : null}
         </div>
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#0eb6ef] bg-[#0eb6ef] p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 border-b border-[#0eb6ef] bg-[#0eb6ef] px-4 py-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold text-white">Salary Records</h2>
           {canManageSalaries ? (
             <button
               type="button"
               onClick={() => openAddSalary()}
-              className={buttonClass("secondary", "min-h-12 border-white bg-white text-[#224770] hover:bg-[#efefef]")}
+              className={buttonClass("secondary", "border-white bg-white text-[#224770] hover:bg-[#efefef]")}
             >
               Add Salary Record
             </button>
           ) : null}
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[560px] divide-y divide-[#efefef] text-sm">
+          <table className={tableStyles.table}>
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Member</th>
@@ -793,11 +720,7 @@ export function StaffManagement({
             <tbody className="divide-y divide-[#efefef]">
               {filteredSalaryRecords.map((record) => {
                 const staff = staffById.get(staffIdForSalary(record));
-                const canEditRecord =
-                  canManageSalaries && (record.status === "Pending" || record.status === "On Hold");
-                const canApproveRecord =
-                  canManageSalaries && (record.status === "Pending" || record.status === "On Hold");
-                const canMarkPaid = canManageSalaries && record.status === "Approved";
+                const canMarkPaid = canManageSalaries && record.status !== "Paid";
 
                 return (
                   <tr key={record.id} className={tableStyles.row}>
@@ -819,27 +742,20 @@ export function StaffManagement({
                           },
                           ...(canManageSalaries
                             ? [
-                                {
-                                  value: "edit",
-                                  label: canEditRecord ? "Edit" : "Edit unavailable",
-                                  disabled: !canEditRecord,
-                                  onSelect: () => openSalary(record, "edit" as const)
-                                },
-                                {
-                                  value: "approve",
-                                  label: canApproveRecord ? "Approve" : "Approve unavailable",
-                                  disabled: !canApproveRecord,
-                                  onSelect: () => approveSalary(record)
-                                },
-                                {
-                                  value: "mark-paid",
-                                  label: canMarkPaid ? "Mark Paid" : "Already paid",
-                                  disabled: !canMarkPaid,
-                                  onSelect: () => openSalary(record, "markPaid" as const)
-                                }
+                                canMarkPaid
+                                  ? {
+                                      value: "mark-paid",
+                                      label: "Mark Paid",
+                                      onSelect: () => openSalary(record, "markPaid" as const)
+                                    }
+                                  : null
                               ]
                             : [])
-                        ]}
+                        ].filter((action): action is {
+                          value: string;
+                          label: string;
+                          onSelect: () => void;
+                        } => Boolean(action))}
                       />
                     </td>
                   </tr>
@@ -863,11 +779,17 @@ export function StaffManagement({
           canEdit={canEdit}
           errors={staffErrors}
           form={staffModal.form}
-          latestSalary={selectedStaffSalary}
-          lastPaidSalary={selectedStaffPaidSalary}
+          currentMonthSalary={selectedStaffCurrentMonthSalary}
           mode={staffModal.mode}
+          deleteReason={selectedStaffForView ? deleteBlockReason(selectedStaffForView) : ""}
           onAddSalary={() => selectedStaffForView && openAddSalary(selectedStaffForView)}
           onClose={() => setStaffModal(null)}
+          onDelete={() => {
+            if (selectedStaffForView) {
+              deleteStaff(selectedStaffForView);
+              setStaffModal(null);
+            }
+          }}
           onEdit={() =>
             selectedStaffForView &&
             setStaffModal({
@@ -879,7 +801,6 @@ export function StaffManagement({
           onSave={saveStaff}
           onToggleStatus={() => selectedStaffForView && toggleStaffStatus(selectedStaffForView.id)}
           onUpdate={updateStaffForm}
-          selectedStaff={selectedStaffForView}
           userById={userById}
         />
       ) : null}
@@ -904,34 +825,34 @@ export function StaffManagement({
 function StaffModal({
   availableUsers,
   canEdit,
+  deleteReason,
   errors,
   form,
-  latestSalary,
-  lastPaidSalary,
+  currentMonthSalary,
   mode,
   onAddSalary,
   onClose,
+  onDelete,
   onEdit,
   onSave,
   onToggleStatus,
   onUpdate,
-  selectedStaff,
   userById
 }: {
   availableUsers: ManagedUser[];
   canEdit: boolean;
+  deleteReason: string;
   errors: FieldErrors;
   form: StaffForm;
-  latestSalary?: StaffSalaryRecord;
-  lastPaidSalary?: StaffSalaryRecord;
+  currentMonthSalary?: StaffSalaryRecord;
   mode: StaffModalState["mode"];
   onAddSalary: () => void;
   onClose: () => void;
+  onDelete: () => void;
   onEdit: () => void;
   onSave: () => void;
   onToggleStatus: () => void;
   onUpdate: <K extends keyof StaffForm>(field: K, value: StaffForm[K]) => void;
-  selectedStaff?: StaffMember;
   userById: Map<string, ManagedUser>;
 }) {
   const readOnly = mode === "view";
@@ -964,166 +885,171 @@ function StaffModal({
             <AlertMessage>{errors.form}</AlertMessage>
           ) : null}
 
-          <FormSection title="Profile">
-            <div className="form-grid grid gap-4 md:grid-cols-2">
-              <StaffInput
-                error={errors.fullName}
-                label="Full Name"
-                value={form.fullName}
-                readOnly={readOnly}
-                onChange={(fullName) => onUpdate("fullName", fullName)}
-              />
-              <StaffInput
-                error={errors.designation}
-                label="Designation"
-                value={form.designation}
-                readOnly={readOnly}
-                onChange={(designation) => onUpdate("designation", designation)}
-              />
-              <StaffInput
-                error={errors.mobileNumber}
-                label="Mobile Number"
-                value={form.mobileNumber}
-                readOnly={readOnly}
-                onChange={(mobileNumber) => onUpdate("mobileNumber", mobileNumber)}
-              />
-              <StaffInput
-                label="Email"
-                value={form.email}
-                type="email"
-                readOnly={readOnly}
-                onChange={(email) => onUpdate("email", email)}
-              />
-              <StaffInput
-                error={errors.joinDate}
-                label="Join Date"
-                value={form.joinDate}
-                type="date"
-                readOnly={readOnly}
-                onChange={(joinDate) => onUpdate("joinDate", joinDate)}
-              />
-              <label>
-                <span className="label">Employment Status</span>
-                <select
-                  value={form.status}
-                  onChange={(event) =>
-                    onUpdate("status", event.target.value as StaffMember["status"])
-                  }
-                  disabled={readOnly}
-                  className="field mt-2 min-h-12 disabled:bg-[#efefef]"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </label>
-              <label className="md:col-span-2">
-                <span className="label">Notes</span>
-                <textarea
-                  value={form.notes}
-                  onChange={(event) => onUpdate("notes", event.target.value)}
-                  disabled={readOnly}
-                  className="field mt-2 min-h-24 disabled:bg-[#efefef]"
-                />
-              </label>
-            </div>
-          </FormSection>
-
-          <FormSection title="Salary Setup">
-            <div className="form-grid grid gap-4 md:grid-cols-2">
-              <StaffNumberInput
-                error={errors.currentBasicSalaryLkr}
-                label="Basic Monthly Salary LKR"
-                value={form.currentBasicSalaryLkr}
-                readOnly={readOnly}
-                onChange={(currentBasicSalaryLkr) =>
-                  onUpdate("currentBasicSalaryLkr", currentBasicSalaryLkr)
-                }
-              />
-              <StaffInput
-                error={errors.salaryEffectiveFrom}
-                label="Salary Effective From"
-                value={form.salaryEffectiveFrom}
-                type="date"
-                readOnly={readOnly}
-                onChange={(salaryEffectiveFrom) =>
-                  onUpdate("salaryEffectiveFrom", salaryEffectiveFrom)
-                }
-              />
-            </div>
-          </FormSection>
-
-          <FormSection title="Account">
-            <div className="form-grid grid gap-4 md:grid-cols-3">
-              <label>
-                <span className="label">Linked User Account</span>
-                <select
-                  value={form.userId}
-                  onChange={(event) => onUpdate("userId", event.target.value)}
-                  disabled={readOnly}
-                  className="field mt-2 min-h-12 disabled:bg-[#efefef]"
-                >
-                  <option value="">Not linked</option>
-                  {availableUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name}
-                    </option>
-                  ))}
-                </select>
-                <FieldError>{errors.userId}</FieldError>
-              </label>
-              <InfoBlock label="Username" value={linkedUser?.username ?? "-"} />
-              <InfoBlock
-                label="Account Status"
-                value={linkedUser ? statusLabel(linkedUser.status) : "Not linked"}
-              />
-              {!readOnly && !form.userId ? (
-                <div className="md:col-span-3">
-                  <Link href="/users" className={buttonClass("secondary", "min-h-12")}>
-                    Create User Account
-                  </Link>
-                </div>
-              ) : null}
-            </div>
-          </FormSection>
-
-          {mode === "view" ? (
+          {readOnly ? (
             <>
-              <FormSection title="Salary Summary">
-                <div className="grid gap-3 md:grid-cols-4">
+              <FormSection title="Basic Details">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <InfoBlock label="Full Name" value={form.fullName} />
+                  <InfoBlock label="Designation" value={form.designation} />
+                  <InfoBlock label="Mobile Number" value={form.mobileNumber} />
+                  <InfoBlock label="Email" value={form.email || "N/A"} />
+                  <InfoBlock label="Join Date" value={shortDate(form.joinDate)} />
+                  <InfoBlock label="Status" value={statusLabel(form.status)} />
+                </div>
+              </FormSection>
+
+              <FormSection title="This Month Salary">
+                <div className="grid gap-3 md:grid-cols-3">
                   <InfoBlock
-                    label="Current Basic Salary"
-                    value={moneyLkr(selectedStaff?.currentBasicSalaryLkr ?? 0)}
+                    label="Month"
+                    value={periodLabel(currentMonthValue())}
                   />
                   <InfoBlock
-                    label="Current Salary Status"
-                    value={latestSalary?.status ?? "No record"}
+                    label="Salary Paid"
+                    value={currentMonthSalary?.status === "Paid" ? "Paid" : "Not paid"}
                   />
                   <InfoBlock
-                    label="Last Paid Period"
-                    value={lastPaidSalary ? periodLabel(lastPaidSalary.salaryPeriod) : "-"}
-                  />
-                  <InfoBlock
-                    label="Last Payment Date"
+                    label="Payment Date"
                     value={
-                      lastPaidSalary && paymentDateFor(lastPaidSalary)
-                        ? shortDate(paymentDateFor(lastPaidSalary) as string)
-                        : "-"
+                      currentMonthSalary?.status === "Paid" && paymentDateFor(currentMonthSalary)
+                        ? shortDate(paymentDateFor(currentMonthSalary) as string)
+                        : "N/A"
                     }
                   />
                 </div>
               </FormSection>
-              <FormSection title="Account Summary">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <InfoBlock label="Linked User" value={linkedUser?.name ?? "Not linked"} />
+
+              {form.notes ? (
+                <FormSection title="Notes">
+                  <p className="text-sm font-semibold leading-6 text-[#46484a]">{form.notes}</p>
+                </FormSection>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <FormSection title="Profile">
+                <div className="form-grid grid gap-4 md:grid-cols-2">
+                  <StaffInput
+                    error={errors.fullName}
+                    label="Full Name"
+                    value={form.fullName}
+                    readOnly={readOnly}
+                    onChange={(fullName) => onUpdate("fullName", fullName)}
+                  />
+                  <StaffInput
+                    error={errors.designation}
+                    label="Designation"
+                    value={form.designation}
+                    readOnly={readOnly}
+                    onChange={(designation) => onUpdate("designation", designation)}
+                  />
+                  <StaffInput
+                    error={errors.mobileNumber}
+                    label="Mobile Number"
+                    value={form.mobileNumber}
+                    readOnly={readOnly}
+                    onChange={(mobileNumber) => onUpdate("mobileNumber", mobileNumber)}
+                  />
+                  <StaffInput
+                    label="Email"
+                    value={form.email}
+                    type="email"
+                    readOnly={readOnly}
+                    onChange={(email) => onUpdate("email", email)}
+                  />
+                  <StaffInput
+                    error={errors.joinDate}
+                    label="Join Date"
+                    value={form.joinDate}
+                    type="date"
+                    readOnly={readOnly}
+                    onChange={(joinDate) => onUpdate("joinDate", joinDate)}
+                  />
+                  <label>
+                    <span className="label">Employment Status</span>
+                    <select
+                      value={form.status}
+                      onChange={(event) =>
+                        onUpdate("status", event.target.value as StaffMember["status"])
+                      }
+                      disabled={readOnly}
+                      className="field mt-2 min-h-12 disabled:bg-[#efefef]"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="label">Notes</span>
+                    <textarea
+                      value={form.notes}
+                      onChange={(event) => onUpdate("notes", event.target.value)}
+                      disabled={readOnly}
+                      className="field mt-2 min-h-24 disabled:bg-[#efefef]"
+                    />
+                  </label>
+                </div>
+              </FormSection>
+
+              <FormSection title="Salary Setup">
+                <div className="form-grid grid gap-4 md:grid-cols-2">
+                  <StaffNumberInput
+                    error={errors.currentBasicSalaryLkr}
+                    label="Basic Monthly Salary LKR"
+                    value={form.currentBasicSalaryLkr}
+                    readOnly={readOnly}
+                    onChange={(currentBasicSalaryLkr) =>
+                      onUpdate("currentBasicSalaryLkr", currentBasicSalaryLkr)
+                    }
+                  />
+                  <StaffInput
+                    error={errors.salaryEffectiveFrom}
+                    label="Salary Effective From"
+                    value={form.salaryEffectiveFrom}
+                    type="date"
+                    readOnly={readOnly}
+                    onChange={(salaryEffectiveFrom) =>
+                      onUpdate("salaryEffectiveFrom", salaryEffectiveFrom)
+                    }
+                  />
+                </div>
+              </FormSection>
+
+              <FormSection title="Account">
+                <div className="form-grid grid gap-4 md:grid-cols-3">
+                  <label>
+                    <span className="label">Linked User Account</span>
+                    <select
+                      value={form.userId}
+                      onChange={(event) => onUpdate("userId", event.target.value)}
+                      disabled={readOnly}
+                      className="field mt-2 min-h-12 disabled:bg-[#efefef]"
+                    >
+                      <option value="">Not linked</option>
+                      {availableUsers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
+                    </select>
+                    <FieldError>{errors.userId}</FieldError>
+                  </label>
+                  <InfoBlock label="Username" value={linkedUser?.username ?? "-"} />
                   <InfoBlock
                     label="Account Status"
                     value={linkedUser ? statusLabel(linkedUser.status) : "Not linked"}
                   />
-                  <InfoBlock label="Last Login" value="Not available in mock data" />
+                  {!form.userId ? (
+                    <div className="md:col-span-3">
+                      <Link href="/users" className={buttonClass("secondary", "min-h-12")}>
+                        Create User Account
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               </FormSection>
             </>
-          ) : null}
+          )}
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t border-[#efefef] px-5 py-4 sm:flex-row sm:justify-end">
@@ -1138,6 +1064,11 @@ function StaffModal({
               <button type="button" onClick={onToggleStatus} className={buttonClass("secondary")}>
                 {form.status === "active" ? "Deactivate" : "Activate"}
               </button>
+              {!deleteReason ? (
+                <button type="button" onClick={onDelete} className={buttonClass("danger")}>
+                  Delete
+                </button>
+              ) : null}
               <button type="button" onClick={onEdit} className={buttonClass("primary")}>
                 Edit Profile
               </button>

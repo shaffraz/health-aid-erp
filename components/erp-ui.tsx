@@ -124,17 +124,18 @@ export function Button({
 
 export const tableStyles = {
   wrapper: "w-full overflow-x-auto",
-  table: "w-full min-w-[680px] divide-y divide-[#efefef] text-sm",
-  head: "bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]",
+  table: "w-full min-w-[620px] text-sm",
+  head:
+    "bg-white text-left text-[0.72rem] font-semibold uppercase tracking-[0.08em] text-[#46484a]/80",
   row: "transition duration-150 hover:bg-[#efefef]/45",
-  cell: "px-3 py-3 align-top text-[#46484a]",
-  strongCell: "px-3 py-3 align-top font-semibold text-[#224770]",
-  headerCell: "px-3 py-3 align-top",
-  numericHeaderCell: "px-3 py-3 text-right align-top",
-  numericCell: "whitespace-nowrap px-3 py-3 text-right align-top font-semibold text-[#224770]",
+  cell: "px-3 py-3 align-middle text-[#46484a]",
+  strongCell: "px-3 py-3 align-middle font-semibold text-[#224770]",
+  headerCell: "border-y border-[#efefef] px-3 py-3 align-middle",
+  numericHeaderCell: "border-y border-[#efefef] px-3 py-3 text-right align-middle",
+  numericCell: "whitespace-nowrap px-3 py-3 text-right align-middle font-semibold text-[#224770]",
   actionHeaderCell:
-    "w-[156px] bg-[#efefef] px-3 py-3 text-left align-top text-[#46484a]",
+    "w-[144px] border-y border-[#efefef] bg-[#efefef]/70 px-3 py-3 text-left align-middle text-[#46484a]/80",
   actionCell:
-    "w-[156px] bg-[#efefef] px-3 py-2.5 align-middle",
+    "w-[144px] bg-[#efefef]/45 px-3 py-2.5 align-middle",
   actions: "flex min-w-max items-center justify-start gap-1.5"
 };

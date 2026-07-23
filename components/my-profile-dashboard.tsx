@@ -65,7 +65,7 @@ export function MyProfileDashboard({
 
     return (
       <section className="panel overflow-hidden">
-        <div className="border-b border-[#224770] bg-[#224770] p-5">
+        <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
           <h2 className="text-lg font-semibold text-white">Staff Profile</h2>
         </div>
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">

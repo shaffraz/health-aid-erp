@@ -1,10 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { ActionSelect, type ActionSelectOption } from "@/components/action-select";
 import { KpiCard, buttonClass, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
-import { openEmailDraft } from "@/lib/email";
 import { demoAssistanceCompanies } from "@/lib/demo-data";
 import { shortDate, todayISO, usdWhole } from "@/lib/format";
 import { generateId } from "@/lib/id";
@@ -36,11 +36,15 @@ type InsuranceClaim = {
 };
 
 type MonthlyStatementStatus =
+  | "Unpaid"
+  | "Paid";
+
+type StoredMonthlyStatementStatus =
+  | MonthlyStatementStatus
   | "Draft"
   | "Confirmed"
   | "Submitted"
   | "Partially Paid"
-  | "Paid"
   | "Overdue";
 
 type StatementPayment = {
@@ -58,9 +62,7 @@ type MonthlyStatementRecord = {
   month: string;
   invoiceIds: string[];
   invoiceNos: string[];
-  status: MonthlyStatementStatus;
-  confirmedDate?: string;
-  submittedDate?: string;
+  status: StoredMonthlyStatementStatus;
   payments: StatementPayment[];
 };
 
@@ -77,24 +79,7 @@ type MonthlyStatement = {
   amountReceived: number;
   outstanding: number;
   status: MonthlyStatementStatus;
-  confirmedDate?: string;
-  submittedDate?: string;
   payments: StatementPayment[];
-};
-
-type SeasonalConfirmation = {
-  id: string;
-  assistanceCompany: string;
-  fromDate: string;
-  toDate: string;
-  confirmationDate: string;
-  notes: string;
-  totalPatients: number;
-  totalInvoices: number;
-  totalInvoiceAmount: number;
-  totalClaimAmount: number;
-  totalReceived: number;
-  totalOutstanding: number;
 };
 
 type CompanyForm = {
@@ -108,21 +93,6 @@ type CompanyForm = {
   notes: string;
 };
 
-type PaymentForm = {
-  paymentDate: string;
-  amountReceived: string;
-  reference: string;
-  notes: string;
-};
-
-type SeasonalForm = {
-  assistanceCompany: string;
-  fromDate: string;
-  toDate: string;
-  confirmationDate: string;
-  notes: string;
-};
-
 type InsuranceClaimsDashboardProps = {
   invoices: Invoice[];
   insuranceReceivables: InsuranceReceivable[];
@@ -130,17 +100,11 @@ type InsuranceClaimsDashboardProps = {
 };
 
 const monthlyStatementStorageKey = "health-aid-insurance-monthly-statements-v1";
-const seasonalConfirmationStorageKey =
-  "health-aid-insurance-seasonal-confirmations-v1";
 
 const statementStatusTones = {
-  Draft: "slate",
-  Confirmed: "cyan",
-  Submitted: "cyan",
-  "Partially Paid": "amber",
+  Unpaid: "amber",
   Paid: "green",
-  Overdue: "red"
-} satisfies Record<MonthlyStatementStatus, "green" | "amber" | "cyan" | "red" | "slate">;
+} satisfies Record<MonthlyStatementStatus, "green" | "amber">;
 
 const emptyCompanyForm: CompanyForm = {
   name: "",
@@ -149,13 +113,6 @@ const emptyCompanyForm: CompanyForm = {
   phone: "",
   defaultClaimPercentage: 80,
   active: true,
-  notes: ""
-};
-
-const emptyPaymentForm: PaymentForm = {
-  paymentDate: "",
-  amountReceived: "",
-  reference: "",
   notes: ""
 };
 
@@ -168,52 +125,12 @@ function escapeHtml(value: string | number | undefined) {
     .replaceAll("'", "&#039;");
 }
 
-function escapeCsv(value: string | number | undefined) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
-}
-
-function downloadFile(fileName: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 function roundUsd(value: number) {
   return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
 }
 
 function roundPercentage(value: number) {
   return Math.min(100, roundUsd(value));
-}
-
-function currentMonthDateRange() {
-  const today = todayISO();
-  const [year, month] = today.slice(0, 7).split("-").map(Number);
-  const lastDay = new Date(year, month, 0).getDate();
-
-  return {
-    fromDate: `${today.slice(0, 7)}-01`,
-    toDate: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}`
-  };
-}
-
-function defaultSeasonalForm(company = ""): SeasonalForm {
-  const range = currentMonthDateRange();
-
-  return {
-    assistanceCompany: company,
-    ...range,
-    confirmationDate: todayISO(),
-    notes: ""
-  };
-}
-
-function dateRangeIsValid(fromDate: string, toDate: string) {
-  return Boolean(fromDate && toDate && toDate >= fromDate);
 }
 
 function monthKey(date: string) {
@@ -399,57 +316,6 @@ function buildStatementDocument(statement: MonthlyStatement, settings: SystemSet
 </html>`;
 }
 
-function statementCsv(statement: MonthlyStatement, settings: SystemSettings) {
-  const clinicName = settings.clinic.clinicName;
-
-  const rows = [
-    [
-      clinicName,
-      "Assistance company",
-      "Statement month",
-      "Statement status",
-      "Invoice number",
-      "Invoice date",
-      "Patient name",
-      "Passport / ID",
-      `Full invoice amount ${settings.clinic.currency}`,
-      "Claim percentage used",
-      `Claim amount ${settings.clinic.currency}`,
-      "Payment status"
-    ],
-    ...statement.claims.map((claim) => [
-      clinicName,
-      statement.assistanceCompany,
-      monthLabel(statement.month),
-      statement.status,
-      claim.invoiceNo,
-      claim.date,
-      claim.patientName,
-      claim.passport ?? "N/A",
-      String(claim.invoiceTotal),
-      `${claim.claimPercentage}%`,
-      String(claim.claimAmount),
-      statement.status
-    ]),
-    [
-      clinicName,
-      statement.assistanceCompany,
-      monthLabel(statement.month),
-      statement.status,
-      "Summary",
-      "",
-      `Insurance patients: ${statement.insurancePatients}`,
-      `Invoices: ${statement.invoiceCount}`,
-      `Full invoice total: ${statement.fullInvoiceTotal}`,
-      "",
-      `Claim amount: ${statement.claimAmount}`,
-      `Amount received: ${statement.amountReceived}; Outstanding: ${statement.outstanding}`
-    ]
-  ];
-
-  return rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
-}
-
 function CompanyDetail({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-[#efefef] bg-white p-3">
@@ -617,76 +483,138 @@ function CompanyFormModal({
   );
 }
 
+function CompanyDetailsModal({
+  canDelete,
+  canManage,
+  company,
+  onDelete,
+  onEdit,
+  onClose,
+  onToggleStatus,
+  stats
+}: {
+  canDelete: boolean;
+  canManage: boolean;
+  company: AssistanceCompany;
+  onDelete: () => void;
+  onEdit: () => void;
+  onClose: () => void;
+  onToggleStatus: () => void;
+  stats: {
+    patientCount: number;
+    outstandingReceivables: number;
+    paidClaims: number;
+    lastInvoiceDate: string;
+  };
+}) {
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      role="dialog"
+    >
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#efefef] px-5 py-4">
+          <h2 className="text-lg font-semibold text-[#224770]">Assistance Company Details</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="focus-ring rounded-lg p-2 text-[#46484a]/65 transition hover:bg-[#efefef] hover:text-[#224770]"
+            aria-label="Close assistance company details"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="grid gap-3 text-sm md:grid-cols-2">
+            <CompanyDetail label="Company Name" value={company.name} />
+            <CompanyDetail label="Contact Person" value={company.contactPerson ?? "N/A"} />
+            <CompanyDetail label="Email" value={company.email ?? "N/A"} />
+            <CompanyDetail label="Phone" value={company.phone ?? "N/A"} />
+            <CompanyDetail
+              label="Default Claim Percentage"
+              value={`${company.defaultClaimPercentage}%`}
+            />
+            <CompanyDetail label="Status" value={company.active ? "Active" : "Inactive"} />
+            <CompanyDetail label="Insurance Patients" value={String(stats.patientCount)} />
+            <CompanyDetail
+              label="Outstanding Receivables"
+              value={usdWhole(stats.outstandingReceivables)}
+            />
+            <CompanyDetail label="Paid Claims" value={usdWhole(stats.paidClaims)} />
+            <CompanyDetail
+              label="Last Invoice Date"
+              value={stats.lastInvoiceDate ? shortDate(stats.lastInvoiceDate) : "N/A"}
+            />
+            <div className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-3 md:col-span-2">
+              <span className="label">Notes</span>
+              <p className="mt-1 font-semibold text-[#224770]">{company.notes ?? "N/A"}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-[#efefef] px-5 py-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className={buttonClass("secondary")}>
+            Close
+          </button>
+          {canManage ? (
+            <>
+              {canDelete ? (
+                <button type="button" onClick={onDelete} className={buttonClass("danger")}>
+                  Delete
+                </button>
+              ) : null}
+              <button type="button" onClick={onToggleStatus} className={buttonClass("secondary")}>
+                {company.active ? "Deactivate" : "Activate"}
+              </button>
+              <button type="button" onClick={onEdit} className={buttonClass("primary")}>
+                Edit Company
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatementActions({
-  canConfirm,
-  canRecordPayment,
-  canSubmit,
-  onConfirm,
-  onDownloadCsv,
+  canManage,
   onDownloadPdf,
-  onEmail,
-  onRecordPayment,
-  onSubmit,
+  onMarkPaid,
+  onMarkUnpaid,
   onView,
-  showView = true,
   statement
 }: {
-  canConfirm: boolean;
-  canRecordPayment: boolean;
-  canSubmit: boolean;
-  onConfirm: () => void;
-  onDownloadCsv: () => void;
+  canManage: boolean;
   onDownloadPdf: () => void;
-  onEmail: () => void;
-  onRecordPayment: () => void;
-  onSubmit: () => void;
+  onMarkPaid: () => void;
+  onMarkUnpaid: () => void;
   onView: () => void;
-  showView?: boolean;
   statement: MonthlyStatement;
 }) {
   const actions = [
-    showView
-      ? {
-          value: "view",
-          label: "View",
-          onSelect: onView
-        }
-      : null,
+    {
+      value: "view",
+      label: "View",
+      onSelect: onView
+    },
     {
       value: "pdf",
-              label: "Download PDF",
+      label: "Download PDF",
       onSelect: onDownloadPdf
     },
-    {
-      value: "csv",
-      label: "Download CSV",
-      onSelect: onDownloadCsv
-    },
-    {
-      value: "email",
-      label: "Email Statement",
-      onSelect: onEmail
-    },
-    statement.status === "Draft" && canConfirm
+    canManage && statement.status === "Unpaid"
       ? {
-          value: "confirm",
-          label: "Confirm Statement",
-          onSelect: onConfirm
+          value: "paid",
+          label: "Mark Paid",
+          onSelect: onMarkPaid
         }
       : null,
-    statement.status === "Confirmed" && canSubmit
+    canManage && statement.status === "Paid"
       ? {
-          value: "submit",
-          label: "Mark Submitted",
-          onSelect: onSubmit
-        }
-      : null,
-    ["Submitted", "Partially Paid", "Overdue"].includes(statement.status) && canRecordPayment
-      ? {
-          value: "payment",
-          label: statement.outstanding > 0 ? "Record Payment" : "Payment unavailable",
-          disabled: statement.outstanding <= 0,
-          onSelect: onRecordPayment
+          value: "unpaid",
+          label: "Mark Unpaid",
+          onSelect: onMarkUnpaid
         }
       : null
   ].filter((action): action is ActionSelectOption => Boolean(action));
@@ -700,29 +628,19 @@ function StatementActions({
 }
 
 function StatementDetailsModal({
-  canConfirm,
-  canRecordPayment,
-  canSubmit,
+  canManage,
   onClose,
-  onConfirm,
-  onDownloadCsv,
   onDownloadPdf,
-  onEmail,
-  onRecordPayment,
-  onSubmit,
+  onMarkPaid,
+  onMarkUnpaid,
   invoiceCurrencyCode,
   statement
 }: {
-  canConfirm: boolean;
-  canRecordPayment: boolean;
-  canSubmit: boolean;
+  canManage: boolean;
   onClose: () => void;
-  onConfirm: () => void;
-  onDownloadCsv: () => void;
   onDownloadPdf: () => void;
-  onEmail: () => void;
-  onRecordPayment: () => void;
-  onSubmit: () => void;
+  onMarkPaid: () => void;
+  onMarkUnpaid: () => void;
   invoiceCurrencyCode: string;
   statement: MonthlyStatement;
 }) {
@@ -821,7 +739,7 @@ function StatementDetailsModal({
               ))}
             </div>
             <div className="hidden lg:block">
-              <table className="w-full divide-y divide-[#efefef] text-sm">
+              <table className="w-full text-sm">
                 <thead className={tableStyles.head}>
                   <tr>
                     <th className={tableStyles.headerCell}>Invoice</th>
@@ -870,32 +788,30 @@ function StatementDetailsModal({
           </section>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-[#efefef] bg-white p-4">
-          <div>
-            <StatementActions
-              canConfirm={canConfirm}
-              canRecordPayment={canRecordPayment}
-              canSubmit={canSubmit}
-              onConfirm={onConfirm}
-              onDownloadCsv={onDownloadCsv}
-              onDownloadPdf={onDownloadPdf}
-              onEmail={onEmail}
-              onRecordPayment={onRecordPayment}
-              onSubmit={onSubmit}
-              onView={() => undefined}
-              showView={false}
-              statement={statement}
-            />
-          </div>
-          <div className="flex justify-end">
+        <div className="flex flex-col-reverse gap-3 border-t border-[#efefef] bg-white p-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className={buttonClass("secondary", "min-h-12 px-6")}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadPdf}
+            className={buttonClass("secondary", "min-h-12 px-6")}
+          >
+            Download PDF
+          </button>
+          {canManage ? (
             <button
               type="button"
-              onClick={onClose}
-              className={buttonClass("secondary", "min-h-12 px-6")}
+              onClick={statement.status === "Paid" ? onMarkUnpaid : onMarkPaid}
+              className={buttonClass(statement.status === "Paid" ? "secondary" : "primary", "min-h-12 px-6")}
             >
-              Close
+              {statement.status === "Paid" ? "Mark Unpaid" : "Mark Paid"}
             </button>
-          </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -914,26 +830,14 @@ export function InsuranceClaimsDashboard({
   const [companies, setCompanies] = useState<AssistanceCompany[]>(demoAssistanceCompanies);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
-  const [expandedCompanyId, setExpandedCompanyId] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [companyError, setCompanyError] = useState("");
   const [statementRecords, setStatementRecords] = useState<MonthlyStatementRecord[]>([]);
-  const [seasonalConfirmations, setSeasonalConfirmations] = useState<SeasonalConfirmation[]>([]);
   const [selectedStatementId, setSelectedStatementId] = useState("");
-  const [paymentStatementId, setPaymentStatementId] = useState("");
-  const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
-  const [paymentError, setPaymentError] = useState("");
   const systemSettings = useSystemSettings();
-  const [seasonalModalOpen, setSeasonalModalOpen] = useState(false);
-  const [seasonalForm, setSeasonalForm] = useState<SeasonalForm>(() =>
-    defaultSeasonalForm(partnerCompany)
-  );
-  const [seasonalError, setSeasonalError] = useState("");
 
   const canManageCompanies = hasPermission(currentUser, "canManageAssistanceCompanies");
-  const canConfirmStatements = hasPermission(currentUser, "canManageInsurance");
-  const canSubmitStatements = hasPermission(currentUser, "canManageInsurance");
-  const canRecordPayments = hasPermission(currentUser, "canManageInsurance");
-  const canConfirmSeasonalSummary = hasPermission(currentUser, "canManageInsurance");
+  const canManageStatements = hasPermission(currentUser, "canManageInsurance");
 
   useEffect(() => {
     try {
@@ -953,20 +857,9 @@ export function InsuranceClaimsDashboard({
         }
       }
 
-      const storedSeasonalConfirmations = window.localStorage.getItem(
-        seasonalConfirmationStorageKey
-      );
-      if (storedSeasonalConfirmations) {
-        const parsed = JSON.parse(storedSeasonalConfirmations);
-        if (Array.isArray(parsed)) {
-          setSeasonalConfirmations(parsed as SeasonalConfirmation[]);
-        }
-      }
-
     } catch {
       setCompanies(demoAssistanceCompanies);
       setStatementRecords([]);
-      setSeasonalConfirmations([]);
     }
   }, []);
 
@@ -977,13 +870,6 @@ export function InsuranceClaimsDashboard({
   useEffect(() => {
     window.localStorage.setItem(monthlyStatementStorageKey, JSON.stringify(statementRecords));
   }, [statementRecords]);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      seasonalConfirmationStorageKey,
-      JSON.stringify(seasonalConfirmations)
-    );
-  }, [seasonalConfirmations]);
 
   const allClaims = useMemo(
     () => buildClaims(invoices, insuranceReceivables, companies),
@@ -1001,19 +887,6 @@ export function InsuranceClaimsDashboard({
         : claim.assistanceCompany === partnerCompany
     );
   }, [allClaims, isCompanyPortal, partnerCompany, partnerCompanyId]);
-
-  const companyOptions = useMemo(() => {
-    if (isCompanyPortal && partnerCompany) {
-      return [partnerCompany];
-    }
-
-    return [
-      ...new Set([
-        ...companies.map((company) => company.name),
-        ...roleScopedClaims.map((claim) => claim.assistanceCompany)
-      ])
-    ].sort((a, b) => a.localeCompare(b));
-  }, [companies, isCompanyPortal, partnerCompany, roleScopedClaims]);
 
   const monthlyStatements = useMemo<MonthlyStatement[]>(() => {
     const claimsByStatement = new Map<
@@ -1073,20 +946,18 @@ export function InsuranceClaimsDashboard({
       .map(([id, group]) => {
         const record = statementRecords.find((candidate) => candidate.id === id);
         const frozenClaims =
-          record && record.status !== "Draft"
+          record && record.status === "Paid"
             ? roleScopedClaims.filter((claim) => record.invoiceIds.includes(claim.invoiceId))
             : group.claims;
         const claims = frozenClaims.sort((a, b) => a.date.localeCompare(b.date));
         const payments = record?.payments ?? [];
-        const amountReceived = paymentsTotal(payments);
         const fullInvoiceTotal = claims.reduce((sum, claim) => sum + claim.invoiceTotal, 0);
         const claimAmount = claims.reduce((sum, claim) => sum + claim.claimAmount, 0);
-        const status =
-          amountReceived >= claimAmount && claimAmount > 0
-            ? "Paid"
-            : amountReceived > 0
-              ? "Partially Paid"
-              : record?.status ?? "Draft";
+        const storedReceived = paymentsTotal(payments);
+        const amountReceived =
+          record?.status === "Paid" && storedReceived === 0 ? claimAmount : storedReceived;
+        const status: MonthlyStatementStatus =
+          amountReceived >= claimAmount && claimAmount > 0 ? "Paid" : "Unpaid";
 
         return {
           id,
@@ -1103,8 +974,6 @@ export function InsuranceClaimsDashboard({
           amountReceived,
           outstanding: Math.max(0, claimAmount - amountReceived),
           status,
-          confirmedDate: record?.confirmedDate,
-          submittedDate: record?.submittedDate,
           payments
         };
       })
@@ -1124,14 +993,13 @@ export function InsuranceClaimsDashboard({
     0
   );
   const outstandingClaims = monthlyStatements.reduce((sum, statement) => sum + statement.outstanding, 0);
-  const overdueClaims = monthlyStatements
-    .filter((statement) => statement.status === "Overdue")
-    .reduce((sum, statement) => sum + statement.outstanding, 0);
-  const submittedClaimAmount = monthlyStatements
-    .filter((statement) =>
-      ["Submitted", "Partially Paid", "Paid", "Overdue"].includes(statement.status)
-    )
-    .reduce((sum, statement) => sum + statement.claimAmount, 0);
+  const overdueClaims = roleScopedClaims
+    .filter((claim) => claim.status === "Overdue")
+    .reduce((sum, claim) => sum + claim.claimAmount, 0);
+  const totalStatementClaimAmount = monthlyStatements.reduce(
+    (sum, statement) => sum + statement.claimAmount,
+    0
+  );
 
   const companyStats = useMemo(() => {
     const stats = new Map<
@@ -1176,9 +1044,7 @@ export function InsuranceClaimsDashboard({
   const selectedStatement = monthlyStatements.find(
     (statement) => statement.id === selectedStatementId
   );
-  const paymentStatement = monthlyStatements.find(
-    (statement) => statement.id === paymentStatementId
-  );
+  const selectedCompany = companies.find((company) => company.id === selectedCompanyId);
   const partnerPaymentHistory = monthlyStatements
     .flatMap((statement) =>
       statement.payments.map((payment) => ({
@@ -1279,39 +1145,6 @@ export function InsuranceClaimsDashboard({
     statementWindow.print();
   }
 
-  function downloadStatementCsv(statement: MonthlyStatement) {
-    downloadFile(
-      `${statement.assistanceCompany}-${statement.month}-insurance-statement.csv`,
-      statementCsv(statement, systemSettings),
-      "text/csv;charset=utf-8"
-    );
-  }
-
-  function emailStatement(statement: MonthlyStatement) {
-    const company = companies.find((candidate) => candidate.id === statement.assistanceCompanyId);
-
-    openEmailDraft({
-      to: company?.email,
-      subject: `${systemSettings.clinic.clinicName} insurance statement - ${statement.assistanceCompany} ${monthLabel(statement.month)}`,
-      body: [
-        systemSettings.clinic.clinicName,
-        "",
-        systemSettings.insurance.defaultStatementFormat,
-        `Assistance company: ${statement.assistanceCompany}`,
-        `Statement month: ${monthLabel(statement.month)}`,
-        `Status: ${statement.status}`,
-        `Insurance patients: ${statement.insurancePatients}`,
-        `Invoices: ${statement.invoiceCount}`,
-        `Full invoice total: ${usdWhole(statement.fullInvoiceTotal)}`,
-        `Claim amount: ${usdWhole(statement.claimAmount)}`,
-        `Amount received: ${usdWhole(statement.amountReceived)}`,
-        `Outstanding: ${usdWhole(statement.outstanding)}`,
-        "",
-        "Please review the statement summary above."
-      ].join("\n")
-    });
-  }
-
   function upsertStatementRecord(
     statement: MonthlyStatement,
     update: Partial<MonthlyStatementRecord>
@@ -1325,18 +1158,18 @@ export function InsuranceClaimsDashboard({
         month: statement.month,
         invoiceIds: statement.claims.map((claim) => claim.invoiceId),
         invoiceNos: statement.claims.map((claim) => claim.invoiceNo),
-        status: "Draft",
+        status: "Unpaid",
         payments: []
       };
       const nextRecord: MonthlyStatementRecord = {
         ...base,
         ...update,
         invoiceIds:
-          update.status && update.status !== "Draft"
+          update.status === "Paid"
             ? statement.claims.map((claim) => claim.invoiceId)
             : update.invoiceIds ?? base.invoiceIds,
         invoiceNos:
-          update.status && update.status !== "Draft"
+          update.status === "Paid"
             ? statement.claims.map((claim) => claim.invoiceNo)
             : update.invoiceNos ?? base.invoiceNos,
         payments: update.payments ?? base.payments
@@ -1348,204 +1181,49 @@ export function InsuranceClaimsDashboard({
     });
   }
 
-  function confirmStatement(statement: MonthlyStatement) {
-    if (!canConfirmStatements || statement.status !== "Draft") {
+  function markStatementPaid(statement: MonthlyStatement) {
+    if (!canManageStatements) {
       return;
     }
 
-    upsertStatementRecord(statement, {
-      status: "Confirmed",
-      confirmedDate: todayISO()
-    });
-  }
-
-  function submitStatement(statement: MonthlyStatement) {
-    if (!canSubmitStatements || statement.status !== "Confirmed") {
-      return;
-    }
-
-    upsertStatementRecord(statement, {
-      status: "Submitted",
-      submittedDate: todayISO()
-    });
-  }
-
-  function openPaymentModal(statement: MonthlyStatement) {
-    if (!canRecordPayments || statement.outstanding <= 0) {
-      return;
-    }
-
-    setPaymentStatementId(statement.id);
-    setPaymentForm({
-      paymentDate: todayISO(),
-      amountReceived: String(statement.outstanding),
-      reference: `${systemSettings.insurance.defaultPaymentReferencePrefix}-${statement.month.replace("-", "")}`,
-      notes: ""
-    });
-    setPaymentError("");
-  }
-
-  function closePaymentModal() {
-    setPaymentStatementId("");
-    setPaymentForm(emptyPaymentForm);
-    setPaymentError("");
-  }
-
-  function savePayment() {
-    if (!paymentStatement || !canRecordPayments) {
-      return;
-    }
-
-    const receivedNow = roundUsd(Number(paymentForm.amountReceived));
-
-    if (receivedNow <= 0) {
-      setPaymentError("Amount received is required.");
-      return;
-    }
-
-    if (!systemSettings.insurance.enablePartialPayments && receivedNow < paymentStatement.outstanding) {
-      setPaymentError("Partial payments are disabled in Insurance Settings.");
-      return;
-    }
-
-    if (receivedNow > paymentStatement.outstanding) {
-      if (!hasPermission(currentUser, "canManageInsurance")) {
-        setPaymentError("Amount received cannot exceed the outstanding amount.");
-        return;
-      }
-
-      const confirmed = window.confirm(
-        "Amount received is higher than the outstanding amount. Continue with administrator override?"
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    const nextPayment: StatementPayment = {
+    const payment: StatementPayment = {
       id: generateId(),
-      paymentDate: paymentForm.paymentDate || todayISO(),
-      amountReceived: receivedNow,
-      reference: paymentForm.reference.trim(),
-      notes: paymentForm.notes.trim()
+      paymentDate: todayISO(),
+      amountReceived: statement.claimAmount,
+      reference: `${systemSettings.insurance.defaultPaymentReferencePrefix}-${statement.month.replace("-", "")}`,
+      notes: "Marked paid from monthly insurance statement."
     };
-    const nextPayments = [...paymentStatement.payments, nextPayment];
-    const nextReceived = paymentsTotal(nextPayments);
-    const nextStatus: MonthlyStatementStatus =
-      nextReceived >= paymentStatement.claimAmount ? "Paid" : "Partially Paid";
 
-    upsertStatementRecord(paymentStatement, {
-      status: nextStatus,
-      payments: nextPayments
+    upsertStatementRecord(statement, {
+      status: "Paid",
+      payments: [payment]
     });
-    closePaymentModal();
   }
 
-  function openSeasonalModal() {
-    if (!canConfirmSeasonalSummary) {
+  function markStatementUnpaid(statement: MonthlyStatement) {
+    if (!canManageStatements) {
       return;
     }
 
-    setSeasonalForm(defaultSeasonalForm(partnerCompany));
-    setSeasonalError("");
-    setSeasonalModalOpen(true);
-  }
-
-  function closeSeasonalModal() {
-    setSeasonalModalOpen(false);
-    setSeasonalError("");
-  }
-
-  const seasonalDateRangeValid = dateRangeIsValid(seasonalForm.fromDate, seasonalForm.toDate);
-  const seasonalClaims = useMemo(() => {
-    if (!seasonalDateRangeValid || !seasonalForm.assistanceCompany) {
-      return [];
-    }
-
-    return allClaims.filter(
-      (claim) =>
-        claim.assistanceCompany === seasonalForm.assistanceCompany &&
-        claim.status !== "Rejected" &&
-        claim.date >= seasonalForm.fromDate &&
-        claim.date <= seasonalForm.toDate
-    );
-  }, [
-    allClaims,
-    seasonalDateRangeValid,
-    seasonalForm.assistanceCompany,
-    seasonalForm.fromDate,
-    seasonalForm.toDate
-  ]);
-  const seasonalStatementPayments = monthlyStatements
-    .filter(
-      (statement) =>
-        statement.assistanceCompany === seasonalForm.assistanceCompany &&
-        statement.claims.some(
-          (claim) => claim.date >= seasonalForm.fromDate && claim.date <= seasonalForm.toDate
-        )
-    )
-    .reduce((sum, statement) => sum + statement.amountReceived, 0);
-  const seasonalInvoiceTotal = seasonalClaims.reduce((sum, claim) => sum + claim.invoiceTotal, 0);
-  const seasonalClaimTotal = seasonalClaims.reduce((sum, claim) => sum + claim.claimAmount, 0);
-  const seasonalReceived = Math.min(seasonalClaimTotal, seasonalStatementPayments);
-  const seasonalOutstanding = Math.max(0, seasonalClaimTotal - seasonalReceived);
-
-  function saveSeasonalConfirmation() {
-    if (!canConfirmSeasonalSummary) {
-      return;
-    }
-
-    if (!seasonalForm.assistanceCompany || !seasonalDateRangeValid) {
-      setSeasonalError("Assistance company and valid dates are required.");
-      return;
-    }
-
-    if (!seasonalClaims.length) {
-      setSeasonalError("No insurance invoices exist for this company and period.");
-      return;
-    }
-
-    setSeasonalConfirmations((current) => [
-      {
-        id: generateId(),
-        assistanceCompany: seasonalForm.assistanceCompany,
-        fromDate: seasonalForm.fromDate,
-        toDate: seasonalForm.toDate,
-        confirmationDate: seasonalForm.confirmationDate || todayISO(),
-        notes: seasonalForm.notes.trim(),
-        totalPatients: new Set(
-          seasonalClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
-        ).size,
-        totalInvoices: seasonalClaims.length,
-        totalInvoiceAmount: seasonalInvoiceTotal,
-        totalClaimAmount: seasonalClaimTotal,
-        totalReceived: seasonalReceived,
-        totalOutstanding: seasonalOutstanding
-      },
-      ...current
-    ]);
-    closeSeasonalModal();
+    upsertStatementRecord(statement, {
+      status: "Unpaid",
+      payments: []
+    });
   }
 
   const renderStatementActions = (statement: MonthlyStatement) => (
     <StatementActions
-      canConfirm={canConfirmStatements}
-      canRecordPayment={canRecordPayments}
-      canSubmit={canSubmitStatements}
-      onConfirm={() => confirmStatement(statement)}
-      onDownloadCsv={() => downloadStatementCsv(statement)}
+      canManage={canManageStatements}
       onDownloadPdf={() => downloadStatementPdf(statement)}
-      onEmail={() => emailStatement(statement)}
-      onRecordPayment={() => openPaymentModal(statement)}
-      onSubmit={() => submitStatement(statement)}
+      onMarkPaid={() => markStatementPaid(statement)}
+      onMarkUnpaid={() => markStatementUnpaid(statement)}
       onView={() => setSelectedStatementId(statement.id)}
       statement={statement}
     />
   );
   const statementGridClass = isCompanyPortal
-    ? "grid gap-4 lg:grid-cols-[1.05fr_0.8fr_1.45fr_0.85fr_156px] lg:items-center"
-    : "grid gap-4 lg:grid-cols-[1fr_1.2fr_0.8fr_1.45fr_0.85fr_156px] lg:items-center";
+    ? "grid gap-4 lg:grid-cols-[1.15fr_1fr_0.85fr_144px] lg:items-center"
+    : "grid gap-4 lg:grid-cols-[1fr_1.35fr_1fr_0.85fr_144px] lg:items-center";
 
   return (
     <div className="space-y-6">
@@ -1560,7 +1238,7 @@ export function InsuranceClaimsDashboard({
             label="Insurance Patients This Season"
             value={String(insurancePatientsThisSeason)}
           />
-          <KpiCard label="Submitted Claim Amount" value={usdWhole(submittedClaimAmount)} />
+          <KpiCard label="Statement Claim Amount" value={usdWhole(totalStatementClaimAmount)} />
           <KpiCard
             label="Outstanding Amount"
             value={usdWhole(outstandingClaims)}
@@ -1594,158 +1272,76 @@ export function InsuranceClaimsDashboard({
 
       {!isCompanyPortal ? (
         <section className="panel overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-semibold text-white">Assistance Companies</h2>
             {canManageCompanies ? (
               <button
                 type="button"
                 onClick={openAddCompanyModal}
-                className={buttonClass("secondary", "min-h-12 border-white bg-white px-5 text-[#224770] hover:border-white hover:bg-[#efefef]")}
+                className={buttonClass("secondary", "border-white bg-white px-4 text-[#224770] hover:border-white hover:bg-[#efefef]")}
               >
                 Add Company
               </button>
             ) : null}
           </div>
-          <div className={tableStyles.wrapper}>
-            <table className="w-full min-w-[640px] table-fixed divide-y divide-[#efefef] text-sm">
-              <colgroup>
-                <col className="w-[40%]" />
-                <col className="w-[18%]" />
-                <col className="w-[16%]" />
-                <col className="w-[156px]" />
-              </colgroup>
-              <thead className={tableStyles.head}>
-                <tr>
-                  <th className={tableStyles.headerCell}>Company Name</th>
-                  <th className={tableStyles.numericHeaderCell}>Claim %</th>
-                  <th className={tableStyles.headerCell}>Status</th>
-                  <th className={tableStyles.actionHeaderCell}>Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#efefef]">
-                {companies.map((company) => {
-                  const used = companyHasClaims(company);
-                  const isExpanded = expandedCompanyId === company.id;
-                  const stats = companyStats.get(company.id) ?? {
-                    patientCount: 0,
-                    outstandingReceivables: 0,
-                    paidClaims: 0,
-                    lastInvoiceDate: ""
-                  };
+          <div className="grid gap-3 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4">
+            {companies.map((company) => {
+              const stats = companyStats.get(company.id) ?? {
+                patientCount: 0,
+                outstandingReceivables: 0,
+                paidClaims: 0,
+                lastInvoiceDate: ""
+              };
 
-                  return (
-                    <Fragment key={company.id}>
-                      <tr className={tableStyles.row}>
-                        <td className={tableStyles.strongCell}>
-                          {company.name}
-                        </td>
-                        <td className={tableStyles.numericCell}>
-                          {company.defaultClaimPercentage}%
-                        </td>
-                        <td className={tableStyles.cell}>
-                          <StatusPill tone={company.active ? "green" : "slate"}>
-                            {company.active ? "Active" : "Inactive"}
-                          </StatusPill>
-                        </td>
-                        <td className={tableStyles.actionCell}>
-                          <ActionSelect
-                            ariaLabel={`Actions for ${company.name}`}
-                            actions={[
-                              {
-                                value: "details",
-                                label: isExpanded ? "Hide Details" : "View Details",
-                                onSelect: () => setExpandedCompanyId(isExpanded ? "" : company.id)
-                              },
-                              ...(canManageCompanies
-                                ? [
-                                    {
-                                      value: "edit",
-                                      label: "Edit",
-                                      onSelect: () => editCompany(company)
-                                    },
-                                    {
-                                      value: "toggle",
-                                      label: company.active ? "Deactivate" : "Activate",
-                                      onSelect: () => toggleCompanyActive(company.id)
-                                    },
-                                    {
-                                      value: "delete",
-                                      label: used ? "Delete unavailable" : "Delete",
-                                      disabled: used,
-                                      onSelect: () => deleteCompany(company)
-                                    }
-                                  ]
-                                : [])
-                            ]}
-                          />
-                        </td>
-                      </tr>
-                      {isExpanded ? (
-                        <tr>
-                          <td className="bg-[#efefef]/35 px-5 py-5" colSpan={4}>
-                            <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-                              <CompanyDetail label="Company Name" value={company.name} />
-                              <CompanyDetail
-                                label="Contact Person"
-                                value={company.contactPerson ?? "N/A"}
-                              />
-                              <CompanyDetail label="Email" value={company.email ?? "N/A"} />
-                              <CompanyDetail label="Phone" value={company.phone ?? "N/A"} />
-                              <CompanyDetail
-                                label="Default Claim Percentage"
-                                value={`${company.defaultClaimPercentage}%`}
-                              />
-                              <CompanyDetail
-                                label="Status"
-                                value={company.active ? "Active" : "Inactive"}
-                              />
-                              <CompanyDetail
-                                label="Insurance Patients"
-                                value={String(stats.patientCount)}
-                              />
-                              <CompanyDetail
-                                label="Outstanding Receivables"
-                                value={usdWhole(stats.outstandingReceivables)}
-                              />
-                              <CompanyDetail
-                                label="Paid Claims"
-                                value={usdWhole(stats.paidClaims)}
-                              />
-                              <CompanyDetail
-                                label="Last Invoice Date"
-                                value={stats.lastInvoiceDate ? shortDate(stats.lastInvoiceDate) : "N/A"}
-                              />
-                              <div className="rounded-lg border border-[#efefef] bg-white p-3 md:col-span-2">
-                                <span className="label">Notes</span>
-                                <p className="mt-1 font-semibold text-[#224770]">
-                                  {company.notes ?? "N/A"}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+              return (
+                <button
+                  key={company.id}
+                  type="button"
+                  onClick={() => setSelectedCompanyId(company.id)}
+                  className="focus-ring min-h-36 rounded-xl border border-[#efefef] bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#0eb6ef]/45 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-[#224770]">
+                        {company.name}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-sm font-medium text-[#46484a]">
+                        {company.contactPerson || "No contact person"}
+                      </p>
+                    </div>
+                    <StatusPill tone={company.active ? "green" : "slate"}>
+                      {company.active ? "Active" : "Inactive"}
+                    </StatusPill>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="label">Claim</span>
+                      <p className="mt-1 text-lg font-bold text-[#224770]">
+                        {company.defaultClaimPercentage}%
+                      </p>
+                    </div>
+                    <div>
+                      <span className="label">Outstanding</span>
+                      <p className="mt-1 text-lg font-bold text-[#224770]">
+                        {usdWhole(stats.outstandingReceivables)}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {!companies.length ? (
+              <div className="rounded-xl border border-dashed border-[#d9d9d9] bg-[#efefef]/35 p-6 text-center text-sm text-[#46484a] sm:col-span-2 xl:col-span-4">
+                No assistance companies have been added yet.
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
           <h2 className="text-lg font-semibold text-white">Monthly Insurance Statements</h2>
-          {canConfirmSeasonalSummary ? (
-            <button
-              type="button"
-              onClick={openSeasonalModal}
-              className={buttonClass("secondary", "min-h-12 border-white bg-white px-5 text-[#224770] hover:border-white hover:bg-[#efefef]")}
-            >
-              Confirm Seasonal Summary
-            </button>
-          ) : null}
         </div>
         <div className="divide-y divide-[#efefef]">
           <div
@@ -1753,8 +1349,7 @@ export function InsuranceClaimsDashboard({
           >
             <span>Month</span>
             {!isCompanyPortal ? <span>Company</span> : null}
-            <span>Volume</span>
-            <span>Financials</span>
+            <span>Claim Amount</span>
             <span>Status</span>
             <span>Actions</span>
           </div>
@@ -1779,47 +1374,10 @@ export function InsuranceClaimsDashboard({
                 ) : null}
 
                 <div>
-                  <p className="label lg:hidden">Volume</p>
-                  <div className="flex flex-wrap gap-2 text-sm font-semibold text-[#224770] lg:block">
-                    <span>{statement.insurancePatients} patients</span>
-                    <span className="text-[#46484a]/45 lg:hidden">/</span>
-                    <span className="lg:block">{statement.invoiceCount} invoices</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 rounded-lg bg-[#efefef]/45 p-3 text-sm lg:bg-transparent lg:p-0">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#46484a]/70">
-                      Invoice
-                    </p>
-                    <p className="font-bold text-[#224770]">
-                      {usdWhole(statement.fullInvoiceTotal)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#46484a]/70">
-                      Claim
-                    </p>
-                    <p className="font-bold text-[#224770]">
-                      {usdWhole(statement.claimAmount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#46484a]/70">
-                      Received
-                    </p>
-                    <p className="font-bold text-[#224770]">
-                      {usdWhole(statement.amountReceived)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#46484a]/70">
-                      Outstanding
-                    </p>
-                    <p className="font-bold text-[#224770]">
-                      {usdWhole(statement.outstanding)}
-                    </p>
-                  </div>
+                  <p className="label lg:hidden">Claim Amount</p>
+                  <p className="font-semibold text-[#224770]">
+                    {usdWhole(statement.claimAmount)}
+                  </p>
                 </div>
 
                 <div>
@@ -1844,7 +1402,7 @@ export function InsuranceClaimsDashboard({
 
       {isCompanyPortal ? (
         <section className="panel overflow-hidden">
-          <div className="border-b border-[#224770] bg-[#224770] p-5">
+          <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
             <h2 className="text-lg font-semibold text-white">Payment History</h2>
           </div>
           <div className={tableStyles.wrapper}>
@@ -1887,312 +1445,14 @@ export function InsuranceClaimsDashboard({
 
       {selectedStatement ? (
         <StatementDetailsModal
-          canConfirm={canConfirmStatements}
-          canRecordPayment={canRecordPayments}
-          canSubmit={canSubmitStatements}
+          canManage={canManageStatements}
           onClose={() => setSelectedStatementId("")}
-          onConfirm={() => confirmStatement(selectedStatement)}
-          onDownloadCsv={() => downloadStatementCsv(selectedStatement)}
           onDownloadPdf={() => downloadStatementPdf(selectedStatement)}
-          onEmail={() => emailStatement(selectedStatement)}
-          onRecordPayment={() => openPaymentModal(selectedStatement)}
-          onSubmit={() => submitStatement(selectedStatement)}
+          onMarkPaid={() => markStatementPaid(selectedStatement)}
+          onMarkUnpaid={() => markStatementUnpaid(selectedStatement)}
           invoiceCurrencyCode={systemSettings.clinic.currency}
           statement={selectedStatement}
         />
-      ) : null}
-
-      {paymentStatement ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-          role="dialog"
-        >
-          <div className="w-full max-w-2xl rounded-2xl border border-[#efefef] bg-white shadow-2xl">
-            <div className="border-b border-[#efefef] p-5">
-              <h2 className="text-lg font-semibold text-[#224770]">Record Payment</h2>
-              <p className="mt-1 text-sm font-semibold text-[#46484a]">
-                {paymentStatement.assistanceCompany} - {monthLabel(paymentStatement.month)}
-              </p>
-            </div>
-            <div className="form-grid grid gap-4 p-5 sm:grid-cols-2">
-              <CompanyDetail
-                label={`Outstanding ${systemSettings.clinic.currency}`}
-                value={usdWhole(paymentStatement.outstanding)}
-              />
-              <CompanyDetail
-                label={`Claim Amount ${systemSettings.clinic.currency}`}
-                value={usdWhole(paymentStatement.claimAmount)}
-              />
-              <div>
-                <label className="label" htmlFor="statement-payment-date">
-                  Payment Date
-                </label>
-                <input
-                  id="statement-payment-date"
-                  type="date"
-                  value={paymentForm.paymentDate}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      paymentDate: event.target.value
-                    }))
-                  }
-                  className="field mt-2 min-h-12"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="statement-amount-received">
-                  Amount Received {systemSettings.clinic.currency}
-                </label>
-                <input
-                  id="statement-amount-received"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={paymentForm.amountReceived}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      amountReceived: event.target.value
-                    }))
-                  }
-                  className="field mt-2 min-h-12"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="statement-payment-reference">
-                  Payment Reference
-                </label>
-                <input
-                  id="statement-payment-reference"
-                  value={paymentForm.reference}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      reference: event.target.value
-                    }))
-                  }
-                  className="field mt-2 min-h-12"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="statement-payment-notes">
-                  Notes
-                </label>
-                <textarea
-                  id="statement-payment-notes"
-                  value={paymentForm.notes}
-                  onChange={(event) =>
-                    setPaymentForm((current) => ({
-                      ...current,
-                      notes: event.target.value
-                    }))
-                  }
-                  className="field mt-2 min-h-24"
-                />
-              </div>
-              {paymentError ? (
-                <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770] sm:col-span-2">
-                  {paymentError}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-3 border-t border-[#efefef] p-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closePaymentModal}
-                className={buttonClass("secondary", "min-h-12")}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={savePayment}
-                disabled={roundUsd(Number(paymentForm.amountReceived)) <= 0}
-                className={buttonClass(
-                  roundUsd(Number(paymentForm.amountReceived)) > 0 ? "primary" : "muted",
-                  "min-h-12"
-                )}
-              >
-                Save Payment
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {seasonalModalOpen ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-          role="dialog"
-        >
-          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
-            <div className="border-b border-[#efefef] p-5">
-              <h2 className="text-lg font-semibold text-[#224770]">
-                Confirm Seasonal Summary
-              </h2>
-            </div>
-            <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-5">
-              <div className="form-grid grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="label" htmlFor="seasonal-company">
-                    Assistance Company
-                  </label>
-                  <select
-                    id="seasonal-company"
-                    value={seasonalForm.assistanceCompany}
-                    onChange={(event) =>
-                      setSeasonalForm((current) => ({
-                        ...current,
-                        assistanceCompany: event.target.value
-                      }))
-                    }
-                    className="field mt-2 min-h-12"
-                  >
-                    <option value="">Select company</option>
-                    {companyOptions.map((company) => (
-                      <option key={company} value={company}>
-                        {company}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label" htmlFor="seasonal-confirmation-date">
-                    Confirmation Date
-                  </label>
-                  <input
-                    id="seasonal-confirmation-date"
-                    type="date"
-                    value={seasonalForm.confirmationDate}
-                    onChange={(event) =>
-                      setSeasonalForm((current) => ({
-                        ...current,
-                        confirmationDate: event.target.value
-                      }))
-                    }
-                    className="field mt-2 min-h-12"
-                  />
-                </div>
-                <div>
-                  <label className="label" htmlFor="seasonal-from-date">
-                    From Date
-                  </label>
-                  <input
-                    id="seasonal-from-date"
-                    type="date"
-                    value={seasonalForm.fromDate}
-                    onChange={(event) =>
-                      setSeasonalForm((current) => ({
-                        ...current,
-                        fromDate: event.target.value,
-                        toDate:
-                          current.toDate && event.target.value && current.toDate < event.target.value
-                            ? event.target.value
-                            : current.toDate
-                      }))
-                    }
-                    className="field mt-2 min-h-12"
-                  />
-                </div>
-                <div>
-                  <label className="label" htmlFor="seasonal-to-date">
-                    To Date
-                  </label>
-                  <input
-                    id="seasonal-to-date"
-                    type="date"
-                    min={seasonalForm.fromDate || undefined}
-                    value={seasonalForm.toDate}
-                    onChange={(event) =>
-                      setSeasonalForm((current) => ({
-                        ...current,
-                        toDate:
-                          current.fromDate && event.target.value < current.fromDate
-                            ? current.fromDate
-                            : event.target.value
-                      }))
-                    }
-                    className="field mt-2 min-h-12"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="label" htmlFor="seasonal-notes">
-                    Notes
-                  </label>
-                  <textarea
-                    id="seasonal-notes"
-                    value={seasonalForm.notes}
-                    onChange={(event) =>
-                      setSeasonalForm((current) => ({
-                        ...current,
-                        notes: event.target.value
-                      }))
-                    }
-                    className="field mt-2 min-h-24"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <CompanyDetail
-                  label="Total Insurance Patients"
-                  value={String(
-                    new Set(
-                      seasonalClaims.map((claim) => `${claim.patientName}-${claim.passport ?? ""}`)
-                    ).size
-                  )}
-                />
-                <CompanyDetail label="Total Invoices" value={String(seasonalClaims.length)} />
-                <CompanyDetail
-                  label={`Total Full Invoice Amount ${systemSettings.clinic.currency}`}
-                  value={usdWhole(seasonalInvoiceTotal)}
-                />
-                <CompanyDetail
-                  label={`Total Claim Amount ${systemSettings.clinic.currency}`}
-                  value={usdWhole(seasonalClaimTotal)}
-                />
-                <CompanyDetail
-                  label={`Total Received ${systemSettings.clinic.currency}`}
-                  value={usdWhole(seasonalReceived)}
-                />
-                <CompanyDetail
-                  label={`Total Outstanding ${systemSettings.clinic.currency}`}
-                  value={usdWhole(seasonalOutstanding)}
-                />
-              </div>
-
-              {seasonalError ? (
-                <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770]">
-                  {seasonalError}
-                </p>
-              ) : null}
-              {!seasonalDateRangeValid ? (
-                <p className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#224770]">
-                  To Date cannot be earlier than From Date.
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-3 border-t border-[#efefef] bg-white p-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeSeasonalModal}
-                className={buttonClass("secondary", "min-h-12")}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveSeasonalConfirmation}
-                className={buttonClass("primary", "min-h-12")}
-              >
-                Confirm Summary
-              </button>
-            </div>
-          </div>
-        </div>
       ) : null}
 
       {companyModalOpen ? (
@@ -2202,6 +1462,32 @@ export function InsuranceClaimsDashboard({
           onCompanyFormChange={setCompanyForm}
           onCancel={closeCompanyModal}
           onSave={saveCompany}
+        />
+      ) : null}
+
+      {selectedCompany ? (
+        <CompanyDetailsModal
+          canDelete={!companyHasClaims(selectedCompany)}
+          canManage={canManageCompanies}
+          company={selectedCompany}
+          onDelete={() => {
+            deleteCompany(selectedCompany);
+            setSelectedCompanyId("");
+          }}
+          onEdit={() => {
+            editCompany(selectedCompany);
+            setSelectedCompanyId("");
+          }}
+          onClose={() => setSelectedCompanyId("")}
+          onToggleStatus={() => toggleCompanyActive(selectedCompany.id)}
+          stats={
+            companyStats.get(selectedCompany.id) ?? {
+              patientCount: 0,
+              outstandingReceivables: 0,
+              paidClaims: 0,
+              lastInvoiceDate: ""
+            }
+          }
         />
       ) : null}
     </div>
