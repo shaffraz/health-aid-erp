@@ -143,7 +143,11 @@ export const demoStaffMembers: StaffMember[] = [
     notes: "Handles invoice creation and front desk coordination.",
     joinDate: "2026-01-10",
     status: "active",
-    userId: "user-staff"
+    userId: "user-staff",
+    currentBasicSalaryLkr: 90000,
+    salaryEffectiveFrom: "2026-01-10",
+    createdAt: "2026-01-10T09:00:00+05:30",
+    updatedAt: `${today}T09:00:00+05:30`
   },
   {
     id: "staff-clinic-assistant",
@@ -153,7 +157,11 @@ export const demoStaffMembers: StaffMember[] = [
     email: "nimali@healthaid.local",
     notes: "Assists with day care admissions and consumables.",
     joinDate: "2026-03-01",
-    status: "active"
+    status: "active",
+    currentBasicSalaryLkr: 75000,
+    salaryEffectiveFrom: "2026-03-01",
+    createdAt: "2026-03-01T09:00:00+05:30",
+    updatedAt: `${today}T09:00:00+05:30`
   }
 ];
 
@@ -539,6 +547,7 @@ export const demoAuditLogs: AuditLog[] = [
 export const demoStaffSalaryRecords: StaffSalaryRecord[] = [
   {
     id: "salary-staff-july-2026",
+    staffProfileId: "staff-demo-reception",
     staffUserId: "user-staff",
     salaryPeriod: today.slice(0, 7),
     baseSalaryLkr: 90000,
@@ -547,11 +556,13 @@ export const demoStaffSalaryRecords: StaffSalaryRecord[] = [
     netSalaryLkr: 100000,
     status: "Approved",
     notes: "Operational staff salary for the current period.",
+    createdBy: "Demo Administrator",
     createdAt: `${monthStart}T09:00:00+05:30`,
     updatedAt: `${today}T09:00:00+05:30`
   },
   {
     id: "salary-staff-june-2026",
+    staffProfileId: "staff-demo-reception",
     staffUserId: "user-staff",
     salaryPeriod: "2026-06",
     baseSalaryLkr: 90000,
@@ -559,9 +570,11 @@ export const demoStaffSalaryRecords: StaffSalaryRecord[] = [
     deductionLkr: 0,
     netSalaryLkr: 95000,
     status: "Paid",
+    paymentDate: "2026-06-30",
     paidAt: "2026-06-30",
     paymentReference: "SAL-202606-001",
     notes: "Paid by bank transfer.",
+    createdBy: "Demo Administrator",
     createdAt: "2026-06-01T09:00:00+05:30",
     updatedAt: "2026-06-30T15:00:00+05:30"
   }

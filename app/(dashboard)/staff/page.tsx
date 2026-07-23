@@ -16,7 +16,10 @@ export default async function StaffPage() {
     <div className="space-y-6">
       <SectionHeader title="Staff" />
       <StaffManagement
+        auditLogs={data.auditLogs}
+        currentUserName={user.name}
         initialStaff={data.staffMembers}
+        invoices={data.invoices}
         users={data.users}
         salaryRecords={data.staffSalaryRecords}
         canEdit={hasPermission(user, "canManageStaff")}

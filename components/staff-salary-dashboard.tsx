@@ -16,7 +16,8 @@ type StaffSalaryDashboardProps = {
 const salaryStatusTones: Record<StaffSalaryRecord["status"], "green" | "amber" | "slate"> = {
   Pending: "amber",
   Approved: "green",
-  Paid: "green"
+  Paid: "green",
+  "On Hold": "slate"
 };
 
 function periodLabel(period: string) {
@@ -46,7 +47,7 @@ export function StaffSalaryDashboard({
     const search = query.trim().toLowerCase();
 
     return salaryRecords.filter((record) => {
-      const user = userById.get(record.staffUserId);
+      const user = record.staffUserId ? userById.get(record.staffUserId) : undefined;
       const haystack = [
         user?.name,
         user?.email,
@@ -102,7 +103,7 @@ export function StaffSalaryDashboard({
             </thead>
             <tbody className="divide-y divide-[#efefef]">
               {filteredRecords.map((record) => {
-                const user = userById.get(record.staffUserId);
+                const user = record.staffUserId ? userById.get(record.staffUserId) : undefined;
 
                 return (
                   <tr key={record.id} className={tableStyles.row}>
@@ -126,7 +127,7 @@ export function StaffSalaryDashboard({
                       </StatusPill>
                     </td>
                     <td className={tableStyles.cell}>
-                      {record.paidAt ? shortDate(record.paidAt) : "Not paid"}
+                      {record.paymentDate || record.paidAt ? shortDate((record.paymentDate ?? record.paidAt) as string) : "Not paid"}
                       {record.paymentReference ? (
                         <p className="mt-1 text-xs text-[#46484a]">{record.paymentReference}</p>
                       ) : null}

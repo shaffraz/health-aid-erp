@@ -15,7 +15,11 @@ export default async function MySalaryPage() {
   return (
     <div className="space-y-6">
       <SectionHeader title="My Salary" />
-      <MySalaryDashboard user={user} salaryRecords={data.staffSalaryRecords} />
+      <MySalaryDashboard
+        user={user}
+        staffMembers={data.staffMembers}
+        salaryRecords={data.staffSalaryRecords}
+      />
     </div>
   );
 }

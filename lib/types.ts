@@ -30,6 +30,7 @@ export const assistanceCompanyStorageKey = "health-aid-assistance-companies-v1";
 export const insuranceClaimStatusStorageKey = "health-aid-insurance-claim-status-v1";
 export const userStorageKey = "health-aid-users-v1";
 export const staffStorageKey = "health-aid-staff-v1";
+export const staffSalaryStorageKey = "health-aid-staff-salaries-v1";
 
 export const amountOnlyInvoiceServiceNames = [
   "Medication Charges",
@@ -65,7 +66,7 @@ export type RuleType = "fixed" | "percentage" | "none";
 export type PayoutStatus = "unpaid" | "paid";
 export type VoucherStatus = "unpaid" | "paid";
 export type InsuranceReceivableStatus = "Pending" | "Partially Paid" | "Paid" | "Overdue";
-export type StaffSalaryStatus = "Pending" | "Approved" | "Paid";
+export type StaffSalaryStatus = "Pending" | "Approved" | "Paid" | "On Hold";
 export type InsuranceClaimStatus =
   | "Draft"
   | "Submitted"
@@ -133,6 +134,10 @@ export type StaffMember = {
   joinDate: string;
   status: "active" | "inactive";
   userId?: string;
+  currentBasicSalaryLkr?: number;
+  salaryEffectiveFrom?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Doctor = {
@@ -264,16 +269,19 @@ export type InsuranceReceivable = {
 
 export type StaffSalaryRecord = {
   id: string;
-  staffUserId: string;
+  staffProfileId: string;
+  staffUserId?: string;
   salaryPeriod: string;
   baseSalaryLkr: number;
   additionalPaymentLkr: number;
   deductionLkr: number;
   netSalaryLkr: number;
   status: StaffSalaryStatus;
+  paymentDate?: string;
   paidAt?: string;
   paymentReference?: string;
   notes?: string;
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
 };

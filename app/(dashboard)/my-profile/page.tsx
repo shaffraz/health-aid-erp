@@ -19,6 +19,7 @@ export default async function MyProfilePage() {
         user={user}
         doctors={data.doctors}
         assistanceCompanies={data.assistanceCompanies}
+        staffMembers={data.staffMembers}
       />
     </div>
   );
