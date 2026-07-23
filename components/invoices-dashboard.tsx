@@ -52,8 +52,8 @@ function buildInvoiceDocument(invoice: Invoice, doctorName: string, clinicName: 
       body { color: #224770; font-family: Arial, sans-serif; margin: 32px; }
       h1 { margin: 0 0 8px; }
       table { border-collapse: collapse; margin-top: 16px; width: 100%; }
-      th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; }
-      th { background: #f1f5f9; }
+      th, td { border-bottom: 1px solid #dfe4e7; padding: 10px; text-align: left; }
+      th { background: #efefef; }
       .meta { color: #46484a; margin: 4px 0; }
       .total { font-size: 18px; font-weight: 700; margin-top: 24px; text-align: right; }
     </style>
@@ -177,7 +177,7 @@ function InvoiceDetailsModal({
       role="dialog"
     >
       <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
-        <div className="border-b border-[#efefef] p-5">
+        <div className="border-b border-[#efefef] p-4 md:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="label">Invoice Number</p>
@@ -194,7 +194,7 @@ function InvoiceDetailsModal({
           </div>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-5">
+        <div className="flex-1 space-y-5 overflow-y-auto bg-[#efefef]/45 p-4 md:p-5">
           <section>
             <h3 className="mb-3 font-semibold text-[#224770]">Invoice Information</h3>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -281,7 +281,7 @@ function InvoiceDetailsModal({
             Print
           </button>
           <button type="button" onClick={onDownload} className={buttonClass("primary", "min-h-12")}>
-            Print / Save PDF
+            Download PDF
           </button>
           <button type="button" onClick={onEmail} className={buttonClass("secondary", "min-h-12")}>
             Email Invoice
@@ -367,7 +367,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
 
   return (
     <div className="space-y-6">
-      <section className="panel p-5">
+      <section className="panel p-4 md:p-5">
         <div className="form-grid grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_160px] xl:items-end">
           <div>
             <label className="label" htmlFor="invoice-date-filter">
@@ -424,7 +424,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
           <h2 className="text-lg font-semibold text-white">Invoice Registry</h2>
         </div>
         <div className={tableStyles.wrapper}>
-          <table className={tableStyles.table}>
+          <table className="w-full min-w-[760px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Invoice No.</th>
@@ -472,7 +472,7 @@ export function InvoicesDashboard({ doctors, invoices }: InvoicesDashboardProps)
                         },
                         {
                           value: "print",
-                          label: "Print / Save PDF",
+                          label: "Download PDF",
                           onSelect: () => printInvoiceDocument(invoice)
                         },
                         {

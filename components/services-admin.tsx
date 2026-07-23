@@ -376,16 +376,16 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
 
                 {expanded ? (
                   <div className={tableStyles.wrapper}>
-                    <table className="w-full min-w-[920px] divide-y divide-[#efefef] text-sm">
+                    <table className="w-full min-w-[760px] divide-y divide-[#efefef] text-sm">
                       <thead className={tableStyles.head}>
                         <tr>
                           <th className={tableStyles.headerCell}>Service Name</th>
                           <th className={tableStyles.numericHeaderCell}>
-                            Selling Price {invoiceCurrencyCode}
+                            Price {invoiceCurrencyCode}
                           </th>
-                          <th className={tableStyles.headerCell}>Doctor Payout Eligible</th>
+                          <th className={tableStyles.headerCell}>Payout Eligible</th>
                           <th className={tableStyles.numericHeaderCell}>
-                            Doctor Payout Amount {localCurrencyCode}
+                            Payout {localCurrencyCode}
                           </th>
                           <th className={tableStyles.headerCell}>Status</th>
                           {canEdit ? <th className={tableStyles.actionHeaderCell}>Actions</th> : null}
@@ -476,9 +476,9 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
           aria-modal="true"
           aria-labelledby="service-form-title"
         >
-          <section className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <h2 id="service-form-title" className="font-semibold text-ink">
+          <section className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#efefef] px-5 py-4">
+              <h2 id="service-form-title" className="font-semibold text-[#224770]">
                 {editing ? "Edit service" : "Add service"}
               </h2>
               <button
@@ -491,7 +491,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
               </button>
             </div>
 
-            <div className="space-y-4 p-5">
+            <div className="flex-1 space-y-4 overflow-y-auto p-5">
               {!canEdit ? (
                 <div className="rounded-lg border border-[#d9d9d9] bg-[#efefef] p-3 text-sm font-semibold text-[#46484a]">
                   This role can review services but cannot change setup rules.
@@ -516,7 +516,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                       setForm((current) => ({ ...current, name: event.target.value }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                     placeholder="Eg. Travel consultation"
                   />
                 </div>
@@ -530,7 +530,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                     value={form.category}
                     onChange={(event) => updateCategory(event.target.value as ServiceCategory)}
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                   >
                     {serviceCategories.map((candidate) => (
                       <option key={candidate} value={candidate}>
@@ -554,7 +554,7 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                       setForm((current) => ({ ...current, sellingPrice: event.target.value }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                   />
                 </div>
 
@@ -572,13 +572,13 @@ export function ServicesAdmin({ initialServices, invoices, canEdit }: ServicesAd
                       setForm((current) => ({ ...current, payoutAmount: event.target.value }))
                     }
                     disabled={!canEdit || !categoryCanPayout}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-[#efefef] bg-white px-5 py-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={resetForm}

@@ -3,21 +3,13 @@
 import { useMemo, useState } from "react";
 import { KpiCard, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
-import { money, shortDate } from "@/lib/format";
-import { roleLabels } from "@/lib/permissions";
+import { money } from "@/lib/format";
 import type { ManagedUser, StaffSalaryRecord } from "@/lib/types";
 
 type StaffSalaryDashboardProps = {
   users: ManagedUser[];
   salaryRecords: StaffSalaryRecord[];
   canManage: boolean;
-};
-
-const salaryStatusTones: Record<StaffSalaryRecord["status"], "green" | "amber" | "slate"> = {
-  Pending: "amber",
-  Approved: "green",
-  Paid: "green",
-  "On Hold": "slate"
 };
 
 function periodLabel(period: string) {
@@ -87,18 +79,12 @@ export function StaffSalaryDashboard({
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[980px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[520px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Member</th>
-                <th className={tableStyles.headerCell}>Role</th>
-                <th className={tableStyles.headerCell}>Period</th>
-                <th className={tableStyles.numericHeaderCell}>Base Salary LKR</th>
-                <th className={tableStyles.numericHeaderCell}>Additional LKR</th>
-                <th className={tableStyles.numericHeaderCell}>Deduction LKR</th>
-                <th className={tableStyles.numericHeaderCell}>Net Salary LKR</th>
-                <th className={tableStyles.headerCell}>Status</th>
-                <th className={tableStyles.headerCell}>Payment</th>
+                <th className={tableStyles.headerCell}>Month</th>
+                <th className={tableStyles.headerCell}>Salary Paid</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efefef]">
@@ -113,21 +99,11 @@ export function StaffSalaryDashboard({
                         <p className="mt-1 text-xs font-normal text-[#46484a]">{user.email}</p>
                       ) : null}
                     </td>
-                    <td className={tableStyles.cell}>
-                      {user ? roleLabels[user.role] : "Staff"}
-                    </td>
                     <td className={tableStyles.cell}>{periodLabel(record.salaryPeriod)}</td>
-                    <td className={tableStyles.numericCell}>{money(record.baseSalaryLkr)}</td>
-                    <td className={tableStyles.numericCell}>{money(record.additionalPaymentLkr)}</td>
-                    <td className={tableStyles.numericCell}>{money(record.deductionLkr)}</td>
-                    <td className={tableStyles.numericCell}>{money(record.netSalaryLkr)}</td>
                     <td className={tableStyles.cell}>
-                      <StatusPill tone={salaryStatusTones[record.status]}>
-                        {record.status}
+                      <StatusPill tone={record.status === "Paid" ? "green" : "amber"}>
+                        {record.status === "Paid" ? "Paid" : "Not paid"}
                       </StatusPill>
-                    </td>
-                    <td className={tableStyles.cell}>
-                      {record.paymentDate || record.paidAt ? shortDate((record.paymentDate ?? record.paidAt) as string) : "Not paid"}
                       {record.paymentReference ? (
                         <p className="mt-1 text-xs text-[#46484a]">{record.paymentReference}</p>
                       ) : null}
@@ -137,7 +113,7 @@ export function StaffSalaryDashboard({
               })}
               {!filteredRecords.length ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={9}>
+                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={3}>
                     No salary records found.
                   </td>
                 </tr>

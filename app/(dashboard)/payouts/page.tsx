@@ -14,10 +14,7 @@ export default async function PayoutsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Finance"
-        title="Payout Management"
-      />
+      <SectionHeader title="Payout Management" />
       <PayoutManagement
         doctors={data.doctors}
         initialPayouts={data.payouts}

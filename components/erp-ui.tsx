@@ -72,7 +72,7 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "min-h-32 rounded-lg border p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
+        "min-h-28 rounded-lg border p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md md:p-5",
         styles.panel,
         className
       )}
@@ -99,7 +99,7 @@ type ButtonVariant = "primary" | "secondary" | "success" | "danger" | "muted";
 
 export function buttonClass(variant: ButtonVariant = "secondary", className?: string) {
   return cn(
-    "focus-ring inline-flex items-center justify-center rounded-md px-4 py-2.5 text-sm font-semibold transition duration-200 ease-out disabled:cursor-not-allowed",
+    "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition duration-200 ease-out disabled:cursor-not-allowed",
     variant === "primary" &&
       "bg-[#224770] text-white shadow-sm hover:bg-[#0eb6ef] disabled:bg-[#d9d9d9]",
     variant === "secondary" &&
@@ -124,17 +124,17 @@ export function Button({
 
 export const tableStyles = {
   wrapper: "w-full overflow-x-auto",
-  table: "w-full min-w-full divide-y divide-[#efefef] text-sm",
+  table: "w-full min-w-[680px] divide-y divide-[#efefef] text-sm",
   head: "bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]",
   row: "transition duration-150 hover:bg-[#efefef]/45",
-  cell: "px-4 py-3 text-[#46484a]",
-  strongCell: "px-4 py-3 font-semibold text-[#224770]",
-  headerCell: "px-4 py-3",
-  numericHeaderCell: "px-4 py-3 text-right",
-  numericCell: "whitespace-nowrap px-4 py-3 text-right font-semibold text-[#224770]",
+  cell: "px-3 py-3 align-top text-[#46484a]",
+  strongCell: "px-3 py-3 align-top font-semibold text-[#224770]",
+  headerCell: "px-3 py-3 align-top",
+  numericHeaderCell: "px-3 py-3 text-right align-top",
+  numericCell: "whitespace-nowrap px-3 py-3 text-right align-top font-semibold text-[#224770]",
   actionHeaderCell:
-    "w-[180px] bg-[#efefef] px-3 py-3 text-right text-[#46484a]",
+    "w-[156px] bg-[#efefef] px-3 py-3 text-left align-top text-[#46484a]",
   actionCell:
-    "w-[180px] bg-[#efefef]/70 px-3 py-3",
-  actions: "flex min-w-max items-center justify-end gap-1.5"
+    "w-[156px] bg-[#efefef] px-3 py-2.5 align-middle",
+  actions: "flex min-w-max items-center justify-start gap-1.5"
 };

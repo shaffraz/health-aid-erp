@@ -279,7 +279,7 @@ export function UsersAdmin({ assistanceCompanies, canEdit, doctors, initialUsers
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[900px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[780px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Name</th>

@@ -681,7 +681,7 @@ export function StaffManagement({
         </div>
 
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[980px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[780px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Name</th>
@@ -689,8 +689,8 @@ export function StaffManagement({
                 <th className={tableStyles.headerCell}>Mobile Number</th>
                 <th className={tableStyles.headerCell}>Join Date</th>
                 <th className={tableStyles.headerCell}>Salary Paid</th>
-                <th className={tableStyles.headerCell}>Employment Status</th>
-                <th className={tableStyles.headerCell}>Linked User Account</th>
+                <th className={tableStyles.headerCell}>Status</th>
+                <th className={tableStyles.headerCell}>User Account</th>
                 <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>
@@ -781,7 +781,7 @@ export function StaffManagement({
           ) : null}
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[680px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[560px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Staff Member</th>

@@ -305,7 +305,7 @@ export function DoctorsAdmin({
                     <td className={tableStyles.cell}>
                       {doctor.phone ?? "-"}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={tableStyles.cell}>
                       <span
                         className={cn(
                           "font-semibold",
@@ -365,8 +365,8 @@ export function DoctorsAdmin({
           aria-modal="true"
           aria-labelledby="doctor-form-title"
         >
-          <section className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <section className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#efefef] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#efefef] px-5 py-4">
               <h2 id="doctor-form-title" className="font-semibold text-[#224770]">
                 {editing ? "Edit doctor" : "Add doctor"}
               </h2>
@@ -380,7 +380,7 @@ export function DoctorsAdmin({
               </button>
             </div>
 
-            <div className="space-y-4 p-5">
+            <div className="flex-1 space-y-4 overflow-y-auto p-5">
               {!canEdit ? (
                 <div className="rounded-lg border border-[#d9d9d9] bg-[#efefef] p-3 text-sm font-semibold text-[#46484a]">
                   Doctor setup is administrator-only.
@@ -405,7 +405,7 @@ export function DoctorsAdmin({
                       setForm((current) => ({ ...current, name: event.target.value }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                     placeholder="Doctor full name"
                   />
                 </div>
@@ -421,7 +421,7 @@ export function DoctorsAdmin({
                       setForm((current) => ({ ...current, designation: event.target.value }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                     placeholder="Eg. Medical officer"
                   />
                 </div>
@@ -437,7 +437,7 @@ export function DoctorsAdmin({
                       setForm((current) => ({ ...current, phone: event.target.value }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                   />
                 </div>
 
@@ -452,7 +452,7 @@ export function DoctorsAdmin({
                       setForm((current) => ({ ...current, active: event.target.value === "yes" }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 disabled:bg-slate-100"
+                    className="field mt-2 disabled:bg-[#efefef]"
                   >
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
@@ -470,14 +470,14 @@ export function DoctorsAdmin({
                       setForm((current) => ({ ...current, notes: event.target.value }))
                     }
                     disabled={!canEdit}
-                    className="field mt-2 min-h-24 disabled:bg-slate-100"
+                    className="field mt-2 min-h-24 disabled:bg-[#efefef]"
                     placeholder="Optional internal notes"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-[#efefef] bg-white px-5 py-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={resetForm}

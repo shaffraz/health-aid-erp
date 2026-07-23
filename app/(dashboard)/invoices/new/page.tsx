@@ -14,10 +14,7 @@ export default async function NewInvoicePage() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Point of sale"
-        title="Invoice POS"
-      />
+      <SectionHeader title="Invoice POS" />
       <InvoicePosForm
         doctors={data.doctors}
         services={data.services}

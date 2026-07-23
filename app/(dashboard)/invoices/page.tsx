@@ -14,10 +14,7 @@ export default async function InvoicesPage() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Invoices"
-        title="Invoice Registry"
-      />
+      <SectionHeader title="Invoice Registry" />
 
       <InvoicesDashboard
         doctors={data.doctors}

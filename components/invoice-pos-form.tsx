@@ -88,7 +88,7 @@ const invoiceSectionColors = {
   patient: "#0eb6ef",
   billing: "#84bc3f",
   insurance: "#224770",
-  services: "#0eb6ef",
+  services: "#224770",
   charges: "#0eb6ef",
   notes: "#46484a",
   totals: "#84bc3f",
@@ -110,12 +110,12 @@ function WorkflowSection({
   return (
     <section
       className={cn(
-        "rounded-lg border border-[#dfe4e7] bg-white p-4 shadow-sm",
+        "overflow-hidden rounded-xl border border-[#dfe4e7] bg-white shadow-sm",
         className
       )}
     >
       <SectionHeading title={title} tone={tone} />
-      <div className="mt-4">{children}</div>
+      <div className="p-4 md:p-5">{children}</div>
     </section>
   );
 }
@@ -131,10 +131,10 @@ function SidePanel({
 }) {
   return (
     <section
-      className="panel bg-white p-4"
+      className="overflow-hidden rounded-xl border border-[#dfe4e7] bg-white shadow-sm"
     >
       <SectionHeading title={title} tone={tone} />
-      <div className="mt-4">{children}</div>
+      <div className="p-4 md:p-5">{children}</div>
     </section>
   );
 }
@@ -480,11 +480,11 @@ export function InvoicePosForm({
       h1 { margin-bottom: 4px; }
       h2 { margin-top: 28px; font-size: 16px; }
       table { border-collapse: collapse; width: 100%; margin-top: 12px; }
-      th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; }
-      th { background: #f1f5f9; }
+      th, td { border-bottom: 1px solid #dfe4e7; padding: 10px; text-align: left; }
+      th { background: #efefef; }
       .totals { margin-top: 24px; margin-left: auto; width: 280px; }
       .totals div { display: flex; justify-content: space-between; padding: 6px 0; }
-      .grand { font-weight: 700; font-size: 18px; border-top: 1px solid #dbe3ea; }
+      .grand { font-weight: 700; font-size: 18px; border-top: 1px solid #dfe4e7; }
     </style>
   </head>
   <body>
@@ -638,7 +638,7 @@ export function InvoicePosForm({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_370px]">
         <div className="space-y-4">
           <WorkflowSection title="Invoice Information" tone="invoice">
           <InvoiceHeader
@@ -656,7 +656,7 @@ export function InvoicePosForm({
           />
 
           {savedInvoiceNo ? (
-            <div className="mt-5 rounded-xl border border-[#84bc3f] bg-[#84bc3f]/12 px-4 py-3 text-sm font-semibold text-[#224770]">
+            <div className="rounded-lg border border-[#84bc3f]/45 bg-[#efefef]/60 px-4 py-3 text-sm font-semibold text-[#224770]">
               Saved {savedInvoiceNo}. The invoice is available in the local registry.
             </div>
           ) : null}
@@ -705,7 +705,7 @@ export function InvoicePosForm({
               onChargeLineChange={updateChargeLine}
             />
 
-            <div className="grid gap-4 md:grid-cols-[1fr_260px]">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
               <NotesSection notes={notes} onNotesChange={setNotes} />
               <TotalsPanel
                 discount={discount}
@@ -718,11 +718,11 @@ export function InvoicePosForm({
           </div>
         </div>
 
-        <aside className="space-y-6">
+        <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
           <SidePanel title="Invoice Preview" tone="preview">
             <div className="space-y-4">
               <PreviewGroup title="Clinical Services" items={clinicalInvoiceItems} />
-              <div className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 text-sm">
+              <div className="rounded-lg border border-[#dfe4e7] bg-white p-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[#46484a]">Medication Charges</span>
                   <span className="font-semibold text-[#224770]">
@@ -739,7 +739,7 @@ export function InvoicePosForm({
                   <span className="text-[#46484a]">Discount</span>
                   <span className="font-semibold text-[#224770]">{usdWhole(totals.discount)}</span>
                 </div>
-                <div className="mt-2 flex justify-between border-t border-[#efefef] pt-2 text-base">
+                <div className="mt-3 flex justify-between border-t border-[#efefef] pt-3 text-base">
                   <span className="font-semibold text-[#224770]">Grand Total</span>
                   <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
                 </div>
@@ -748,7 +748,7 @@ export function InvoicePosForm({
           </SidePanel>
 
           <SidePanel title="Doctor Payout Preview" tone="payout">
-            <div className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 text-sm">
+            <div className="rounded-lg border border-[#dfe4e7] bg-white p-3 text-sm">
               <div className="flex justify-between gap-3">
                 <span className="text-[#46484a]">Current Payment Mode</span>
                 <span className="font-semibold text-[#224770]">
@@ -760,7 +760,7 @@ export function InvoicePosForm({
               {payoutPreview.length ? (
                 <>
                   {payoutPreview.map((payout) => (
-                    <div key={payout.id} className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3">
+                    <div key={payout.id} className="rounded-lg border border-[#dfe4e7] bg-white p-3">
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm font-semibold text-[#224770]">{payout.serviceName}</p>
                         <p className="text-sm font-bold text-[#84bc3f]">{money(payout.payoutAmount)}</p>
@@ -768,13 +768,13 @@ export function InvoicePosForm({
                       <p className="mt-1 text-xs leading-5 text-[#46484a]">{payout.paymentReason}</p>
                     </div>
                   ))}
-                  <div className="flex justify-between rounded-md bg-[#84bc3f]/12 px-3 py-2 text-sm font-semibold text-[#224770]">
+                  <div className="flex justify-between rounded-lg border border-[#84bc3f]/35 bg-[#efefef]/45 px-3 py-2 text-sm font-semibold text-[#224770]">
                     <span>Estimated total payout {systemSettings.clinic.localCurrency}</span>
                     <span>{money(payoutPreviewTotal)}</span>
                   </div>
                 </>
               ) : (
-                <p className="rounded-md bg-[#efefef] p-3 text-sm text-[#46484a]">
+                <p className="rounded-lg bg-[#efefef] p-3 text-sm text-[#46484a]">
                   No doctor payout is estimated for the current invoice.
                 </p>
               )}
@@ -789,10 +789,10 @@ export function InvoicePosForm({
 function SectionHeading({ title, tone = "invoice" }: { title: string; tone?: InvoiceSectionTone }) {
   return (
     <div
-      className="rounded-md px-3 py-2"
+      className="px-4 py-3 md:px-5"
       style={{ backgroundColor: invoiceSectionColors[tone] }}
     >
-      <h3 className="font-semibold text-white">{title}</h3>
+      <h3 className="text-sm font-semibold tracking-tight text-white md:text-base">{title}</h3>
     </div>
   );
 }
@@ -868,9 +868,8 @@ function InvoiceHeader({
   onEmailInvoice: (invoice: Invoice) => void;
 }) {
   return (
-    <div>
-      <div className="form-grid grid gap-4 2xl:grid-cols-[minmax(260px,0.9fr)_minmax(360px,1fr)_auto] 2xl:items-end">
-        <div className="min-w-0 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-4">
+    <div className="form-grid grid gap-4 lg:grid-cols-[minmax(240px,0.9fr)_minmax(320px,1fr)] 2xl:grid-cols-[minmax(260px,0.85fr)_minmax(360px,1fr)_auto] 2xl:items-end">
+        <div className="min-w-0 rounded-lg border border-[#dfe4e7] bg-[#efefef]/55 p-4">
           <p className="label">Invoice No.</p>
           <h2 className="mt-2 overflow-x-auto whitespace-nowrap text-base font-bold tracking-tight text-[#224770] sm:text-lg">
             {invoiceNo}
@@ -887,7 +886,7 @@ function InvoiceHeader({
             onInvoiceTimeChange={onInvoiceTimeChange}
           />
         </div>
-        <div className="flex flex-wrap gap-2 sm:justify-end">
+        <div className="grid grid-cols-3 gap-2 lg:col-span-2 2xl:col-span-1 2xl:flex 2xl:justify-end">
           <button
             type="button"
             onClick={() => onPrintInvoice(lastSavedInvoice ?? draftInvoice)}
@@ -908,7 +907,7 @@ function InvoiceHeader({
               "min-h-11 px-3 py-2"
             )}
           >
-            Download HTML
+            Download
           </button>
           <button
             type="button"
@@ -922,7 +921,6 @@ function InvoiceHeader({
             Email
           </button>
         </div>
-      </div>
     </div>
   );
 }
@@ -1042,7 +1040,7 @@ function BillingDetailsFields({
   onAssistanceCompanyChange: (value: string) => void;
 }) {
   return (
-    <div className="form-grid grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] lg:items-start">
+    <div className="form-grid grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.55fr)] lg:items-start">
       <FieldShell>
         <label className="label" htmlFor="doctor">
           Doctor
@@ -1112,10 +1110,10 @@ function PaymentMethodButtons({
               aria-checked={isSelected}
               onClick={() => onPaymentMethodChange(method)}
               className={cn(
-                "focus-ring min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 ease-out",
+                "focus-ring min-h-12 rounded-lg border px-4 py-3 text-sm font-semibold transition duration-200 ease-out",
                 isSelected
                   ? "border-[#84BC3F] bg-[#84BC3F] text-white shadow-sm"
-                  : "border-[#dfe4e7] bg-[#efefef]/45 text-[#46484a] hover:border-[#0eb6ef] hover:bg-white hover:text-[#224770]"
+                  : "border-[#dfe4e7] bg-white text-[#46484a] hover:border-[#0eb6ef] hover:bg-[#efefef]/45 hover:text-[#224770]"
               )}
             >
               {paymentLabels[method]}
@@ -1137,7 +1135,7 @@ function InsuranceClaimFields({
   onAssistanceCompanyChange: (value: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-[#dfe4e7] bg-[#efefef]/45 p-3">
+    <div className="rounded-lg border border-[#dfe4e7] bg-white p-4">
       <FieldShell>
         <label className="label" htmlFor="assistance-company">
           Assistance Company
@@ -1204,7 +1202,7 @@ function InvoiceServicesSection({
     <WorkflowSection title="Clinical Services" tone="services">
       {clinicalServiceOptions.length ? (
         <div className="space-y-3">
-          <div className="form-grid grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="form-grid grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
             <div>
               <label className="label" htmlFor="service-search">
                 Search Service
@@ -1241,23 +1239,23 @@ function InvoiceServicesSection({
           </div>
 
           {filteredClinicalServices.length ? (
-            <div className="grid max-h-[420px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid max-h-[390px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {filteredClinicalServices.map((candidate) => (
                 <button
                   key={candidate.id}
                   type="button"
                   onClick={() => onServiceSelect(candidate.id)}
-                  className="focus-ring flex min-h-24 flex-col justify-between rounded-md bg-[#224770] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#0eb6ef] active:translate-y-0"
+                  className="focus-ring flex min-h-[92px] flex-col justify-between rounded-lg bg-[#224770] p-3 text-left text-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:bg-[#0eb6ef] active:translate-y-0"
                 >
                   <span className="text-sm font-semibold leading-5">{candidate.name}</span>
-                  <span className="mt-3 inline-flex w-fit rounded bg-white/15 px-2 py-1 text-sm font-bold">
+                  <span className="mt-3 inline-flex w-fit rounded-md bg-white/15 px-2 py-1 text-sm font-bold">
                     {usdWhole(roundUsd(candidate.sellingPrice))}
                   </span>
                 </button>
               ))}
             </div>
           ) : (
-            <p className="rounded-md border border-dashed border-[#dfe4e7] bg-[#efefef]/55 p-4 text-sm text-[#46484a]">
+            <p className="rounded-lg border border-dashed border-[#dfe4e7] bg-[#efefef]/55 p-4 text-sm text-[#46484a]">
               No services match the current search or category.
             </p>
           )}
@@ -1272,7 +1270,7 @@ function InvoiceServicesSection({
           return (
             <div
               key={line.id}
-              className="flex flex-col gap-3 rounded-md border border-[#dfe4e7] bg-white p-3 sm:flex-row sm:items-center"
+              className="flex flex-col gap-3 rounded-lg border border-[#dfe4e7] bg-[#efefef]/35 p-3 sm:flex-row sm:items-center"
             >
               <p className="min-w-0 flex-1 text-sm font-semibold text-[#224770]">
                 {service?.name ?? "Unknown service"}
@@ -1281,7 +1279,7 @@ function InvoiceServicesSection({
               <button
                 type="button"
                 onClick={() => onRemoveServiceLine(line.id)}
-                className={buttonClass("danger", "h-10 px-3 py-0 text-xs")}
+                className={buttonClass("danger", "min-h-10 px-3 py-0 text-xs")}
                 aria-label="Remove service line"
               >
                 Remove
@@ -1290,7 +1288,7 @@ function InvoiceServicesSection({
           );
         })}
         {!serviceLines.length ? (
-          <p className="rounded-md border border-dashed border-[#dfe4e7] bg-[#efefef]/55 p-4 text-sm text-[#46484a]">
+          <p className="rounded-lg border border-dashed border-[#dfe4e7] bg-[#efefef]/55 p-4 text-sm text-[#46484a]">
             {clinicalServiceOptions.length
               ? "Tap a service tile to add it to the invoice."
               : "No active clinical services are available."}
@@ -1314,7 +1312,7 @@ function AdditionalChargeInput({
 }) {
   if (!service) {
     return (
-      <p className="rounded-xl border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
+      <p className="rounded-lg border border-[#efefef] bg-[#efefef] p-4 text-sm text-[#46484a]">
         Charge service is not active.
       </p>
     );
@@ -1323,11 +1321,11 @@ function AdditionalChargeInput({
   const line = chargeLines.find((chargeLine) => chargeLine.serviceId === service.id);
 
   return (
-    <div className="form-grid grid gap-3 rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+    <div className="form-grid grid gap-3 rounded-lg border border-[#dfe4e7] bg-[#efefef]/35 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
       <label className="text-sm font-semibold text-[#224770]" htmlFor={`charge-${service.id}`}>
         {label}
       </label>
-      <div className="flex items-center overflow-hidden rounded-lg border border-[#dbe3ea] bg-white focus-within:ring-2 focus-within:ring-[#0eb6ef]/20">
+      <div className="flex items-center overflow-hidden rounded-lg border border-[#dfe4e7] bg-white focus-within:border-[#0eb6ef] focus-within:ring-2 focus-within:ring-[#0eb6ef]/20">
         <span className="px-3 text-sm font-semibold text-[#46484a]">$</span>
         <input
           id={`charge-${service.id}`}
@@ -1410,10 +1408,10 @@ function TotalsPanel({
 }) {
   return (
     <div
-      className="rounded-lg border border-[#dfe4e7] bg-white p-4 shadow-sm"
+      className="overflow-hidden rounded-xl border border-[#dfe4e7] bg-white shadow-sm"
     >
       <SectionHeading title="Invoice Total" tone="totals" />
-      <div className="mt-4 space-y-3 text-sm">
+      <div className="space-y-3 p-4 text-sm">
         <div>
           <label className="label" htmlFor="discount">
             Discount
@@ -1432,25 +1430,25 @@ function TotalsPanel({
           <span className="font-semibold text-[#224770]">Grand Total</span>
           <span className="font-bold text-[#0eb6ef]">{usdWhole(totals.totalAmount)}</span>
         </div>
+        <button
+          type="button"
+          onClick={onSaveInvoice}
+          disabled={!formReady}
+          className={buttonClass(
+            formReady ? "success" : "muted",
+            "min-h-12 w-full"
+          )}
+        >
+          Save invoice
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onSaveInvoice}
-        disabled={!formReady}
-        className={buttonClass(
-          formReady ? "success" : "muted",
-          "mt-4 min-h-12 w-full"
-        )}
-      >
-        Save invoice
-      </button>
     </div>
   );
 }
 
 function PreviewGroup({ title, items }: { title: string; items: InvoiceItem[] }) {
   return (
-    <div className="rounded-md border border-[#dfe4e7] bg-[#efefef]/45 p-3">
+    <div className="rounded-lg border border-[#dfe4e7] bg-white p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-[#224770]">{title}</p>
         <p className="text-sm font-bold text-[#224770]">

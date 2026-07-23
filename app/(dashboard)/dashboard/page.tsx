@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AccessDenied } from "@/components/access-denied";
 import { DashboardOverview } from "@/components/dashboard-overview";
+import { buttonClass } from "@/components/erp-ui";
 import { SectionHeader } from "@/components/section-header";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkspaceData } from "@/lib/data";
@@ -21,7 +22,7 @@ export default async function DashboardPage() {
           hasPermission(user, "canUseInvoicePOS") ? (
             <Link
               href="/invoices/new"
-              className="focus-ring inline-flex items-center justify-center rounded-lg bg-[#224770] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0eb6ef]"
+              className={buttonClass("primary", "min-h-11")}
             >
               New invoice
             </Link>

@@ -6,9 +6,7 @@ import { StatusPill } from "@/components/status-pill";
 import { invoiceItemRevenueAmount, invoiceRevenueAmount } from "@/lib/calculations";
 import { monthKey, todayISO, usdWhole } from "@/lib/format";
 import { currentOperatingSeason, isWithinSeason } from "@/lib/season";
-import {
-  currencyLabel,
-} from "@/lib/settings";
+import { currencyLabel } from "@/lib/settings";
 import { useSystemSettings } from "@/lib/use-system-settings";
 import type { Invoice, PaymentMethod, ServiceCategory } from "@/lib/types";
 

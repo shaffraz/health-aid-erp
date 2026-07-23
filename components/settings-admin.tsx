@@ -55,15 +55,6 @@ const sectionLabels: Record<SectionKey, string> = {
   system: "System"
 };
 
-const sectionDescriptions: Partial<Record<SectionKey, string>> = {
-  clinic: "Clinic identity, currencies, and regional display defaults.",
-  operational: "Set the active doctor payment mode used across the ERP.",
-  seasons: "Define tourism and business periods used by dashboards and reports.",
-  invoice: "Invoice numbering, timestamps, editing controls, and print defaults.",
-  doctorPayment: "Global payout rules for on-call and clinic shift payment modes.",
-  insurance: "Statement defaults and receivable behavior for assistance company billing."
-};
-
 const activeSections: ActiveSectionKey[] = [
   "clinic",
   "operational",
@@ -129,7 +120,7 @@ function monthDayFromDateInput(value: string) {
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#e5eaf0] bg-white p-4">
+    <div className="rounded-xl border border-[#dfe4e7] bg-white p-4">
       <p className="label">{label}</p>
       <p className="mt-2 font-semibold text-[#224770]">{value || "Not configured"}</p>
     </div>
@@ -146,10 +137,10 @@ function FieldShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="field-stack">
+    <div className="field-stack min-w-0">
       <label className="label">{label}</label>
       <div className="mt-2">{children}</div>
-      {helper ? <p className="mt-1.5 text-xs font-medium text-slate-500">{helper}</p> : null}
+      {helper ? <p className="mt-1.5 text-xs font-medium text-[#46484a]/70">{helper}</p> : null}
     </div>
   );
 }
@@ -182,7 +173,7 @@ function TextField({
         disabled={disabled}
         readOnly={readOnly}
         placeholder={placeholder}
-        className="field min-h-12 disabled:bg-slate-100 disabled:text-slate-500 read-only:bg-slate-50"
+        className="field min-h-12 disabled:bg-[#efefef] disabled:text-[#46484a]/65 read-only:bg-[#efefef]"
       />
     </FieldShell>
   );
@@ -209,7 +200,7 @@ function TextareaField({
         disabled={disabled}
         placeholder={placeholder}
         rows={4}
-        className="field min-h-28 resize-y disabled:bg-slate-100 disabled:text-slate-500"
+        className="field min-h-28 resize-y disabled:bg-[#efefef] disabled:text-[#46484a]/65"
       />
     </FieldShell>
   );
@@ -243,12 +234,12 @@ function NumberField({
           onChange={(event) => onChange(toAmount(event.target.value, value))}
           disabled={disabled}
           className={cn(
-            "field min-h-12 disabled:bg-slate-100 disabled:text-slate-500",
+            "field min-h-12 disabled:bg-[#efefef] disabled:text-[#46484a]/65",
             suffix ? "pr-12" : ""
           )}
         />
         {suffix ? (
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-slate-500">
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-[#46484a]/70">
             {suffix}
           </span>
         ) : null}
@@ -278,7 +269,7 @@ function SelectField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className="field min-h-12 disabled:bg-slate-100 disabled:text-slate-500"
+        className="field min-h-12 disabled:bg-[#efefef] disabled:text-[#46484a]/65"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -304,11 +295,11 @@ function SwitchField({
   helper?: string;
 }) {
   return (
-    <div className="rounded-xl border border-[#e5eaf0] bg-white p-4">
+    <div className="rounded-xl border border-[#dfe4e7] bg-white p-4">
       <div className="flex min-h-12 items-center justify-between gap-4">
         <div>
           <p className="label">{label}</p>
-          {helper ? <p className="mt-1 text-sm font-medium text-slate-500">{helper}</p> : null}
+          {helper ? <p className="mt-1 text-sm font-medium text-[#46484a]/70">{helper}</p> : null}
         </div>
         <button
           type="button"
@@ -318,7 +309,7 @@ function SwitchField({
           disabled={disabled}
           className={cn(
             "focus-ring relative h-8 w-14 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-60",
-            checked ? "bg-[#84bc3f]" : "bg-slate-300"
+            checked ? "bg-[#84bc3f]" : "bg-[#d9d9d9]"
           )}
         >
           <span
@@ -379,7 +370,7 @@ function SettingsCard({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-2xl border border-[#e5eaf0] bg-white p-5 shadow-sm", className)}>
+    <div className={cn("rounded-lg border border-[#dfe4e7] bg-white p-5 shadow-sm", className)}>
       {children}
     </div>
   );
@@ -411,13 +402,13 @@ function SectionFooter({
   }
 
   return (
-    <div className="sticky bottom-0 mt-6 rounded-2xl border border-[#e5eaf0] bg-white/95 p-4 shadow-sm backdrop-blur">
+    <div className="sticky bottom-0 mt-6 rounded-lg border border-[#dfe4e7] bg-white/95 p-4 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#224770]">
             {dirty ? "Unsaved changes" : "No unsaved changes"}
           </p>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-[#46484a]/70">
             Save changes to apply them across the ERP.
           </p>
         </div>
@@ -448,7 +439,7 @@ function UnsavedChangesDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#224770]/30 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-[#e5eaf0] bg-white p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-lg border border-[#dfe4e7] bg-white p-6 shadow-xl">
         <h2 className="text-xl font-bold text-[#224770]">Unsaved changes</h2>
         <p className="mt-3 text-sm font-medium leading-6 text-[#46484a]">
           You have unsaved changes. Discard them and continue?
@@ -481,20 +472,20 @@ function SeasonEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#224770]/30 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-[#e5eaf0] bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-lg border border-[#dfe4e7] bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-[#224770]">
               {state.mode === "add" ? "Add Season" : "Edit Season"}
             </h2>
-            <p className="mt-1 text-sm font-medium text-slate-500">
+            <p className="mt-1 text-sm font-medium text-[#46484a]/70">
               Configure a business season used by dashboard and report calculations.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="focus-ring rounded-lg border border-[#e5eaf0] px-3 py-2 text-sm font-semibold text-[#46484a] transition hover:bg-[#efefef]"
+            className="focus-ring rounded-lg border border-[#dfe4e7] px-3 py-2 text-sm font-semibold text-[#46484a] transition hover:bg-[#efefef]"
           >
             Close
           </button>
@@ -790,14 +781,14 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               disabled={!editable}
             />
             <FieldShell label="Logo" helper="Logo upload will be connected in a later phase.">
-              <div className="flex min-h-12 flex-col gap-3 rounded-lg border border-[#efefef] bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-h-12 flex-col gap-3 rounded-lg border border-[#efefef] bg-[#efefef]/55 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="break-all text-sm font-semibold text-[#224770]">
                   {draftSettings.clinic.brandLogo}
                 </span>
                 <button
                   type="button"
                   disabled
-                  className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-slate-400"
+                  className="rounded-lg bg-[#efefef] px-3 py-2 text-sm font-semibold text-[#46484a]/55"
                 >
                   Upload Logo
                 </button>
@@ -924,7 +915,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#224770]">Configured Seasons</h2>
-              <p className="mt-1 text-sm font-medium text-slate-500">
+              <p className="mt-1 text-sm font-medium text-[#46484a]/70">
                 Compact season list used by current season reporting.
               </p>
             </div>
@@ -932,7 +923,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               Add Season
             </Button>
           </div>
-          <div className="mt-5 overflow-hidden rounded-xl border border-[#e5eaf0]">
+          <div className="mt-5 overflow-hidden rounded-xl border border-[#dfe4e7]">
             <div className="hidden grid-cols-[1.3fr_1fr_1fr_1fr_180px] gap-4 bg-[#efefef] px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a] lg:grid">
               <span>Season Name</span>
               <span>Start Date</span>
@@ -943,11 +934,11 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             {draftSettings.seasons.map((season) => (
               <div
                 key={season.id}
-                className="grid gap-3 border-t border-[#e5eaf0] px-4 py-4 first:border-t-0 lg:grid-cols-[1.3fr_1fr_1fr_1fr_180px] lg:items-center"
+                className="grid gap-3 border-t border-[#dfe4e7] px-4 py-4 first:border-t-0 lg:grid-cols-[1.3fr_1fr_1fr_1fr_180px] lg:items-center"
               >
                 <div>
                   <p className="font-semibold text-[#224770]">{season.name}</p>
-                  <p className="text-sm font-medium text-slate-500 lg:hidden">
+                  <p className="text-sm font-medium text-[#46484a]/70 lg:hidden">
                     {season.startDate} to {season.endDate}
                   </p>
                 </div>
@@ -1052,7 +1043,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             <h2 className="text-lg font-bold text-[#224770]">
               {paymentModeLabels[paymentModeValues.onCall]}
             </h2>
-            <div className="form-grid mt-5 grid gap-5 lg:grid-cols-4">
+            <div className="form-grid mt-5 grid items-start gap-5 lg:grid-cols-4">
               <NumberField
                 label="Day Consultation Rate"
                 value={draftSettings.doctorPayment.lowSeason.dayConsultationPayout}
@@ -1138,7 +1129,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
             <h2 className="text-lg font-bold text-[#224770]">
               {paymentModeLabels[paymentModeValues.clinicShift]}
             </h2>
-            <div className="form-grid mt-5 grid gap-5 lg:grid-cols-5">
+            <div className="form-grid mt-5 grid items-start gap-5 lg:grid-cols-5">
               <NumberField
                 label="Hourly Rate"
                 value={draftSettings.doctorPayment.peakSeason.hourlyRate}
@@ -1380,7 +1371,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="hidden h-fit rounded-2xl border border-[#e5eaf0] bg-white p-2 shadow-sm lg:sticky lg:top-5 lg:block">
+      <aside className="hidden h-fit rounded-lg border border-[#dfe4e7] bg-white p-2 shadow-sm lg:sticky lg:top-5 lg:block">
         <nav className="space-y-1" aria-label="Settings sections">
           {allSections.map((section) => {
             const dirty = dirtySections.includes(section);
@@ -1410,7 +1401,7 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
       </aside>
 
       <div className="space-y-5">
-        <div className="rounded-2xl border border-[#e5eaf0] bg-white p-3 shadow-sm lg:hidden">
+        <div className="rounded-lg border border-[#dfe4e7] bg-white p-3 shadow-sm lg:hidden">
           <SelectField
             label="Settings Category"
             value={activeSection}
@@ -1441,11 +1432,6 @@ export function SettingsAdmin({ canEdit, currentUserName }: SettingsAdminProps) 
               <h1 className="text-2xl font-bold tracking-tight text-[#224770]">
                 {sectionLabels[activeSection]}
               </h1>
-              {sectionDescriptions[activeSection] ? (
-                <p className="mt-1 max-w-2xl text-sm font-medium text-[#46484a]">
-                  {sectionDescriptions[activeSection]}
-                </p>
-              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               {activeDirty ? (

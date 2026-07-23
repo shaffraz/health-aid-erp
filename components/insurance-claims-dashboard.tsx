@@ -358,8 +358,8 @@ function buildStatementDocument(statement: MonthlyStatement, settings: SystemSet
       h2 { margin: 0 0 18px; font-size: 18px; }
       .meta { color: #46484a; margin: 4px 0; }
       table { border-collapse: collapse; margin-top: 18px; width: 100%; }
-      th, td { border-bottom: 1px solid #dbe3ea; padding: 10px; text-align: left; vertical-align: top; }
-      th { background: #f1f5f9; }
+      th, td { border-bottom: 1px solid #dfe4e7; padding: 10px; text-align: left; vertical-align: top; }
+      th { background: #efefef; }
       .summary { margin-top: 22px; margin-left: auto; width: 360px; }
       .summary div { display: flex; justify-content: space-between; padding: 6px 0; }
       .summary strong { color: #224770; }
@@ -654,7 +654,7 @@ function StatementActions({
       : null,
     {
       value: "pdf",
-      label: "Print / Save PDF",
+              label: "Download PDF",
       onSelect: onDownloadPdf
     },
     {
@@ -780,43 +780,39 @@ function StatementDetailsModal({
             <div className="border-b border-[#efefef] px-4 py-3">
               <h3 className="font-semibold text-[#224770]">Invoice List</h3>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-sm">
+            <div className={tableStyles.wrapper}>
+              <table className="w-full min-w-[860px] divide-y divide-[#efefef] text-sm">
                 <thead className="bg-[#efefef] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#46484a]">
                   <tr>
                     <th className="px-4 py-3">Invoice Number</th>
                     <th className="px-4 py-3">Invoice Date</th>
                     <th className="px-4 py-3">Patient Name</th>
                     <th className="px-4 py-3">Passport / ID</th>
-                    <th className="px-4 py-3 text-right">
-                      Full Invoice Amount {invoiceCurrencyCode}
-                    </th>
-                    <th className="px-4 py-3 text-right">Claim Percentage Used</th>
-                    <th className="px-4 py-3 text-right">
-                      Claim Amount {invoiceCurrencyCode}
-                    </th>
+                    <th className="px-3 py-3 text-right">Invoice Total {invoiceCurrencyCode}</th>
+                    <th className="px-3 py-3 text-right">Claim %</th>
+                    <th className="px-3 py-3 text-right">Claim {invoiceCurrencyCode}</th>
                     <th className="px-4 py-3">Payment Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#efefef]">
                   {statement.claims.map((claim) => (
                     <tr key={claim.id}>
-                      <td className="px-4 py-3 font-semibold text-[#224770]">
+                      <td className="px-3 py-3 font-semibold text-[#224770]">
                         {claim.invoiceNo}
                       </td>
-                      <td className="px-4 py-3 text-[#46484a]">{shortDate(claim.date)}</td>
-                      <td className="px-4 py-3 text-[#46484a]">{claim.patientName}</td>
-                      <td className="px-4 py-3 text-[#46484a]">{claim.passport ?? "N/A"}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                      <td className="px-3 py-3 text-[#46484a]">{shortDate(claim.date)}</td>
+                      <td className="px-3 py-3 text-[#46484a]">{claim.patientName}</td>
+                      <td className="px-3 py-3 text-[#46484a]">{claim.passport ?? "N/A"}</td>
+                      <td className="px-3 py-3 text-right font-semibold text-[#224770]">
                         {usdWhole(claim.invoiceTotal)}
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                      <td className="px-3 py-3 text-right font-semibold text-[#224770]">
                         {claim.claimPercentage}%
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                      <td className="px-3 py-3 text-right font-semibold text-[#224770]">
                         {usdWhole(claim.claimAmount)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <StatusPill tone={statementStatusTones[statement.status]}>
                           {statement.status}
                         </StatusPill>
@@ -830,7 +826,7 @@ function StatementDetailsModal({
         </div>
 
         <div className="flex flex-col gap-3 border-t border-[#efefef] bg-white p-4">
-          <div className="overflow-x-auto">
+          <div>
             <StatementActions
               canConfirm={canConfirm}
               canRecordPayment={canRecordPayment}
@@ -1563,12 +1559,18 @@ export function InsuranceClaimsDashboard({
             ) : null}
           </div>
           <div className={tableStyles.wrapper}>
-            <table className="w-full min-w-[860px] divide-y divide-[#efefef] text-sm">
+            <table className="w-full min-w-[640px] table-fixed divide-y divide-[#efefef] text-sm">
+              <colgroup>
+                <col className="w-[40%]" />
+                <col className="w-[18%]" />
+                <col className="w-[16%]" />
+                <col className="w-[156px]" />
+              </colgroup>
               <thead className={tableStyles.head}>
                 <tr>
-                  <th className="w-[38%] px-4 py-3">Company Name</th>
-                  <th className="w-[18%] px-4 py-3 text-right">Default Claim %</th>
-                  <th className="w-[16%] px-4 py-3">Status</th>
+                  <th className={tableStyles.headerCell}>Company Name</th>
+                  <th className={tableStyles.numericHeaderCell}>Claim %</th>
+                  <th className={tableStyles.headerCell}>Status</th>
                   <th className={tableStyles.actionHeaderCell}>Actions</th>
                 </tr>
               </thead>
@@ -1586,10 +1588,10 @@ export function InsuranceClaimsDashboard({
                   return (
                     <Fragment key={company.id}>
                       <tr className={tableStyles.row}>
-                        <td className="px-4 py-3 font-semibold text-[#224770]">
+                        <td className={tableStyles.strongCell}>
                           {company.name}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold text-[#224770]">
+                        <td className={tableStyles.numericCell}>
                           {company.defaultClaimPercentage}%
                         </td>
                         <td className={tableStyles.cell}>
@@ -1686,14 +1688,7 @@ export function InsuranceClaimsDashboard({
 
       <section className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-[#224770] bg-[#224770] p-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold text-white">Monthly Insurance Statements</h2>
-            {seasonalConfirmations.length ? (
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/80">
-                {seasonalConfirmations.length} seasonal confirmations recorded
-              </p>
-            ) : null}
-          </div>
+          <h2 className="text-lg font-semibold text-white">Monthly Insurance Statements</h2>
           {canConfirmSeasonalSummary ? (
             <button
               type="button"
@@ -1705,28 +1700,28 @@ export function InsuranceClaimsDashboard({
           ) : null}
         </div>
         <div className={tableStyles.wrapper}>
-          <table className="w-full min-w-[1180px] divide-y divide-[#efefef] text-sm">
+          <table className="w-full min-w-[900px] divide-y divide-[#efefef] text-sm">
             <thead className={tableStyles.head}>
               <tr>
                 <th className={tableStyles.headerCell}>Month</th>
                 {!isCompanyPortal ? (
-                  <th className={tableStyles.headerCell}>Assistance Company</th>
+                  <th className={tableStyles.headerCell}>Company</th>
                 ) : null}
-                <th className={tableStyles.numericHeaderCell}>Insurance Patients</th>
-                <th className={tableStyles.numericHeaderCell}>Number of Invoices</th>
+                <th className={tableStyles.numericHeaderCell}>Patients</th>
+                <th className={tableStyles.numericHeaderCell}>Invoices</th>
                 <th className={tableStyles.numericHeaderCell}>
-                  Full Invoice Total {systemSettings.clinic.currency}
+                  Invoice {systemSettings.clinic.currency}
                 </th>
                 <th className={tableStyles.numericHeaderCell}>
-                  Claim Amount {systemSettings.clinic.currency}
+                  Claim {systemSettings.clinic.currency}
                 </th>
                 <th className={tableStyles.numericHeaderCell}>
-                  Amount Received {systemSettings.clinic.currency}
+                  Received
                 </th>
                 <th className={tableStyles.numericHeaderCell}>
-                  Outstanding {systemSettings.clinic.currency}
+                  Outstanding
                 </th>
-                <th className={tableStyles.headerCell}>Statement Status</th>
+                <th className={tableStyles.headerCell}>Status</th>
                 <th className={tableStyles.actionHeaderCell}>Actions</th>
               </tr>
             </thead>

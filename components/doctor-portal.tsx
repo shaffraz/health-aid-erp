@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Banknote, CalendarDays, CheckCircle2, Clock3 } from "lucide-react";
-import { MetricCard } from "@/components/metric-card";
+import { KpiCard, tableStyles } from "@/components/erp-ui";
 import { StatusPill } from "@/components/status-pill";
 import { money, monthKey, shortDate, todayISO } from "@/lib/format";
 import type { AppUser, Doctor, DoctorPayout } from "@/lib/types";
@@ -34,9 +33,9 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="label">Doctor portal</p>
-            <h2 className="mt-2 text-2xl font-bold text-ink">{doctor?.name ?? user.name}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {doctor?.designation ?? "Clinical earnings"} - private earning view only
+            <h2 className="mt-2 text-2xl font-bold text-[#224770]">{doctor?.name ?? user.name}</h2>
+            <p className="mt-1 text-sm font-medium text-[#46484a]">
+              {doctor?.designation ?? "Clinical earnings"}
             </p>
           </div>
           <div>
@@ -55,74 +54,74 @@ export function DoctorPortal({ user, doctors, payouts }: DoctorPortalProps) {
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Today's earnings"
+        <KpiCard
+          label="Today's Earnings"
           value={money(todaysPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0))}
-          helper={`${todaysPayouts.length} payout records today`}
-          icon={CalendarDays}
-          tone="lagoon"
+          helper={`${todaysPayouts.length} payout records`}
+          tone="info"
         />
-        <MetricCard
-          label="Monthly earnings"
+        <KpiCard
+          label="Monthly Earnings"
           value={money(monthlyPayouts.reduce((sum, payout) => sum + payout.payoutAmount, 0))}
-          helper={`${monthlyPayouts.length} payout records in selected month`}
-          icon={Banknote}
-          tone="care"
+          helper={`${monthlyPayouts.length} payout records`}
+          tone="success"
         />
-        <MetricCard
-          label="Paid amount"
+        <KpiCard
+          label="Paid Amount"
           value={money(paid.reduce((sum, payout) => sum + payout.payoutAmount, 0))}
           helper={`${paid.length} records paid`}
-          icon={CheckCircle2}
-          tone="ink"
+          tone="primary"
         />
-        <MetricCard
-          label="Unpaid amount"
+        <KpiCard
+          label="Unpaid Amount"
           value={money(unpaid.reduce((sum, payout) => sum + payout.payoutAmount, 0))}
-          helper={`${unpaid.length} records awaiting voucher payment`}
-          icon={Clock3}
-          tone="amber"
+          helper={`${unpaid.length} records awaiting payment`}
+          tone="warning"
         />
       </div>
 
       <section className="panel overflow-hidden">
         <div className="border-b border-[#224770] bg-[#224770] p-5">
           <h2 className="font-semibold text-white">Earnings breakdown</h2>
-          <p className="mt-1 text-sm text-white/80">
-            Doctors see service, invoice number, reason, amount, and payment status only.
-          </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className={tableStyles.wrapper}>
+          <table className={tableStyles.table}>
+            <thead className={tableStyles.head}>
               <tr>
-                <th className="px-5 py-3">Date</th>
-                <th className="px-5 py-3">Invoice / Clinic Shift</th>
-                <th className="px-5 py-3">Type</th>
-                <th className="px-5 py-3">Payment reason</th>
-                <th className="px-5 py-3 text-right">Amount</th>
-                <th className="px-5 py-3">Status</th>
+                <th className={tableStyles.headerCell}>Date</th>
+                <th className={tableStyles.headerCell}>Invoice / Shift</th>
+                <th className={tableStyles.headerCell}>Type</th>
+                <th className={tableStyles.headerCell}>Payment Reason</th>
+                <th className={tableStyles.numericHeaderCell}>Amount</th>
+                <th className={tableStyles.headerCell}>Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#efefef]">
               {monthlyPayouts.map((payout) => (
-                <tr key={payout.id}>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">{shortDate(payout.date)}</td>
-                  <td className="whitespace-nowrap px-5 py-4 font-semibold text-ink">{payout.invoiceNo}</td>
-                  <td className="px-5 py-4 text-slate-600">
+                <tr key={payout.id} className={tableStyles.row}>
+                  <td className={tableStyles.cell}>{shortDate(payout.date)}</td>
+                  <td className={tableStyles.strongCell}>{payout.invoiceNo}</td>
+                  <td className={tableStyles.cell}>
                     {payout.payoutMode === "shift" ? "Clinic Shift Voucher" : "Invoice payout"}
                   </td>
-                  <td className="px-5 py-4 text-slate-600">{payout.paymentReason}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-ink">
+                  <td className={tableStyles.cell}>{payout.paymentReason}</td>
+                  <td className={tableStyles.numericCell}>
                     {money(payout.payoutAmount)}
                   </td>
-                  <td className="px-5 py-4">
+                  <td className={tableStyles.cell}>
                     <StatusPill tone={payout.status === "paid" ? "green" : "amber"}>
                       {payout.status}
                     </StatusPill>
                   </td>
                 </tr>
               ))}
+              {!monthlyPayouts.length ? (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm text-[#46484a]" colSpan={6}>
+                    No payout records found for the selected month.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

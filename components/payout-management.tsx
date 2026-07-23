@@ -381,8 +381,8 @@ export function PayoutManagement({
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="panel order-2 overflow-hidden xl:order-2">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="panel overflow-hidden">
           <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
             <h2 className="font-semibold text-white">Doctor Payout Records</h2>
           </div>
@@ -431,7 +431,7 @@ export function PayoutManagement({
           </div>
         </section>
 
-        <section className="panel order-1 overflow-hidden xl:order-1">
+        <section className="panel overflow-hidden xl:self-start">
           <div className="border-b border-[#224770] bg-[#224770] px-4 py-3">
             <h2 className="font-semibold text-white">Voucher Management</h2>
           </div>
@@ -513,7 +513,7 @@ export function PayoutManagement({
                 </div>
                 <ActionSelect
                   ariaLabel={`Actions for voucher ${selectedVoucher.voucherNo}`}
-                  className="justify-start"
+                  className="max-w-full justify-start"
                   actions={[
                     {
                       value: "paid",

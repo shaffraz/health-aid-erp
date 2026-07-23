@@ -21,15 +21,14 @@ export function ActionSelect({
   actions,
   ariaLabel = "Row actions",
   className,
-  placeholder = "Select action"
+  placeholder = "Action"
 }: ActionSelectProps) {
   const id = useId();
   const [selectedValue, setSelectedValue] = useState("");
 
-  function applyAction(value: string) {
-    setSelectedValue(value);
-    const selectedAction = actions.find((action) => action.value === value);
+  const selectedAction = actions.find((action) => action.value === selectedValue);
 
+  function applyAction() {
     if (!selectedAction || selectedAction.disabled) {
       return;
     }
@@ -41,7 +40,7 @@ export function ActionSelect({
   return (
     <div
       className={cn(
-        "flex w-full min-w-[150px] max-w-[180px] items-center justify-end rounded-lg bg-[#efefef] p-1",
+        "flex w-full min-w-[132px] max-w-[156px] items-center gap-1 rounded-lg bg-[#efefef] p-1",
         className
       )}
     >
@@ -51,8 +50,8 @@ export function ActionSelect({
       <select
         id={id}
         value={selectedValue}
-        onChange={(event) => applyAction(event.target.value)}
-        className="focus-ring min-h-10 w-full rounded-md border border-[#d9d9d9] bg-white px-2.5 py-2 text-xs font-semibold text-[#46484a]"
+        onChange={(event) => setSelectedValue(event.target.value)}
+        className="focus-ring min-h-10 min-w-0 flex-1 rounded-md border border-[#d9d9d9] bg-white px-2 py-2 text-xs font-semibold text-[#46484a]"
       >
         <option value="">{placeholder}</option>
         {actions.map((action) => (
@@ -61,6 +60,14 @@ export function ActionSelect({
           </option>
         ))}
       </select>
+      <button
+        type="button"
+        onClick={applyAction}
+        disabled={!selectedAction || selectedAction.disabled}
+        className="focus-ring min-h-10 rounded-md bg-[#224770] px-2 text-xs font-semibold text-white transition hover:bg-[#0eb6ef] disabled:bg-[#d9d9d9] disabled:text-[#46484a]/55"
+      >
+        Go
+      </button>
     </div>
   );
 }

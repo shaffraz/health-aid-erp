@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { KpiCard, tableStyles } from "@/components/erp-ui";
+import { tableStyles } from "@/components/erp-ui";
 import {
   generatePayoutsForInvoices,
   invoiceItemRevenueAmount,
@@ -139,37 +139,44 @@ const sectionTones: Record<
     panel: string;
     header: string;
     title: string;
+    eyebrow: string;
   }
 > = {
   operations: {
-    panel: "border-[#d9d9d9] bg-white",
-    header: "border-[#224770] bg-[#224770]",
-    title: "text-white"
+    panel: "border-[#224770]/20 bg-white",
+    header: "border-[#224770]/15 bg-[#224770]",
+    title: "text-white",
+    eyebrow: "bg-white/90"
   },
   performance: {
-    panel: "border-[#84bc3f]/35 bg-white",
-    header: "border-[#84bc3f] bg-[#84bc3f]",
-    title: "text-white"
+    panel: "border-[#84bc3f]/25 bg-white",
+    header: "border-[#84bc3f]/15 bg-[#84bc3f]",
+    title: "text-white",
+    eyebrow: "bg-white/90"
   },
   services: {
-    panel: "bg-white",
-    header: "border-[#0eb6ef] bg-[#0eb6ef]",
-    title: "text-white"
+    panel: "border-[#0eb6ef]/20 bg-white",
+    header: "border-[#0eb6ef]/15 bg-[#0eb6ef]",
+    title: "text-white",
+    eyebrow: "bg-white/90"
   },
   season: {
-    panel: "bg-white",
-    header: "border-[#224770] bg-[#224770]",
-    title: "text-white"
+    panel: "border-[#224770]/20 bg-white",
+    header: "border-[#224770]/15 bg-[#224770]",
+    title: "text-white",
+    eyebrow: "bg-white/90"
   },
   yearly: {
-    panel: "bg-white",
-    header: "border-[#46484a] bg-[#46484a]",
-    title: "text-white"
+    panel: "border-[#46484a]/20 bg-white",
+    header: "border-[#46484a]/15 bg-[#46484a]",
+    title: "text-white",
+    eyebrow: "bg-white/90"
   },
   insights: {
-    panel: "bg-white",
-    header: "border-[#0eb6ef] bg-[#0eb6ef]",
-    title: "text-white"
+    panel: "border-[#0eb6ef]/20 bg-white",
+    header: "border-[#0eb6ef]/15 bg-[#0eb6ef]",
+    title: "text-white",
+    eyebrow: "bg-white/90"
   }
 };
 
@@ -177,8 +184,13 @@ function SectionTitle({ title, tone }: { title: string; tone: SectionTone }) {
   const styles = sectionTones[tone];
 
   return (
-    <div className={cn("border-b px-5 py-4", styles.header)}>
-      <h2 className={cn("font-semibold", styles.title)}>{title}</h2>
+    <div className={cn("border-b px-5 py-3.5", styles.header)}>
+      <div className="flex items-center gap-3">
+        <span className={cn("h-1.5 w-9 rounded-full", styles.eyebrow)} aria-hidden="true" />
+        <h2 className={cn("text-sm font-semibold tracking-tight md:text-base", styles.title)}>
+          {title}
+        </h2>
+      </div>
     </div>
   );
 }
@@ -193,34 +205,97 @@ function DashboardSection({
   children: ReactNode;
 }) {
   return (
-    <section className={cn("panel overflow-hidden", sectionTones[tone].panel)}>
+    <section className={cn("overflow-hidden rounded-xl border shadow-sm", sectionTones[tone].panel)}>
       <SectionTitle title={title} tone={tone} />
       {children}
     </section>
   );
 }
 
-function SummaryCard({
+type CardTone = "default" | "primary" | "info" | "success" | "warning";
+
+const cardToneStyles: Record<
+  CardTone,
+  {
+    border: string;
+    value: string;
+    badge: string;
+  }
+> = {
+  default: {
+    border: "border-[#efefef]",
+    value: "text-[#224770]",
+    badge: "bg-[#efefef] text-[#46484a]"
+  },
+  primary: {
+    border: "border-[#224770]/22",
+    value: "text-[#224770]",
+    badge: "bg-[#224770] text-white"
+  },
+  info: {
+    border: "border-[#0eb6ef]/28",
+    value: "text-[#224770]",
+    badge: "bg-[#0eb6ef] text-white"
+  },
+  success: {
+    border: "border-[#84bc3f]/35",
+    value: "text-[#224770]",
+    badge: "bg-[#84bc3f] text-white"
+  },
+  warning: {
+    border: "border-[#46484a]/25",
+    value: "text-[#224770]",
+    badge: "bg-[#efefef] text-[#46484a]"
+  }
+};
+
+function DashboardCard({
   label,
   value,
+  badge,
   helper,
-  warning = false
+  tone = "default",
+  compact = false,
+  className
 }: {
   label: string;
   value: string;
+  badge?: string;
   helper?: string;
-  warning?: boolean;
+  tone?: CardTone;
+  compact?: boolean;
+  className?: string;
 }) {
+  const styles = cardToneStyles[tone];
+
   return (
     <div
-      className={[
-        "rounded-xl border p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md",
-        warning ? "border-[#224770]/30 bg-[#efefef]/60" : "border-[#efefef] bg-white"
-      ].join(" ")}
+      className={cn(
+        "flex min-h-[116px] flex-col justify-between rounded-lg border bg-white p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md md:p-5",
+        compact && "min-h-[104px]",
+        styles.border,
+        className
+      )}
     >
-      <p className="label text-[#46484a]">{label}</p>
-      <p className="mt-3 break-words text-xl font-bold text-[#224770]">{value}</p>
-      {helper ? <p className="mt-1 text-sm font-medium text-[#46484a]">{helper}</p> : null}
+      <div className="flex items-start justify-between gap-3">
+        <p className="label text-[#46484a]">{label}</p>
+        {badge ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
+              styles.badge
+            )}
+          >
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      <div>
+        <p className={cn("mt-3 break-words text-2xl font-bold tracking-tight", styles.value)}>
+          {value}
+        </p>
+        {helper ? <p className="mt-1 text-sm font-medium text-[#46484a]">{helper}</p> : null}
+      </div>
     </div>
   );
 }
@@ -236,14 +311,14 @@ function PaymentDistributionPanel({
   total: number;
 }) {
   return (
-    <div className="rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md md:col-span-2 xl:col-span-3">
+    <div className="rounded-lg border border-[#efefef] bg-white p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md md:col-span-2 md:p-5 xl:col-span-3">
       <p className="label text-[#46484a]">Cash / Card / Insurance Distribution</p>
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {rows.map((row) => {
           const percentage = total > 0 ? Math.round((row.amount / total) * 100) : 0;
 
           return (
-            <div key={row.method} className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-4">
+            <div key={row.method} className="rounded-lg border border-[#efefef] bg-[#efefef]/35 p-3.5">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-[#224770]">
                   {paymentMethodLabels[row.method]}
@@ -447,70 +522,73 @@ export function DashboardOverview({
     0
   );
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <DashboardSection title="Operations" tone="operations">
-        <div className="grid gap-4 p-5 md:grid-cols-3">
-          <KpiCard
+        <div className="grid gap-4 p-4 md:grid-cols-[1.35fr_1fr_1fr] md:p-5">
+          <DashboardCard
             label="Active Doctor Payment Mode"
             value={paymentModeLabels[activePaymentMode]}
-            helper="Active system mode"
+            badge="Settings"
             tone="primary"
-            className="min-h-full"
+            compact
           />
-          <KpiCard
+          <DashboardCard
             label="Active Doctors"
             value={String(activeDoctors.length)}
-            tone="primary"
-            className="min-h-full"
+            tone="default"
+            compact
           />
-          <KpiCard
+          <DashboardCard
             label="Active Services"
             value={String(activeServices.length)}
             tone="success"
-            className="min-h-full"
+            compact
           />
         </div>
       </DashboardSection>
 
       <DashboardSection title="Business Performance" tone="performance">
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
+        <div className="grid gap-4 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-4">
+          <DashboardCard
             label={currencyLabelParenthetical("Today's Revenue", invoiceCurrencyCode)}
             value={usdWhole(todayRevenue)}
             tone="info"
           />
-          <KpiCard label="Patients Seen Today" value={String(patientsSeenToday)} />
-          <KpiCard
+          <DashboardCard label="Patients Seen Today" value={String(patientsSeenToday)} />
+          <DashboardCard
             label={currencyLabelParenthetical("This Month Revenue", invoiceCurrencyCode)}
             value={usdWhole(monthlyRevenue)}
             tone="success"
           />
-          <KpiCard
+          <DashboardCard
             label={currencyLabelParenthetical("Current Season Revenue", invoiceCurrencyCode)}
             value={usdWhole(currentSeasonRevenue)}
-            helper={`${currentSeason.label}: ${currentSeason.fromDate} to ${currentSeason.toDate}`}
             tone="primary"
           />
         </div>
       </DashboardSection>
 
       <DashboardSection title="Monthly Services Summary" tone="services">
-        <div className="overflow-x-auto p-5">
-          <div className="flex min-w-full gap-4 pb-1">
+        <div className="overflow-x-auto p-4 md:p-5">
+          <div className="flex min-w-full gap-3 pb-1 md:gap-4">
             {monthlyServiceSummary.map((item) => (
               <div
                 key={item.serviceName}
-                className="w-full min-w-[220px] rounded-xl border border-[#efefef] bg-white p-5 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
+                className="flex min-h-[128px] w-full min-w-[190px] max-w-[240px] flex-col justify-between rounded-lg border border-[#efefef] bg-white p-4 shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md"
               >
-                <p className="text-sm font-semibold text-[#224770]">{item.serviceName}</p>
-                <p className="mt-4 text-2xl font-bold text-[#224770]">{item.count}</p>
-                <p className="mt-3 text-sm font-medium text-[#46484a]">
-                  Revenue {usdWhole(item.revenue)}
+                <p className="line-clamp-2 text-sm font-semibold leading-5 text-[#224770]">
+                  {item.serviceName}
                 </p>
+                <div>
+                  <p className="text-2xl font-bold text-[#224770]">{item.count}</p>
+                  <p className="mt-1 text-sm font-medium text-[#46484a]">
+                    Revenue {usdWhole(item.revenue)}
+                  </p>
+                </div>
               </div>
             ))}
             {!monthlyServiceSummary.length ? (
-              <div className="w-full min-w-[260px] rounded-xl border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a]">
+              <div className="w-full min-w-[260px] rounded-lg border border-[#efefef] bg-[#efefef] p-5 text-sm font-semibold text-[#46484a]">
                 No services with recorded value this month.
               </div>
             ) : null}
@@ -519,9 +597,9 @@ export function DashboardOverview({
       </DashboardSection>
 
       <DashboardSection title="Current Season Summary" tone="season">
-        <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 p-4 sm:grid-cols-2 md:p-5 xl:grid-cols-4">
           {currentSeasonSummary.map((item) => (
-            <SummaryCard
+            <DashboardCard
               key={item.category}
               label={item.category}
               value={`${item.cases} cases`}
@@ -563,23 +641,23 @@ export function DashboardOverview({
       </DashboardSection>
 
       <DashboardSection title="Business Insights" tone="insights">
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-          <SummaryCard
+        <div className="grid gap-4 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-3">
+          <DashboardCard
             label={currencyLabelParenthetical("Average Invoice Value", invoiceCurrencyCode)}
             value={usdWhole(averageInvoiceValue)}
           />
-          <SummaryCard
+          <DashboardCard
             label={currencyLabelParenthetical("Pending Doctor Payouts", localCurrencyCode)}
             value={money(monthlyPendingPayouts)}
-            warning={monthlyPendingPayouts > 0}
+            tone={monthlyPendingPayouts > 0 ? "warning" : "default"}
           />
-          <SummaryCard
+          <DashboardCard
             label={currencyLabelParenthetical(
               "Outstanding Insurance Receivables",
               invoiceCurrencyCode
             )}
             value={usdWhole(outstandingInsuranceReceivables)}
-            warning={outstandingInsuranceReceivables > 0}
+            tone={outstandingInsuranceReceivables > 0 ? "warning" : "default"}
           />
           <PaymentDistributionPanel
             rows={paymentDistributionRows}
